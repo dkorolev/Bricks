@@ -29,8 +29,8 @@ SOFTWARE.
 
 #define CURRENT_MOCK_TIME  // `SetNow()`.
 
-#include "memory.h"
 #include "file.h"
+#include "memory.h"
 
 #include "../ss/ss.h"
 

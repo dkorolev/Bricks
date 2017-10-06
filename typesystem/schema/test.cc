@@ -33,8 +33,8 @@ SOFTWARE.
 #include "../evolution/type_evolution.h"
 
 #include "../../bricks/dflags/dflags.h"
-#include "../../bricks/strings/strings.h"
 #include "../../bricks/file/file.h"
+#include "../../bricks/strings/strings.h"
 
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
 
@@ -324,7 +324,8 @@ TEST(Schema, SmokeTestFullStruct) {
       FileSystem::ReadFileAsString(Golden("smoke_test_struct.json")));
   EXPECT_EQ(schema.Describe<Language::JSON>(), JSON<JSONFormat::Minimalistic>(restored_short_schema));
 
-  EXPECT_EQ(FileSystem::ReadFileAsString(Golden("smoke_test_struct.ts")), restored_schema.Describe<Language::TypeScript>());
+  EXPECT_EQ(FileSystem::ReadFileAsString(Golden("smoke_test_struct.ts")),
+            restored_schema.Describe<Language::TypeScript>());
 }
 
 namespace schema_test {
@@ -367,8 +368,8 @@ namespace current {
 namespace type_evolution {
 template <typename FROM_NAMESPACE, typename FROM_TYPE, typename EVOLVER = ::current::type_evolution::NaturalEvolver>
 struct Evolve;
-}  // namespace schema_test::current::type_evolution
-}  // namespace schema_test::current
+}  // namespace type_evolution
+}  // namespace current
 
 #include "golden/smoke_test_struct.h"
 }  // namespace schema_test

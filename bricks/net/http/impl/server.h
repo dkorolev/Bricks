@@ -26,15 +26,15 @@ SOFTWARE.
 #define BRICKS_NET_HTTP_IMPL_SERVER_H
 
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <memory>
 
 #include "../codes.h"
 #include "../constants.h"
-#include "../mime_type.h"
 #include "../default_messages.h"
+#include "../mime_type.h"
 
 #include "../headers/headers.h"
 
@@ -44,11 +44,11 @@ SOFTWARE.
 
 #include "../../../template/enable_if.h"
 
-#include "../../../../typesystem/struct.h"
 #include "../../../../typesystem/serialization/json.h"
+#include "../../../../typesystem/struct.h"
 
-#include "../../../strings/util.h"
 #include "../../../strings/split.h"
+#include "../../../strings/util.h"
 
 #include "../../../../blocks/url/url.h"
 

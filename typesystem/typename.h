@@ -95,7 +95,7 @@ struct VariantFullNamePrinter {
   static std::string Value() { return "Variant_B_" + TypeListNamesAsCSV<T>::Value() + "_E"; }
 };
 
-}  // namespace current::reflection::impl
+}  // namespace impl
 
 struct CurrentVariantDefaultName final {
   template <typename TYPELIST>
@@ -104,7 +104,7 @@ struct CurrentVariantDefaultName final {
   }
 };
 
-}  // namespace current::reflection
+}  // namespace reflection
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_TYPENAME_H

@@ -1,5 +1,5 @@
-#include "../../../storage/storage.h"
 #include "../../../storage/persister/stream.h"
+#include "../../../storage/storage.h"
 
 CURRENT_ENUM(EntryID, uint64_t);
 

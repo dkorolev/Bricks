@@ -25,8 +25,8 @@ SOFTWARE.
 #ifndef CURRENT_STORAGE_API_TYPES_H
 #define CURRENT_STORAGE_API_TYPES_H
 
-#include "storage.h"
 #include "container/sfinae.h"
+#include "storage.h"
 
 #include "../blocks/http/api.h"
 
@@ -149,15 +149,15 @@ struct FieldTypeDependent : FieldTypeDependentImpl<PRIMARY_KEY_TYPE> {
           proxied_request_rref("Need resource key in the URL.\n", HTTPResponseCode.BadRequest);
         }
         // LCOV_EXCL_STOP
-        );
+    );
   }
 
   template <typename F>
   static void CallWithOptionalKeyFromURL(Request&& request_rref, F&& next) {
     FieldTypeDependentImpl<PRIMARY_KEY_TYPE>::CallWithOrWithoutKeyFromURL(
-        std::move(request_rref),
-        std::forward<F>(next),
-        [&next](Request&& proxied_request_rref) { next(std::move(proxied_request_rref), nullptr); });
+        std::move(request_rref), std::forward<F>(next), [&next](Request&& proxied_request_rref) {
+          next(std::move(proxied_request_rref), nullptr);
+        });
   }
 };
 

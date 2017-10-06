@@ -29,9 +29,9 @@ SOFTWARE.
 
 #include "file.h"
 
+#include "../../3rdparty/gtest/gtest-main-with-dflags.h"
 #include "../dflags/dflags.h"
 #include "../strings/join.h"
-#include "../../3rdparty/gtest/gtest-main-with-dflags.h"
 
 using current::FileSystem;
 using current::FileException;
@@ -302,11 +302,10 @@ TEST(File, ScanDirParameters) {
   {
     std::set<std::string> names;
     std::map<std::string, FileSystem::ScanDirItemInfo> item_infos;
-    FileSystem::ScanDir(base_dir,
-                        [&names, &item_infos](const FileSystem::ScanDirItemInfo& x) {
-                          names.insert(x.basename);
-                          item_infos.insert(std::make_pair(x.basename, x));
-                        });
+    FileSystem::ScanDir(base_dir, [&names, &item_infos](const FileSystem::ScanDirItemInfo& x) {
+      names.insert(x.basename);
+      item_infos.insert(std::make_pair(x.basename, x));
+    });
     EXPECT_EQ("f", current::strings::Join(names, ','));
     EXPECT_EQ(f, item_infos.at("f").pathname);
     EXPECT_EQ(base_dir, item_infos.at("f").dirname);

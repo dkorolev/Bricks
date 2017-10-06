@@ -26,11 +26,11 @@ SOFTWARE.
 #ifndef CURRENT_STORAGE_PERSISTER_STREAM_H
 #define CURRENT_STORAGE_PERSISTER_STREAM_H
 
-#include "common.h"
+#include "../../stream/stream.h"
 #include "../base.h"
 #include "../exceptions.h"
 #include "../transaction.h"
-#include "../../stream/stream.h"
+#include "common.h"
 
 #include "../../bricks/sync/locks.h"
 
@@ -44,8 +44,8 @@ class StreamStreamPersisterImpl final {
   using variant_t = MUTATIONS_VARIANT;
   using transaction_t = Transaction<variant_t>;
   using stream_entry_t = typename std::conditional<std::is_same<STREAM_RECORD_TYPE, NoCustomPersisterParam>::value,
-                                                     transaction_t,
-                                                     STREAM_RECORD_TYPE>::type;
+                                                   transaction_t,
+                                                   STREAM_RECORD_TYPE>::type;
   using stream_t = stream::Stream<stream_entry_t, UNDERLYING_PERSISTER>;
   using fields_update_function_t = std::function<void(const variant_t&)>;
 

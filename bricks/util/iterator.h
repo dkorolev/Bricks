@@ -27,8 +27,8 @@
 
 #include "../../port.h"
 
-#include "../template/pod.h"
 #include "../template/is_unique_ptr.h"
+#include "../template/pod.h"
 
 namespace current {
 namespace stl_wrappers {
@@ -138,7 +138,7 @@ struct is_unordered_map {
   constexpr static bool value = Check<MAP>(0);
 };
 
-}  // namespace current::stl_wrappers::sfinae
+}  // namespace sfinae
 
 template <typename MAP>
 struct GenericMapAccessor final {
@@ -176,7 +176,7 @@ struct GenericMapAccessor final {
   int64_t TotalElementsForHypermediaCollectionView() const { return static_cast<int64_t>(Size()); }
 };
 
-}  // namespace current::stl_wrappers
+}  // namespace stl_wrappers
 
 using stl_wrappers::GenericMapIterator;
 using stl_wrappers::GenericMapAccessor;

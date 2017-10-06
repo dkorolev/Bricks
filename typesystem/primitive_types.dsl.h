@@ -44,15 +44,26 @@ CURRENT_DECLARE_PRIMITIVE_TYPE(32, int16_t, Int16, "int16", "Integer (16-bit sig
 CURRENT_DECLARE_PRIMITIVE_TYPE(33, int32_t, Int32, "int32", "Integer (32-bit signed)", "C5TCurrent.Int32")
 CURRENT_DECLARE_PRIMITIVE_TYPE(34, int64_t, Int64, "int64", "Integer (64-bit signed)", "C5TCurrent.Int64")
 
-CURRENT_DECLARE_PRIMITIVE_TYPE(41, char, Char, "char", "Character", "C5TCurrent.Char")  // Although F# chars are Unicode.
+CURRENT_DECLARE_PRIMITIVE_TYPE(
+    41, char, Char, "char", "Character", "C5TCurrent.Char")  // Although F# chars are Unicode.
 CURRENT_DECLARE_PRIMITIVE_TYPE(42, std::string, String, "string", "String", "C5TCurrent.String")
 
-CURRENT_DECLARE_PRIMITIVE_TYPE(51, float, Float, "float", "Number (floating point, single precision)", "C5TCurrent.Float")
-CURRENT_DECLARE_PRIMITIVE_TYPE(52, double, Double, "double", "Number (floating point, double precision)", "C5TCurrent.Double")
+CURRENT_DECLARE_PRIMITIVE_TYPE(
+    51, float, Float, "float", "Number (floating point, single precision)", "C5TCurrent.Float")
+CURRENT_DECLARE_PRIMITIVE_TYPE(
+    52, double, Double, "double", "Number (floating point, double precision)", "C5TCurrent.Double")
 
-CURRENT_DECLARE_PRIMITIVE_TYPE(
-    61, std::chrono::microseconds, Microseconds, "int64  // microseconds.", "Time (microseconds since epoch)", "C5TCurrent.Microseconds")
-CURRENT_DECLARE_PRIMITIVE_TYPE(
-    62, std::chrono::milliseconds, Milliseconds, "int64  // milliseconds.", "Time (milliseconds since epoch)", "C5TCurrent.Milliseconds")
+CURRENT_DECLARE_PRIMITIVE_TYPE(61,
+                               std::chrono::microseconds,
+                               Microseconds,
+                               "int64  // microseconds.",
+                               "Time (microseconds since epoch)",
+                               "C5TCurrent.Microseconds")
+CURRENT_DECLARE_PRIMITIVE_TYPE(62,
+                               std::chrono::milliseconds,
+                               Milliseconds,
+                               "int64  // milliseconds.",
+                               "Time (milliseconds since epoch)",
+                               "C5TCurrent.Milliseconds")
 
 #endif

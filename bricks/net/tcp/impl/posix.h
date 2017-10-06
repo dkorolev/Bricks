@@ -31,8 +31,8 @@ SOFTWARE.
 
 #include "../../debug_log.h"
 
-#include "../../../util/singleton.h"
 #include "../../../template/enable_if.h"
+#include "../../../util/singleton.h"
 
 #include <cstring>
 #include <string>
@@ -41,8 +41,8 @@ SOFTWARE.
 
 #ifndef CURRENT_WINDOWS
 
-#include <errno.h>
 #include <arpa/inet.h>
+#include <errno.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
@@ -505,7 +505,7 @@ namespace addrinfo_t_impl {
 struct Deleter {
   void operator()(struct addrinfo* ptr) { ::freeaddrinfo(ptr); }
 };
-}
+}  // namespace addrinfo_t_impl
 using addrinfo_t = std::unique_ptr<struct addrinfo, addrinfo_t_impl::Deleter>;
 
 inline addrinfo_t GetAddrInfo(const std::string& host, const std::string& serv = "") {

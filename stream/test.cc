@@ -26,24 +26,24 @@ SOFTWARE.
 #define CURRENT_MOCK_TIME
 #define CURRENT_BUILD_WITH_PARANOIC_RUNTIME_CHECKS
 
-#include "stream.h"
 #include "replicator.h"
+#include "stream.h"
 
-#include <string>
 #include <atomic>
+#include <string>
 #include <thread>
 
 #include "../typesystem/struct.h"
 #include "../typesystem/variant.h"
 
 #include "../blocks/http/api.h"
-#include "../blocks/persistence/memory.h"
 #include "../blocks/persistence/file.h"
+#include "../blocks/persistence/memory.h"
 
 #include "../bricks/strings/strings.h"
 
-#include "../bricks/time/chrono.h"
 #include "../bricks/dflags/dflags.h"
+#include "../bricks/time/chrono.h"
 
 #include "../3rdparty/gtest/gtest-main-with-dflags.h"
 
@@ -66,9 +66,8 @@ CURRENT_STRUCT(Record) {
 CURRENT_STRUCT(RecordWithTimestamp) {
   CURRENT_FIELD(s, std::string);
   CURRENT_FIELD(t, std::chrono::microseconds);
-  CURRENT_CONSTRUCTOR(RecordWithTimestamp)(std::string s = "",
-                                           std::chrono::microseconds t = std::chrono::microseconds(0ull))
-      : s(s), t(t) {}
+  CURRENT_CONSTRUCTOR(RecordWithTimestamp)
+  (std::string s = "", std::chrono::microseconds t = std::chrono::microseconds(0ull)) : s(s), t(t) {}
   CURRENT_USE_FIELD_AS_TIMESTAMP(t);
 };
 
@@ -518,9 +517,9 @@ TEST(Stream, SubscribeToStreamViaHTTP) {
     {
       const auto result = HTTP(GET(base_url + "?schema=blah"));
       EXPECT_EQ(404, static_cast<int>(result.code));
-      EXPECT_EQ("blah",
-                Value(ParseJSON<current::stream::StreamSchemaFormatNotFoundError>(result.body)
-                          .unsupported_format_requested));
+      EXPECT_EQ(
+          "blah",
+          Value(ParseJSON<current::stream::StreamSchemaFormatNotFoundError>(result.body).unsupported_format_requested));
     }
     {
       // The `base_url` location does not have the URL argument registered, so it's a plain "standard" 404.
@@ -781,11 +780,11 @@ const std::string golden_signature() {
 }
 
 const std::string stream_golden_data = golden_signature() +
-                                         "{\"index\":0,\"us\":100}\t{\"x\":1}\n"
-                                         "{\"index\":1,\"us\":200}\t{\"x\":2}\n"
-                                         "#head 00000000000000000300\n"
-                                         "{\"index\":2,\"us\":400}\t{\"x\":3}\n"
-                                         "#head 00000000000000000500\n";
+                                       "{\"index\":0,\"us\":100}\t{\"x\":1}\n"
+                                       "{\"index\":1,\"us\":200}\t{\"x\":2}\n"
+                                       "#head 00000000000000000300\n"
+                                       "{\"index\":2,\"us\":400}\t{\"x\":3}\n"
+                                       "#head 00000000000000000500\n";
 
 // clang-format off
 const std::string stream_golden_data_chunks[] = {
@@ -892,37 +891,35 @@ TEST(Stream, ParseArbitrarilySplitChunks) {
   // Simulate subscription to stream stream.
   const auto scope =
       HTTP(FLAGS_stream_http_test_port)
-          .Register("/log",
-                    URLPathArgs::CountMask::None | URLPathArgs::CountMask::One,
-                    [](Request r) {
-                      EXPECT_EQ("GET", r.method);
-                      const std::string subscription_id = "fake_subscription";
-                      if (r.url.query.has("terminate")) {
-                        EXPECT_EQ(r.url.query["terminate"], subscription_id);
-                        r("", HTTPResponseCode.OK);
-                      } else if (r.url.query.has("i")) {
-                        const auto index = current::FromString<uint64_t>(r.url.query["i"]);
-                        auto response = r.connection.SendChunkedHTTPResponse(
-                            HTTPResponseCode.OK,
-                            "text/plain",
-                            current::net::http::Headers({{"X-Current-Stream-Subscription-Id", subscription_id}}));
-                        if (index == 0u) {
-                          for (const auto& chunk : stream_golden_data_chunks) {
-                            response.Send(chunk);
-                          }
-                        } else {
-                          EXPECT_EQ(3u, index);
-                        }
-                      } else {
-                        EXPECT_EQ(1u, r.url_path_args.size());
-                        EXPECT_EQ("schema.simple", r.url_path_args[0]);
-                        r(current::stream::SubscribableStreamSchema(
-                            Value<current::reflection::ReflectedTypeBase>(
-                                current::reflection::Reflector().ReflectType<Record>()).type_id,
-                            "Record",
-                            "Namespace"));
-                      }
-                    });
+          .Register("/log", URLPathArgs::CountMask::None | URLPathArgs::CountMask::One, [](Request r) {
+            EXPECT_EQ("GET", r.method);
+            const std::string subscription_id = "fake_subscription";
+            if (r.url.query.has("terminate")) {
+              EXPECT_EQ(r.url.query["terminate"], subscription_id);
+              r("", HTTPResponseCode.OK);
+            } else if (r.url.query.has("i")) {
+              const auto index = current::FromString<uint64_t>(r.url.query["i"]);
+              auto response = r.connection.SendChunkedHTTPResponse(
+                  HTTPResponseCode.OK,
+                  "text/plain",
+                  current::net::http::Headers({{"X-Current-Stream-Subscription-Id", subscription_id}}));
+              if (index == 0u) {
+                for (const auto& chunk : stream_golden_data_chunks) {
+                  response.Send(chunk);
+                }
+              } else {
+                EXPECT_EQ(3u, index);
+              }
+            } else {
+              EXPECT_EQ(1u, r.url_path_args.size());
+              EXPECT_EQ("schema.simple", r.url_path_args[0]);
+              r(current::stream::SubscribableStreamSchema(
+                  Value<current::reflection::ReflectedTypeBase>(current::reflection::Reflector().ReflectType<Record>())
+                      .type_id,
+                  "Record",
+                  "Namespace"));
+            }
+          });
 
   // Replicate data via subscription to the fake stream.
   current::stream::SubscribableRemoteStream<Record> remote_stream(
@@ -1033,11 +1030,10 @@ TEST(Stream, ReleaseAndAcquirePublisher) {
   struct DynamicStreamPublisherAcquirer {
     using publisher_t = typename Stream::publisher_t;
     DynamicStreamPublisherAcquirer(current::Borrowed<publisher_t> publisher)
-        : publisher_(std::move(publisher),
-                     [this]() {
-                       requested_termination_ = true;
-                       publisher_ = nullptr;
-                     }) {}
+        : publisher_(std::move(publisher), [this]() {
+            requested_termination_ = true;
+            publisher_ = nullptr;
+          }) {}
     bool requested_termination_ = false;
     current::BorrowedWithCallback<publisher_t> publisher_;
   };
@@ -1092,14 +1088,13 @@ TEST(Stream, ReleaseAndAcquirePublisher) {
           current::BorrowedWithCallback<publisher_t> publisher_;
           bool termination_requested_ = false;
           TemporaryPublisher(current::Borrowed<publisher_t> publisher)
-              : publisher_(publisher,
-                           [this]() {
-                             CURRENT_ASSERT(!termination_requested_);
-                             termination_requested_ = true;
-                             // Note: Comment out the next line and observe the deadlock in
-                             // `stream->BecomeMasterStream();` below.
-                             publisher_ = nullptr;
-                           }) {}
+              : publisher_(publisher, [this]() {
+                  CURRENT_ASSERT(!termination_requested_);
+                  termination_requested_ = true;
+                  // Note: Comment out the next line and observe the deadlock in
+                  // `stream->BecomeMasterStream();` below.
+                  publisher_ = nullptr;
+                }) {}
         };
 
         // Transfer ownership of the stream publisher to the external object.

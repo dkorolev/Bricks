@@ -31,8 +31,8 @@ SOFTWARE.
 #include <memory>
 #include <utility>
 
-#include "../bricks/template/pod.h"
 #include "../bricks/template/enable_if.h"
+#include "../bricks/template/pod.h"
 
 namespace crnt {
 
@@ -124,7 +124,7 @@ struct CheckIntegrityImplMethodTest {
   static constexpr bool value = HasCheckIntegrityImplMethod<ENTRY>(0);
 };
 
-}  // namespace crnt::sfinae
+}  // namespace sfinae
 }  // namespace crnt
 
 namespace current {
@@ -136,7 +136,7 @@ namespace sfinae {
 using ::crnt::sfinae::HasExistsImplMethod;
 using ::crnt::sfinae::ValueImplMethodTest;
 using ::crnt::sfinae::HasCheckIntegrityImplMethod;
-}  // namespace current::sfinae
+}  // namespace sfinae
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_SFINAE_H

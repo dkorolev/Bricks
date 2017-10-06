@@ -25,8 +25,8 @@ SOFTWARE.
 #ifndef SCHEMA_H
 #define SCHEMA_H
 
-#include "../../typesystem/struct.h"
 #include "../../storage/storage.h"
+#include "../../typesystem/struct.h"
 
 using EID = std::string;
 

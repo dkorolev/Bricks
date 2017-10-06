@@ -61,7 +61,7 @@ constexpr char kDirectiveMarker = '#';
 constexpr char kSignatureDirective[] = "#signature";
 constexpr char kHeadDirective[] = "#head";
 constexpr char kHeadFormatString[] = "%020lld";
-}  // namespace current::persistence::impl::constants
+}  // namespace constants
 
 typedef int64_t head_value_t;
 
@@ -460,7 +460,8 @@ class FilePersister {
     // would be serialized in an unwrapped way when passed directly.
     file_persister_impl_->file_appender_ << JSON(idxts) << '\t'
                                          << JSON(MakeSureTheRightTypeIsSerialized<ENTRY, decay<E>>::DoIt(
-                                                std::forward<E>(entry))) << std::endl;
+                                                std::forward<E>(entry)))
+                                         << std::endl;
     ++iterator.next_index;
     file_persister_impl_->head_offset_ = 0;
     file_persister_impl_->end_.store(iterator);
@@ -620,12 +621,12 @@ class FilePersister {
   Owned<FilePersisterImpl> file_persister_impl_;  // `Owned`, as iterators borrow it.
 };
 
-}  // namespace current::persistence::impl
+}  // namespace impl
 
 template <typename ENTRY>
 using File = ss::EntryPersister<impl::FilePersister<ENTRY>, ENTRY>;
 
-}  // namespace current::persistence
+}  // namespace persistence
 }  // namespace current
 
 #endif  // BLOCKS_PERSISTENCE_FILE_H

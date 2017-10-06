@@ -31,13 +31,13 @@ SOFTWARE.
 #include "../types.h"
 
 #include <memory>
-#include <string>
 #include <set>
+#include <string>
 
 #include "../../url/url.h"
 
-#include "../../../bricks/net/http/http.h"
 #include "../../../bricks/file/file.h"
+#include "../../../bricks/net/http/http.h"
 
 namespace current {
 namespace http {
@@ -57,7 +57,7 @@ struct HTTPRedirectHelper : current::net::HTTPDefaultHelper {
     current::net::HTTPDefaultHelper::OnHeader(key, value);
   }
 };
-}  // namespace current::http::impl
+}  // namespace impl
 
 template <class HTTP_HELPER>
 class GenericHTTPClientPOSIX final {

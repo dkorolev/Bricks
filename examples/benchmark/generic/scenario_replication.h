@@ -27,9 +27,9 @@
 
 #include "benchmark.h"
 
-#include "../replication/generate_stream.h"
 #include "../../../blocks/http/api.h"
 #include "../../../stream/replicator.h"
+#include "../replication/generate_stream.h"
 
 #include "../../../bricks/dflags/dflags.h"
 

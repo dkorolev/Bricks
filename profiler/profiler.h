@@ -138,29 +138,30 @@ struct Profiler {
           std::function<void(
               const PerThread::Trie& input, uint64_t total_ms, PerThreadReporting& output, const char* stack)>
               recursive_fill;
-          recursive_fill = [now, &recursive_fill](
-              const PerThread::Trie& input, uint64_t total_ms, PerThreadReporting& output, const char* stack) {
-            output.scope = stack;
-            output.entries = input.entries;
-            CURRENT_ASSERT(output.entries);
-            output.ms = input.ComputeTotalMilliseconds(now);
-            output.ms_per_entry = 1.0 * output.ms / output.entries;
-            output.absolute_best_possible_qps = output.ms ? (1000.0 / output.ms_per_entry) : 1e9;
-            output.ratio_of_parent = total_ms ? (1.0 * output.ms / total_ms) : 1.0;
-            output.subscope.reserve(input.children.size());
-            for (const auto& scope : input.children) {
-              output.subscope.resize(output.subscope.size() + 1);
-              recursive_fill(scope.second, output.ms, output.subscope.back(), scope.first);
-            }
-            CURRENT_ASSERT(output.subscope.size() == input.children.size());
-            uint64_t subscope_total = 0;
-            for (const auto& subscope : output.subscope) {
-              subscope_total += subscope.ms;
-            }
-            CURRENT_ASSERT(subscope_total <= output.ms);
-            output.subscope_total_ratio_of_parent = output.ms ? (1.0 * subscope_total / output.ms) : 1.0;
-            std::sort(output.subscope.begin(), output.subscope.end());
-          };
+          recursive_fill =
+              [now, &recursive_fill](
+                  const PerThread::Trie& input, uint64_t total_ms, PerThreadReporting& output, const char* stack) {
+                output.scope = stack;
+                output.entries = input.entries;
+                CURRENT_ASSERT(output.entries);
+                output.ms = input.ComputeTotalMilliseconds(now);
+                output.ms_per_entry = 1.0 * output.ms / output.entries;
+                output.absolute_best_possible_qps = output.ms ? (1000.0 / output.ms_per_entry) : 1e9;
+                output.ratio_of_parent = total_ms ? (1.0 * output.ms / total_ms) : 1.0;
+                output.subscope.reserve(input.children.size());
+                for (const auto& scope : input.children) {
+                  output.subscope.resize(output.subscope.size() + 1);
+                  recursive_fill(scope.second, output.ms, output.subscope.back(), scope.first);
+                }
+                CURRENT_ASSERT(output.subscope.size() == input.children.size());
+                uint64_t subscope_total = 0;
+                for (const auto& subscope : output.subscope) {
+                  subscope_total += subscope.ms;
+                }
+                CURRENT_ASSERT(subscope_total <= output.ms);
+                output.subscope_total_ratio_of_parent = output.ms ? (1.0 * subscope_total / output.ms) : 1.0;
+                std::sort(output.subscope.begin(), output.subscope.end());
+              };
           thread.resize(thread.size() + 1);
           std::ostringstream thread_id_as_string;
           thread_id_as_string << "C++ thread with internal ID " << per_thread_element.first;

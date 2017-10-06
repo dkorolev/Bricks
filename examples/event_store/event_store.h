@@ -25,9 +25,9 @@ SOFTWARE.
 #ifndef EVENT_STORE_H
 #define EVENT_STORE_H
 
-#include "../../typesystem/struct.h"
-#include "../../storage/storage.h"
 #include "../../storage/persister/stream.h"
+#include "../../storage/storage.h"
+#include "../../typesystem/struct.h"
 
 #include "../../blocks/http/api.h"
 
@@ -93,14 +93,18 @@ struct EventStore final {
         r("Need one URL parameter.\n", HTTPResponseCode.BadRequest);
       } else {
         const std::string key = r.url_path_args[0];
-        event_store_storage->ReadOnlyTransaction([key](ImmutableFields<event_store_storage_t> fields) -> Response {
-          const auto event = fields.events[key];
-          if (Exists(event)) {
-            return Value(event);
-          } else {
-            return Response("Not found.\n", HTTPResponseCode.NotFound);
-          }
-        }, std::move(r)).Wait();
+        event_store_storage
+            ->ReadOnlyTransaction(
+                [key](ImmutableFields<event_store_storage_t> fields) -> Response {
+                  const auto event = fields.events[key];
+                  if (Exists(event)) {
+                    return Value(event);
+                  } else {
+                    return Response("Not found.\n", HTTPResponseCode.NotFound);
+                  }
+                },
+                std::move(r))
+            .Wait();
       }
     } else if (r.method == "POST") {
       if (!r.url_path_args.empty()) {
@@ -108,27 +112,28 @@ struct EventStore final {
       } else {
         try {
           const auto event = ParseJSON<EVENT_TYPE>(r.body);
-          event_store_storage->ReadWriteTransaction(
-                                   [this, event](MutableFields<event_store_storage_t> fields) -> Response {
-                                     auto existing_event = fields.events[event.key];
-                                     if (Exists(existing_event)) {
-                                       // Ultimately, check the timestamp of an already existing record. -- D.K.
-                                       if (JSON(Value(existing_event)) == JSON(event)) {
-                                         return Response("Already published.\n", HTTPResponseCode.OK);
-                                       } else {
-                                         return Response("Conflict, not publishing.\n", HTTPResponseCode.Conflict);
-                                       }
-                                     } else {
-                                       fields.events.Add(event);
-                                       // Note: Since the storage uses the same stream, to avoid the deadlock
-                                       // it's essential to not lock the mutex.
-                                       event_store_storage->PublisherUsed()
-                                           ->template Publish<current::locks::MutexLockStatus::AlreadyLocked>(
-                                               EXTRA_TYPE(event));
-                                       return Response("Created.\n", HTTPResponseCode.Created);
-                                     }
-                                   },
-                                   std::move(r)).Wait();
+          event_store_storage
+              ->ReadWriteTransaction(
+                  [this, event](MutableFields<event_store_storage_t> fields) -> Response {
+                    auto existing_event = fields.events[event.key];
+                    if (Exists(existing_event)) {
+                      // Ultimately, check the timestamp of an already existing record. -- D.K.
+                      if (JSON(Value(existing_event)) == JSON(event)) {
+                        return Response("Already published.\n", HTTPResponseCode.OK);
+                      } else {
+                        return Response("Conflict, not publishing.\n", HTTPResponseCode.Conflict);
+                      }
+                    } else {
+                      fields.events.Add(event);
+                      // Note: Since the storage uses the same stream, to avoid the deadlock
+                      // it's essential to not lock the mutex.
+                      event_store_storage->PublisherUsed()
+                          ->template Publish<current::locks::MutexLockStatus::AlreadyLocked>(EXTRA_TYPE(event));
+                      return Response("Created.\n", HTTPResponseCode.Created);
+                    }
+                  },
+                  std::move(r))
+              .Wait();
         } catch (const TypeSystemParseJSONException& e) {
           r(std::string("JSON parse error:\n") + e.what() + '\n', HTTPResponseCode.BadRequest);
         }

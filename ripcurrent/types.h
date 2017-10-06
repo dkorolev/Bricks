@@ -29,8 +29,8 @@ SOFTWARE.
 
 #include <iostream>
 
-#include "../typesystem/struct.h"
 #include "../bricks/template/typelist.h"
+#include "../typesystem/struct.h"
 
 namespace current {
 namespace ripcurrent {
@@ -218,7 +218,7 @@ struct FileLine final {
   const size_t line;
 };
 
-}  // namespace current::ripcurrent
+}  // namespace ripcurrent
 }  // namespace current
 
 #endif  // CURRENT_RIPCURRENT_TYPES_H

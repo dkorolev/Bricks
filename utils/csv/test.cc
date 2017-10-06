@@ -24,10 +24,10 @@ SOFTWARE.
 
 #include "csv.h"
 
-#include "../../bricks/file/file.h"
-#include "../../bricks/dflags/dflags.h"
-#include "../../typesystem/serialization/json.h"
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "../../bricks/dflags/dflags.h"
+#include "../../bricks/file/file.h"
+#include "../../typesystem/serialization/json.h"
 
 DEFINE_string(csv_test_tmpdir, ".current", "Local path for the test to create temporary files in.");
 

@@ -259,7 +259,7 @@ struct g_impl_selector<JIT::Super> {
   using type = g_super;
 };
 
-}  // namespace fncas::impl
+}  // namespace impl
 
 template <JIT JIT_IMPLEMENTATION = JIT::Super>
 using gradient_t = typename impl::g_impl_selector<JIT_IMPLEMENTATION>::type;

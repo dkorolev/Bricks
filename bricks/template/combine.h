@@ -47,8 +47,7 @@ struct dispatch {
   T instance;
 
   template <typename... ARGS>
-  dispatch(const ARGS&... args)
-      : instance(args...) {}
+  dispatch(const ARGS&... args) : instance(args...) {}
 
   template <typename... XS>
   ENABLE_IF<weed::call_with<T, XS...>::implemented, weed::call_with_type<T, XS...>> operator()(XS&&... params) {
@@ -80,8 +79,7 @@ struct inherit_from_both : T1, T2 {
   using T2::operator();
 
   template <typename... ARGS>
-  inherit_from_both(const ARGS&... args)
-      : T1(args...), T2(args...) {}
+  inherit_from_both(const ARGS&... args) : T1(args...), T2(args...) {}
 
   // `DispatchToAll(...)` will reach both `T1` and `T2`.
   template <typename... TS>

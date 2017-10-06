@@ -26,8 +26,8 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_MAP_H
 #define CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_MAP_H
 
-#include <type_traits>
 #include <map>
+#include <type_traits>
 
 #include "json.h"
 
@@ -121,7 +121,7 @@ struct IsJSONSerializable<std::map<K, V, CMP, ALLOC>> {
 };
 }  // namespace json
 
-}  // namespace current::serialization
+}  // namespace serialization
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_MAP_H

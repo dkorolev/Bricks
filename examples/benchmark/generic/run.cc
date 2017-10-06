@@ -26,10 +26,10 @@ SOFTWARE.
 
 #include "scenario_golden_1k_qps.h"
 #include "scenario_json.h"
-#include "scenario_simple_http.h"
-#include "scenario_storage.h"
 #include "scenario_nginx_client.h"
 #include "scenario_replication.h"
+#include "scenario_simple_http.h"
+#include "scenario_storage.h"
 
 using namespace current;
 

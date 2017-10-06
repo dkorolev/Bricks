@@ -384,7 +384,7 @@ struct Q {
   using type = typename type_wrapper::type;
 };
 
-}  // namespace crnt::tle
+}  // namespace tle
 }  // namespace crnt
 
 namespace current {

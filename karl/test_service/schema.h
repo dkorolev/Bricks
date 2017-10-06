@@ -27,8 +27,8 @@ SOFTWARE.
 
 #include "../karl.h"
 
-#include "../../typesystem/struct.h"
 #include "../../typesystem/optional.h"
+#include "../../typesystem/struct.h"
 
 namespace karl_unittest {
 

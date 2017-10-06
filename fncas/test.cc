@@ -360,8 +360,9 @@ TEST(FnCAS, OptimizationOfAStaticFunctionNoJIT) {
   size_t iterations = 0;
   {
     // A run without computing the original function at each step.
-    const auto result = fncas::optimize::GradientDescentOptimizer<StaticFunction>(
-                            fncas::optimize::OptimizerParameters().DisableJIT()).Optimize({0, 0});
+    const auto result =
+        fncas::optimize::GradientDescentOptimizer<StaticFunction>(fncas::optimize::OptimizerParameters().DisableJIT())
+            .Optimize({0, 0});
     iterations = result.optimization_iterations;
     EXPECT_GE(iterations, 3u);  // Should be at least three iterations.
     EXPECT_NEAR(1.0, result.value, 1e-3);
@@ -373,9 +374,9 @@ TEST(FnCAS, OptimizationOfAStaticFunctionNoJIT) {
   {
     // Another run that does compute the original function at each step, confirm
     // the "param" intermediate value has been recorded.
-    const auto result =
-        fncas::optimize::GradientDescentOptimizer<StaticFunction>(
-            fncas::optimize::OptimizerParameters().DisableJIT().TrackOptimizationProgress()).Optimize({0, 0});
+    const auto result = fncas::optimize::GradientDescentOptimizer<StaticFunction>(
+                            fncas::optimize::OptimizerParameters().DisableJIT().TrackOptimizationProgress())
+                            .Optimize({0, 0});
     EXPECT_EQ(iterations, result.optimization_iterations);
     EXPECT_NEAR(1.0, result.value, 1e-3);
     ASSERT_EQ(2u, result.point.size());
@@ -390,8 +391,9 @@ TEST(FnCAS, OptimizationOfAStaticFunctionNoJIT) {
     const auto& param_values = progress.additional_values.at("param");
     ASSERT_EQ(iterations, param_values.size());
     for (size_t i = 1; i < iterations; ++i) {
-      EXPECT_LT(progress.objective_function_values[i], progress.objective_function_values[i - 1]) << JSON(progress)
-                                                                                                  << '\n' << i;
+      EXPECT_LT(progress.objective_function_values[i], progress.objective_function_values[i - 1])
+          << JSON(progress) << '\n'
+          << i;
     }
     for (size_t i = 0; i < iterations; ++i) {
       EXPECT_EQ(progress.objective_function_values[i], std::exp(0.01 * param_values[i])) << JSON(progress) << '\n' << i;
@@ -403,8 +405,9 @@ TEST(FnCAS, OptimizationOfAMemberFunctionNoJIT) {
   MemberFunction f;
   f.a = 3.0;
   f.b = 4.0;
-  const auto result = fncas::optimize::GradientDescentOptimizer<MemberFunction>(
-                          fncas::optimize::OptimizerParameters().DisableJIT(), f).Optimize({0, 0});
+  const auto result =
+      fncas::optimize::GradientDescentOptimizer<MemberFunction>(fncas::optimize::OptimizerParameters().DisableJIT(), f)
+          .Optimize({0, 0});
   EXPECT_NEAR(1.0, result.value, 1e-3);
   ASSERT_EQ(2u, result.point.size());
   EXPECT_NEAR(3.0, result.point[0], 1e-3);
@@ -547,8 +550,9 @@ TEST(FnCAS, JITOptimizationOfHimmelblauUsingConjugateGradient) {
 #endif  // FNCAS_JIT_COMPILED
 
 TEST(FnCAS, OptimizationOfAPolynomialMemberFunctionNoJIT) {
-  const auto result = fncas::optimize::GradientDescentOptimizer<PolynomialFunction>(
-                          fncas::optimize::OptimizerParameters().DisableJIT()).Optimize({5.0, 20.0});
+  const auto result =
+      fncas::optimize::GradientDescentOptimizer<PolynomialFunction>(fncas::optimize::OptimizerParameters().DisableJIT())
+          .Optimize({5.0, 20.0});
   EXPECT_NEAR(0.0, result.value, 1e-3);
   ASSERT_EQ(2u, result.point.size());
   EXPECT_NEAR(0.0, result.point[0], 1e-3);
@@ -557,7 +561,8 @@ TEST(FnCAS, OptimizationOfAPolynomialMemberFunctionNoJIT) {
 
 TEST(FnCAS, OptimizationOfAPolynomialUsingBacktrackingGDNoJIT) {
   const auto result = fncas::optimize::GradientDescentOptimizerBT<PolynomialFunction>(
-                          fncas::optimize::OptimizerParameters().DisableJIT()).Optimize({5.0, 20.0});
+                          fncas::optimize::OptimizerParameters().DisableJIT())
+                          .Optimize({5.0, 20.0});
   EXPECT_NEAR(0.0, result.value, 1e-3);
   ASSERT_EQ(2u, result.point.size());
   EXPECT_NEAR(0.0, result.point[0], 1e-3);
@@ -566,7 +571,8 @@ TEST(FnCAS, OptimizationOfAPolynomialUsingBacktrackingGDNoJIT) {
 
 TEST(FnCAS, OptimizationOfAPolynomialUsingConjugateGradientNoJIT) {
   const auto result = fncas::optimize::ConjugateGradientOptimizer<PolynomialFunction>(
-                          fncas::optimize::OptimizerParameters().DisableJIT()).Optimize({5.0, 20.0});
+                          fncas::optimize::OptimizerParameters().DisableJIT())
+                          .Optimize({5.0, 20.0});
   EXPECT_NEAR(0.0, result.value, 1e-6);
   ASSERT_EQ(2u, result.point.size());
   EXPECT_NEAR(0.0, result.point[0], 1e-6);
@@ -575,7 +581,8 @@ TEST(FnCAS, OptimizationOfAPolynomialUsingConjugateGradientNoJIT) {
 
 TEST(FnCAS, OptimizationOfRosenbrockUsingConjugateGradientNoJIT) {
   const auto result = fncas::optimize::ConjugateGradientOptimizer<RosenbrockFunction>(
-                          fncas::optimize::OptimizerParameters().DisableJIT()).Optimize({-3.0, -4.0});
+                          fncas::optimize::OptimizerParameters().DisableJIT())
+                          .Optimize({-3.0, -4.0});
   EXPECT_NEAR(0.0, result.value, 1e-6);
   ASSERT_EQ(2u, result.point.size());
   EXPECT_NEAR(1.0, result.point[0], 1e-6);
@@ -617,14 +624,14 @@ TEST(FnCAS, NaiveGDvsBacktrackingGDOnRosenbrockFunction1000StepsNoJIT) {
   fncas::optimize::OptimizerParameters params;
   params.SetValue("max_steps", 1000);
   params.SetValue("step_factor", 0.001);  // Used only by naive optimizer. Prevents it from moving to infinity.
-  const auto result_naive =
-      fncas::optimize::GradientDescentOptimizer<RosenbrockFunction,
-                                                fncas::OptimizationDirection::Minimize,
-                                                fncas::JIT::Blueprint>(params).Optimize({-3.0, -4.0});
-  const auto result_bt =
-      fncas::optimize::GradientDescentOptimizerBT<RosenbrockFunction,
-                                                  fncas::OptimizationDirection::Minimize,
-                                                  fncas::JIT::Blueprint>(params).Optimize({-3.0, -4.0});
+  const auto result_naive = fncas::optimize::GradientDescentOptimizer<RosenbrockFunction,
+                                                                      fncas::OptimizationDirection::Minimize,
+                                                                      fncas::JIT::Blueprint>(params)
+                                .Optimize({-3.0, -4.0});
+  const auto result_bt = fncas::optimize::GradientDescentOptimizerBT<RosenbrockFunction,
+                                                                     fncas::OptimizationDirection::Minimize,
+                                                                     fncas::JIT::Blueprint>(params)
+                             .Optimize({-3.0, -4.0});
   const fncas::double_t x0_err_n = std::abs(result_naive.point[0] - 1.0);
   const fncas::double_t x0_err_bt = std::abs(result_bt.point[0] - 1.0);
   const fncas::double_t x1_err_n = std::abs(result_naive.point[1] - 1.0);
@@ -744,7 +751,8 @@ TEST(FnCAS, OptimizationOfNegativeAndZeroCrossingFunctions) {
     f.b = 4.0;
     f.c = -1.01;
     const auto result = fncas::optimize::GradientDescentOptimizer<MemberFunction>(
-                            fncas::optimize::OptimizerParameters().DisableJIT(), f).Optimize({0, 0});
+                            fncas::optimize::OptimizerParameters().DisableJIT(), f)
+                            .Optimize({0, 0});
     EXPECT_NEAR(-0.01, result.value, 1e-3);
     ASSERT_EQ(2u, result.point.size());
     EXPECT_NEAR(3.0, result.point[0], 1e-3);
@@ -756,7 +764,8 @@ TEST(FnCAS, OptimizationOfNegativeAndZeroCrossingFunctions) {
     f.b = 4.0;
     f.c = -0.99;
     const auto result = fncas::optimize::GradientDescentOptimizer<MemberFunction>(
-                            fncas::optimize::OptimizerParameters().DisableJIT(), f).Optimize({0, 0});
+                            fncas::optimize::OptimizerParameters().DisableJIT(), f)
+                            .Optimize({0, 0});
     EXPECT_NEAR(+0.01, result.value, 1e-3);
     ASSERT_EQ(2u, result.point.size());
     EXPECT_NEAR(3.0, result.point[0], 1e-3);
@@ -768,7 +777,8 @@ TEST(FnCAS, OptimizationOfNegativeAndZeroCrossingFunctions) {
     f.b = 4.0;
     f.c = -100;
     const auto result = fncas::optimize::GradientDescentOptimizer<MemberFunction>(
-                            fncas::optimize::OptimizerParameters().DisableJIT(), f).Optimize({0, 0});
+                            fncas::optimize::OptimizerParameters().DisableJIT(), f)
+                            .Optimize({0, 0});
     EXPECT_NEAR(-99, result.value, 1e-3);
     ASSERT_EQ(2u, result.point.size());
     EXPECT_NEAR(3.0, result.point[0], 1e-3);
@@ -784,7 +794,8 @@ TEST(FnCAS, OptimizationInMaximizingDirection) {
     f.k = -1;
     const auto result =
         fncas::optimize::GradientDescentOptimizer<MemberFunction, fncas::OptimizationDirection::Maximize>(
-            fncas::optimize::OptimizerParameters().DisableJIT(), f).Optimize({0, 0});
+            fncas::optimize::OptimizerParameters().DisableJIT(), f)
+            .Optimize({0, 0});
     EXPECT_NEAR(-1, result.value, 1e-3);
     ASSERT_EQ(2u, result.point.size());
     EXPECT_NEAR(2.0, result.point[0], 1e-3);
@@ -798,7 +809,8 @@ TEST(FnCAS, OptimizationInMaximizingDirection) {
     f.k = -1;
     const auto result =
         fncas::optimize::GradientDescentOptimizerBT<MemberFunction, fncas::OptimizationDirection::Maximize>(
-            fncas::optimize::OptimizerParameters().DisableJIT(), f).Optimize({0, 0});
+            fncas::optimize::OptimizerParameters().DisableJIT(), f)
+            .Optimize({0, 0});
     EXPECT_NEAR(-1, result.value, 1e-3);
     ASSERT_EQ(2u, result.point.size());
     EXPECT_NEAR(4.0, result.point[0], 5e-2);
@@ -812,7 +824,8 @@ TEST(FnCAS, OptimizationInMaximizingDirection) {
     f.k = -1;
     const auto result =
         fncas::optimize::ConjugateGradientOptimizer<MemberFunction, fncas::OptimizationDirection::Maximize>(
-            fncas::optimize::OptimizerParameters().DisableJIT(), f).Optimize({0, 0});
+            fncas::optimize::OptimizerParameters().DisableJIT(), f)
+            .Optimize({0, 0});
     EXPECT_NEAR(-1, result.value, 1e-3);
     ASSERT_EQ(2u, result.point.size());
     EXPECT_NEAR(6.0, result.point[0], 5e-2);

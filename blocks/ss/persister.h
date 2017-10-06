@@ -51,8 +51,7 @@ class EntryPersister : public GenericEntryPersister<ENTRY>, public IMPL {
   using IterableRangeUnsafe = typename IMPL::IterableRangeUnsafe;
 
   template <typename... ARGS>
-  explicit EntryPersister(std::mutex& mutex, ARGS&&... args)
-      : IMPL(mutex, std::forward<ARGS>(args)...) {}
+  explicit EntryPersister(std::mutex& mutex, ARGS&&... args) : IMPL(mutex, std::forward<ARGS>(args)...) {}
   virtual ~EntryPersister() {}
 
   template <current::locks::MutexLockStatus MLS = current::locks::MutexLockStatus::NeedToLock,
@@ -145,7 +144,7 @@ struct IsEntryPersister {
   static constexpr bool value = std::is_base_of<GenericEntryPersister<E>, T>::value;
 };
 
-}  // namespace current::ss
+}  // namespace ss
 }  // namespace current
 
 #endif  // BLOCKS_SS_PERSISTER_H

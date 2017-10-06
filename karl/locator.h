@@ -29,8 +29,8 @@ SOFTWARE.
 
 #include "../port.h"
 
-#include "schema_claire.h"
 #include "constants.h"
+#include "schema_claire.h"
 
 #include "../bricks/strings/util.h"
 
@@ -46,7 +46,7 @@ inline Locator LocalKarl() {
   return Locator("http://localhost:" + current::ToString(constants::kDefaultKarlPort) + '/');
 };
 
-}  // namespace current::karl
+}  // namespace karl
 }  // namespace current
 
 #endif  // KARL_LOCATOR_H

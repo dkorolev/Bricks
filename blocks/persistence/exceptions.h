@@ -64,7 +64,7 @@ struct PersistenceFileNotWritable : PersistenceException {
       : PersistenceException("Persistence file not writable: `" + filename + "`.") {}
 };
 
-}  // namespace peristence
+}  // namespace persistence
 }  // namespace current
 
 #endif  // BLOCKS_PERSISTENCE_EXCEPTIONS_H

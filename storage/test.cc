@@ -36,18 +36,18 @@ SOFTWARE.
 #include "docu/docu_3_code.cc"
 #endif  // STORAGE_ONLY_RUN_RESTFUL_TESTS
 
-#include "storage.h"
 #include "api.h"
 #include "persister/stream.h"
+#include "storage.h"
 
+#include "rest/hypermedia.h"
 #include "rest/plain.h"
 #include "rest/simple.h"
-#include "rest/hypermedia.h"
 
 #include "../blocks/http/api.h"
 
-#include "../bricks/file/file.h"
 #include "../bricks/dflags/dflags.h"
+#include "../bricks/file/file.h"
 
 #include "../stream/replicator.h"
 
@@ -85,8 +85,8 @@ CURRENT_STRUCT(Cell) {
   CURRENT_USE_FIELD_AS_ROW(foo);
   CURRENT_USE_FIELD_AS_COL(bar);
 
-  CURRENT_CONSTRUCTOR(Cell)(int32_t foo = 0, const std::string& bar = "", int32_t phew = 0)
-      : foo(foo), bar(bar), phew(phew) {}
+  CURRENT_CONSTRUCTOR(Cell)
+  (int32_t foo = 0, const std::string& bar = "", int32_t phew = 0) : foo(foo), bar(bar), phew(phew) {}
 };
 
 CURRENT_STORAGE_FIELD_ENTRY(OrderedDictionary, Record, RecordDictionary);
@@ -147,711 +147,760 @@ TEST(TransactionalStorage, SmokeTest) {
 
     // Fill a `Dictionary` container.
     {
-      const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        fields.d.Add(Record{"one", 1});
+      const auto result = storage
+                              ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                fields.d.Add(Record{"one", 1});
 
-        {
-          size_t count = 0u;
-          int32_t value = 0;
-          for (const auto& e : fields.d) {
-            ++count;
-            value += e.rhs;
-          }
-          EXPECT_EQ(1u, count);
-          EXPECT_EQ(1, value);
-        }
+                                {
+                                  size_t count = 0u;
+                                  int32_t value = 0;
+                                  for (const auto& e : fields.d) {
+                                    ++count;
+                                    value += e.rhs;
+                                  }
+                                  EXPECT_EQ(1u, count);
+                                  EXPECT_EQ(1, value);
+                                }
 
-        EXPECT_FALSE(fields.d.Empty());
-        EXPECT_EQ(1u, fields.d.Size());
-        EXPECT_TRUE(Exists(fields.d["one"]));
-        EXPECT_EQ(1, Value(fields.d["one"]).rhs);
+                                EXPECT_FALSE(fields.d.Empty());
+                                EXPECT_EQ(1u, fields.d.Size());
+                                EXPECT_TRUE(Exists(fields.d["one"]));
+                                EXPECT_EQ(1, Value(fields.d["one"]).rhs);
 
-        fields.d.Add(Record{"two", 2});
+                                fields.d.Add(Record{"two", 2});
 
-        EXPECT_FALSE(fields.d.Empty());
-        EXPECT_EQ(2u, fields.d.Size());
-        EXPECT_EQ(1, Value(fields.d["one"]).rhs);
-        EXPECT_EQ(2, Value(fields.d["two"]).rhs);
+                                EXPECT_FALSE(fields.d.Empty());
+                                EXPECT_EQ(2u, fields.d.Size());
+                                EXPECT_EQ(1, Value(fields.d["one"]).rhs);
+                                EXPECT_EQ(2, Value(fields.d["two"]).rhs);
 
-        fields.d.Add(Record{"three", 3});
-        fields.d.Erase("three");
-      }).Go();
+                                fields.d.Add(Record{"three", 3});
+                                fields.d.Erase("three");
+                              })
+                              .Go();
 
       EXPECT_TRUE(WasCommitted(result));
     }
 
     // Fill a `ManyToMany` container.
     {
-      const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_TRUE(fields.umany_to_umany.Empty());
-        EXPECT_EQ(0u, fields.umany_to_umany.Size());
-        EXPECT_TRUE(fields.umany_to_umany.Rows().Empty());
-        EXPECT_TRUE(fields.umany_to_umany.Cols().Empty());
-        EXPECT_EQ(0u, fields.umany_to_umany.Rows().Size());
-        EXPECT_EQ(0u, fields.umany_to_umany.Cols().Size());
-        fields.umany_to_umany.Add(Cell{1, "one", 1});
-        fields.umany_to_umany.Add(Cell{2, "two", 2});
-        fields.umany_to_umany.Add(Cell{2, "too", 3});
-        EXPECT_FALSE(fields.umany_to_umany.Empty());
-        EXPECT_EQ(3u, fields.umany_to_umany.Size());
-        EXPECT_FALSE(fields.umany_to_umany.Rows().Empty());
-        EXPECT_FALSE(fields.umany_to_umany.Cols().Empty());
-        EXPECT_EQ(2u, fields.umany_to_umany.Rows().Size());
-        EXPECT_EQ(3u, fields.umany_to_umany.Cols().Size());
-        EXPECT_EQ(2u, fields.umany_to_umany.Row(2).Size());
-        EXPECT_EQ(1u, fields.umany_to_umany.Col("too").Size());
-        EXPECT_TRUE(fields.umany_to_umany.Rows().Has(1));
-        EXPECT_TRUE(fields.umany_to_umany.Row(3).Empty());
-        EXPECT_TRUE(fields.umany_to_umany.Cols().Has("one"));
-        EXPECT_TRUE(Exists(fields.umany_to_umany.Get(1, "one")));
-        EXPECT_EQ(1, Value(fields.umany_to_umany.Get(1, "one")).phew);
-        EXPECT_EQ(2, Value(fields.umany_to_umany.Get(2, "two")).phew);
-        EXPECT_EQ(3, Value(fields.umany_to_umany.Get(2, "too")).phew);
-      }).Go();
+      const auto result = storage
+                              ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                EXPECT_TRUE(fields.umany_to_umany.Empty());
+                                EXPECT_EQ(0u, fields.umany_to_umany.Size());
+                                EXPECT_TRUE(fields.umany_to_umany.Rows().Empty());
+                                EXPECT_TRUE(fields.umany_to_umany.Cols().Empty());
+                                EXPECT_EQ(0u, fields.umany_to_umany.Rows().Size());
+                                EXPECT_EQ(0u, fields.umany_to_umany.Cols().Size());
+                                fields.umany_to_umany.Add(Cell{1, "one", 1});
+                                fields.umany_to_umany.Add(Cell{2, "two", 2});
+                                fields.umany_to_umany.Add(Cell{2, "too", 3});
+                                EXPECT_FALSE(fields.umany_to_umany.Empty());
+                                EXPECT_EQ(3u, fields.umany_to_umany.Size());
+                                EXPECT_FALSE(fields.umany_to_umany.Rows().Empty());
+                                EXPECT_FALSE(fields.umany_to_umany.Cols().Empty());
+                                EXPECT_EQ(2u, fields.umany_to_umany.Rows().Size());
+                                EXPECT_EQ(3u, fields.umany_to_umany.Cols().Size());
+                                EXPECT_EQ(2u, fields.umany_to_umany.Row(2).Size());
+                                EXPECT_EQ(1u, fields.umany_to_umany.Col("too").Size());
+                                EXPECT_TRUE(fields.umany_to_umany.Rows().Has(1));
+                                EXPECT_TRUE(fields.umany_to_umany.Row(3).Empty());
+                                EXPECT_TRUE(fields.umany_to_umany.Cols().Has("one"));
+                                EXPECT_TRUE(Exists(fields.umany_to_umany.Get(1, "one")));
+                                EXPECT_EQ(1, Value(fields.umany_to_umany.Get(1, "one")).phew);
+                                EXPECT_EQ(2, Value(fields.umany_to_umany.Get(2, "two")).phew);
+                                EXPECT_EQ(3, Value(fields.umany_to_umany.Get(2, "too")).phew);
+                              })
+                              .Go();
       EXPECT_TRUE(WasCommitted(result));
     }
 
     // Fill a `OneToOne` container.
     {
-      const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_TRUE(fields.uone_to_uone.Empty());
-        EXPECT_EQ(0u, fields.uone_to_uone.Size());
-        EXPECT_TRUE(fields.uone_to_uone.Rows().Empty());
-        EXPECT_TRUE(fields.uone_to_uone.Cols().Empty());
-        EXPECT_EQ(0u, fields.uone_to_uone.Rows().Size());
-        EXPECT_EQ(0u, fields.uone_to_uone.Cols().Size());
-        fields.uone_to_uone.Add(Cell{1, "one", 1});  // Adds {1,one=1}
-        fields.uone_to_uone.Add(Cell{2, "two", 2});  // Adds {2,two=2}
-        fields.uone_to_uone.Add(Cell{2, "too", 3});  // Adds {2,too=3}, removes {2,two=2}
-        fields.uone_to_uone.Add(Cell{3, "too", 6});  // Adds {3,too=6}, removes {2,too=3}
-        fields.uone_to_uone.Add(Cell{3, "too", 4});  // Adds {3,too=4}, overwrites {3,too=6}
-        fields.uone_to_uone.Add(Cell{4, "fiv", 5});  // Adds {4,fiv=5}
-        EXPECT_FALSE(fields.uone_to_uone.Empty());
-        EXPECT_EQ(3u, fields.uone_to_uone.Size());
-        EXPECT_FALSE(fields.uone_to_uone.Rows().Empty());
-        EXPECT_FALSE(fields.uone_to_uone.Cols().Empty());
-        EXPECT_EQ(3u, fields.uone_to_uone.Rows().Size());
-        EXPECT_EQ(3u, fields.uone_to_uone.Cols().Size());
-        EXPECT_TRUE(fields.uone_to_uone.Rows().Has(1));
-        EXPECT_TRUE(Exists(fields.uone_to_uone.GetEntryFromRow(1)));
-        EXPECT_TRUE(fields.uone_to_uone.Cols().Has("one"));
-        EXPECT_TRUE(Exists(fields.uone_to_uone.GetEntryFromCol("one")));
-        EXPECT_FALSE(fields.uone_to_uone.Rows().Has(2));
-        EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromRow(2)));
-        EXPECT_FALSE(fields.uone_to_uone.Cols().Has("two"));
-        EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromCol("two")));
-        EXPECT_TRUE(Exists(fields.uone_to_uone.Get(3, "too")));
-        EXPECT_FALSE(Exists(fields.uone_to_uone.Get(2, "too")));
-        EXPECT_EQ(1, Value(fields.uone_to_uone.Get(1, "one")).phew);
-        EXPECT_EQ(1, Value(fields.uone_to_uone.GetEntryFromRow(1)).phew);
-        EXPECT_EQ(4, Value(fields.uone_to_uone.Get(3, "too")).phew);
-        EXPECT_EQ(4, Value(fields.uone_to_uone.GetEntryFromCol("too")).phew);
-        EXPECT_EQ(5, Value(fields.uone_to_uone.Get(4, "fiv")).phew);
-        EXPECT_EQ(5, Value(fields.uone_to_uone.GetEntryFromRow(4)).phew);
-        EXPECT_TRUE(fields.uone_to_uone.DoesNotConflict(2, "two"));
-        EXPECT_FALSE(fields.uone_to_uone.DoesNotConflict(1, "three"));
-        EXPECT_FALSE(fields.uone_to_uone.DoesNotConflict(4, "one"));
-      }).Go();
+      const auto result = storage
+                              ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                EXPECT_TRUE(fields.uone_to_uone.Empty());
+                                EXPECT_EQ(0u, fields.uone_to_uone.Size());
+                                EXPECT_TRUE(fields.uone_to_uone.Rows().Empty());
+                                EXPECT_TRUE(fields.uone_to_uone.Cols().Empty());
+                                EXPECT_EQ(0u, fields.uone_to_uone.Rows().Size());
+                                EXPECT_EQ(0u, fields.uone_to_uone.Cols().Size());
+                                fields.uone_to_uone.Add(Cell{1, "one", 1});  // Adds {1,one=1}
+                                fields.uone_to_uone.Add(Cell{2, "two", 2});  // Adds {2,two=2}
+                                fields.uone_to_uone.Add(Cell{2, "too", 3});  // Adds {2,too=3}, removes {2,two=2}
+                                fields.uone_to_uone.Add(Cell{3, "too", 6});  // Adds {3,too=6}, removes {2,too=3}
+                                fields.uone_to_uone.Add(Cell{3, "too", 4});  // Adds {3,too=4}, overwrites {3,too=6}
+                                fields.uone_to_uone.Add(Cell{4, "fiv", 5});  // Adds {4,fiv=5}
+                                EXPECT_FALSE(fields.uone_to_uone.Empty());
+                                EXPECT_EQ(3u, fields.uone_to_uone.Size());
+                                EXPECT_FALSE(fields.uone_to_uone.Rows().Empty());
+                                EXPECT_FALSE(fields.uone_to_uone.Cols().Empty());
+                                EXPECT_EQ(3u, fields.uone_to_uone.Rows().Size());
+                                EXPECT_EQ(3u, fields.uone_to_uone.Cols().Size());
+                                EXPECT_TRUE(fields.uone_to_uone.Rows().Has(1));
+                                EXPECT_TRUE(Exists(fields.uone_to_uone.GetEntryFromRow(1)));
+                                EXPECT_TRUE(fields.uone_to_uone.Cols().Has("one"));
+                                EXPECT_TRUE(Exists(fields.uone_to_uone.GetEntryFromCol("one")));
+                                EXPECT_FALSE(fields.uone_to_uone.Rows().Has(2));
+                                EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromRow(2)));
+                                EXPECT_FALSE(fields.uone_to_uone.Cols().Has("two"));
+                                EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromCol("two")));
+                                EXPECT_TRUE(Exists(fields.uone_to_uone.Get(3, "too")));
+                                EXPECT_FALSE(Exists(fields.uone_to_uone.Get(2, "too")));
+                                EXPECT_EQ(1, Value(fields.uone_to_uone.Get(1, "one")).phew);
+                                EXPECT_EQ(1, Value(fields.uone_to_uone.GetEntryFromRow(1)).phew);
+                                EXPECT_EQ(4, Value(fields.uone_to_uone.Get(3, "too")).phew);
+                                EXPECT_EQ(4, Value(fields.uone_to_uone.GetEntryFromCol("too")).phew);
+                                EXPECT_EQ(5, Value(fields.uone_to_uone.Get(4, "fiv")).phew);
+                                EXPECT_EQ(5, Value(fields.uone_to_uone.GetEntryFromRow(4)).phew);
+                                EXPECT_TRUE(fields.uone_to_uone.DoesNotConflict(2, "two"));
+                                EXPECT_FALSE(fields.uone_to_uone.DoesNotConflict(1, "three"));
+                                EXPECT_FALSE(fields.uone_to_uone.DoesNotConflict(4, "one"));
+                              })
+                              .Go();
       EXPECT_TRUE(WasCommitted(result));
     }
 
     // Fill a `OneToMany` container.
     {
-      const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_TRUE(fields.uone_to_umany.Empty());
-        EXPECT_EQ(0u, fields.uone_to_umany.Size());
-        EXPECT_TRUE(fields.uone_to_umany.Rows().Empty());
-        EXPECT_TRUE(fields.uone_to_umany.Cols().Empty());
-        EXPECT_EQ(0u, fields.uone_to_umany.Rows().Size());
-        EXPECT_EQ(0u, fields.uone_to_umany.Cols().Size());
-        fields.uone_to_umany.Add(Cell{1, "one", 1});   // Adds {1,one=1 }
-        fields.uone_to_umany.Add(Cell{2, "two", 5});   // Adds {2,two=5 }
-        fields.uone_to_umany.Add(Cell{2, "two", 4});   // Adds {2,two=4 }, overwrites {2,two=5}
-        fields.uone_to_umany.Add(Cell{1, "fiv", 5});   // Adds {1,fiv=5 }
-        fields.uone_to_umany.Add(Cell{2, "fiv", 10});  // Adds {2,fiv=10}, removes {1,fiv=5}
-        fields.uone_to_umany.Add(Cell{3, "six", 18});  // Adds {3,six=18}
-        fields.uone_to_umany.Add(Cell{1, "six", 6});   // Adds {1,six=6 }, removes {3,six=18}
-        EXPECT_FALSE(fields.uone_to_umany.Empty());
-        EXPECT_EQ(4u, fields.uone_to_umany.Size());
-        EXPECT_FALSE(fields.uone_to_umany.Rows().Empty());
-        EXPECT_FALSE(fields.uone_to_umany.Cols().Empty());
-        EXPECT_EQ(2u, fields.uone_to_umany.Rows().Size());
-        EXPECT_EQ(4u, fields.uone_to_umany.Cols().Size());
-        EXPECT_EQ(2u, fields.uone_to_umany.Row(1).Size());
-        EXPECT_TRUE(fields.uone_to_umany.Rows().Has(1));
-        EXPECT_FALSE(fields.uone_to_umany.Rows().Has(3));
-        EXPECT_TRUE(fields.uone_to_umany.Row(3).Empty());
-        EXPECT_TRUE(fields.uone_to_umany.Cols().Has("two"));
-        EXPECT_FALSE(fields.uone_to_umany.Cols().Has("too"));
-        EXPECT_TRUE(Exists(fields.uone_to_umany.GetEntryFromCol("two")));
-        EXPECT_FALSE(Exists(fields.uone_to_umany.GetEntryFromCol("tre")));
-        EXPECT_TRUE(Exists(fields.uone_to_umany.Get(2, "fiv")));
-        EXPECT_FALSE(Exists(fields.uone_to_umany.Get(3, "six")));
-        EXPECT_EQ(1, Value(fields.uone_to_umany.Get(1, "one")).phew);
-        EXPECT_EQ(4, Value(fields.uone_to_umany.Get(2, "two")).phew);
-        EXPECT_EQ(10, Value(fields.uone_to_umany.Get(2, "fiv")).phew);
-        EXPECT_EQ(6, Value(fields.uone_to_umany.Get(1, "six")).phew);
-        EXPECT_TRUE(fields.uone_to_umany.DoesNotConflict(1, "too"));
-        EXPECT_FALSE(fields.uone_to_umany.DoesNotConflict(2, "two"));
-        EXPECT_FALSE(fields.uone_to_umany.DoesNotConflict(3, "six"));
-      }).Go();
+      const auto result = storage
+                              ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                EXPECT_TRUE(fields.uone_to_umany.Empty());
+                                EXPECT_EQ(0u, fields.uone_to_umany.Size());
+                                EXPECT_TRUE(fields.uone_to_umany.Rows().Empty());
+                                EXPECT_TRUE(fields.uone_to_umany.Cols().Empty());
+                                EXPECT_EQ(0u, fields.uone_to_umany.Rows().Size());
+                                EXPECT_EQ(0u, fields.uone_to_umany.Cols().Size());
+                                fields.uone_to_umany.Add(Cell{1, "one", 1});   // Adds {1,one=1 }
+                                fields.uone_to_umany.Add(Cell{2, "two", 5});   // Adds {2,two=5 }
+                                fields.uone_to_umany.Add(Cell{2, "two", 4});   // Adds {2,two=4 }, overwrites {2,two=5}
+                                fields.uone_to_umany.Add(Cell{1, "fiv", 5});   // Adds {1,fiv=5 }
+                                fields.uone_to_umany.Add(Cell{2, "fiv", 10});  // Adds {2,fiv=10}, removes {1,fiv=5}
+                                fields.uone_to_umany.Add(Cell{3, "six", 18});  // Adds {3,six=18}
+                                fields.uone_to_umany.Add(Cell{1, "six", 6});   // Adds {1,six=6 }, removes {3,six=18}
+                                EXPECT_FALSE(fields.uone_to_umany.Empty());
+                                EXPECT_EQ(4u, fields.uone_to_umany.Size());
+                                EXPECT_FALSE(fields.uone_to_umany.Rows().Empty());
+                                EXPECT_FALSE(fields.uone_to_umany.Cols().Empty());
+                                EXPECT_EQ(2u, fields.uone_to_umany.Rows().Size());
+                                EXPECT_EQ(4u, fields.uone_to_umany.Cols().Size());
+                                EXPECT_EQ(2u, fields.uone_to_umany.Row(1).Size());
+                                EXPECT_TRUE(fields.uone_to_umany.Rows().Has(1));
+                                EXPECT_FALSE(fields.uone_to_umany.Rows().Has(3));
+                                EXPECT_TRUE(fields.uone_to_umany.Row(3).Empty());
+                                EXPECT_TRUE(fields.uone_to_umany.Cols().Has("two"));
+                                EXPECT_FALSE(fields.uone_to_umany.Cols().Has("too"));
+                                EXPECT_TRUE(Exists(fields.uone_to_umany.GetEntryFromCol("two")));
+                                EXPECT_FALSE(Exists(fields.uone_to_umany.GetEntryFromCol("tre")));
+                                EXPECT_TRUE(Exists(fields.uone_to_umany.Get(2, "fiv")));
+                                EXPECT_FALSE(Exists(fields.uone_to_umany.Get(3, "six")));
+                                EXPECT_EQ(1, Value(fields.uone_to_umany.Get(1, "one")).phew);
+                                EXPECT_EQ(4, Value(fields.uone_to_umany.Get(2, "two")).phew);
+                                EXPECT_EQ(10, Value(fields.uone_to_umany.Get(2, "fiv")).phew);
+                                EXPECT_EQ(6, Value(fields.uone_to_umany.Get(1, "six")).phew);
+                                EXPECT_TRUE(fields.uone_to_umany.DoesNotConflict(1, "too"));
+                                EXPECT_FALSE(fields.uone_to_umany.DoesNotConflict(2, "two"));
+                                EXPECT_FALSE(fields.uone_to_umany.DoesNotConflict(3, "six"));
+                              })
+                              .Go();
       EXPECT_TRUE(WasCommitted(result));
     }
 
     // Copy data from unordered `ManyToMany`, `OneToOne` and `OneToMany` to corresponding ordered ones
     {
       current::time::SetNow(std::chrono::microseconds(1000000));
-      const auto result1 = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_FALSE(fields.umany_to_umany.Empty());
-        EXPECT_TRUE(fields.omany_to_omany.Empty());
-        for (const auto& element : fields.umany_to_umany) {
-          fields.omany_to_omany.Add(element);
-          fields.umany_to_omany.Add(element);
-          fields.omany_to_umany.Add(element);
-        }
-        EXPECT_EQ(fields.umany_to_umany.Size(), fields.omany_to_omany.Size());
-      }).Go();
+      const auto result1 = storage
+                               ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                 EXPECT_FALSE(fields.umany_to_umany.Empty());
+                                 EXPECT_TRUE(fields.omany_to_omany.Empty());
+                                 for (const auto& element : fields.umany_to_umany) {
+                                   fields.omany_to_omany.Add(element);
+                                   fields.umany_to_omany.Add(element);
+                                   fields.omany_to_umany.Add(element);
+                                 }
+                                 EXPECT_EQ(fields.umany_to_umany.Size(), fields.omany_to_omany.Size());
+                               })
+                               .Go();
       EXPECT_TRUE(WasCommitted(result1));
 
       current::time::SetNow(std::chrono::microseconds(2000000));
-      const auto result2 = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_FALSE(fields.uone_to_uone.Empty());
-        EXPECT_TRUE(fields.oone_to_oone.Empty());
-        for (const auto& element : fields.uone_to_uone) {
-          fields.oone_to_oone.Add(element);
-          fields.uone_to_oone.Add(element);
-          fields.oone_to_uone.Add(element);
-        }
-        EXPECT_EQ(fields.uone_to_uone.Size(), fields.oone_to_oone.Size());
-      }).Go();
+      const auto result2 = storage
+                               ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                 EXPECT_FALSE(fields.uone_to_uone.Empty());
+                                 EXPECT_TRUE(fields.oone_to_oone.Empty());
+                                 for (const auto& element : fields.uone_to_uone) {
+                                   fields.oone_to_oone.Add(element);
+                                   fields.uone_to_oone.Add(element);
+                                   fields.oone_to_uone.Add(element);
+                                 }
+                                 EXPECT_EQ(fields.uone_to_uone.Size(), fields.oone_to_oone.Size());
+                               })
+                               .Go();
       EXPECT_TRUE(WasCommitted(result2));
 
       current::time::SetNow(std::chrono::microseconds(3000000));
-      const auto result3 = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_FALSE(fields.uone_to_umany.Empty());
-        EXPECT_TRUE(fields.oone_to_omany.Empty());
-        for (const auto& element : fields.uone_to_umany) {
-          fields.oone_to_omany.Add(element);
-          fields.uone_to_omany.Add(element);
-          fields.oone_to_umany.Add(element);
-        }
-      }).Go();
+      const auto result3 = storage
+                               ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                 EXPECT_FALSE(fields.uone_to_umany.Empty());
+                                 EXPECT_TRUE(fields.oone_to_omany.Empty());
+                                 for (const auto& element : fields.uone_to_umany) {
+                                   fields.oone_to_omany.Add(element);
+                                   fields.uone_to_omany.Add(element);
+                                   fields.oone_to_umany.Add(element);
+                                 }
+                               })
+                               .Go();
       EXPECT_TRUE(WasCommitted(result3));
     }
 
     // Iterate over a `ManyToMany`, compare its ordered and unordered versions
     {
-      const auto result1 = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        EXPECT_FALSE(fields.umany_to_umany.Empty());
-        EXPECT_FALSE(fields.omany_to_omany.Empty());
-        std::multiset<std::string> data_set;
-        for (const auto& row : fields.umany_to_umany.Rows()) {
-          for (const auto& element : row) {
-            data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                            current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                            current::ToString(element.phew));
-          }
-        }
-        EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_set, ' '));
-        // Use vector instead of set and expect the same result, because the data is already sorted.
-        std::vector<std::string> data_vec;
-        for (const auto& row : fields.omany_to_omany.Rows()) {
-          for (const auto& element : row) {
-            data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                               current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                               current::ToString(element.phew));
-          }
-        }
-        EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
-        data_vec.clear();
-        std::multiset<int32_t> rows;
-        for (const auto& row : fields.umany_to_omany.Rows()) {
-          rows.insert(current::storage::sfinae::GetRow(*row.begin()));
-        }
-        for (const auto& row : rows) {
-          for (const auto& element : fields.umany_to_omany.Row(row)) {
-            data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                               current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                               current::ToString(element.phew));
-          }
-        }
-        EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
-        data_vec.clear();
-        for (const auto& row : fields.omany_to_umany.Rows()) {
-          int32_t row_value = current::storage::sfinae::GetRow(*row.begin());
-          std::multiset<std::string> cols;
-          for (const auto& element : row) {
-            cols.insert(current::storage::sfinae::GetCol(element));
-          }
-          for (const auto& col_value : cols) {
-            data_vec.push_back(current::ToString(row_value) + ',' + current::ToString(col_value) + '=' +
-                               current::ToString(Value(fields.omany_to_umany.Get(row_value, col_value)).phew));
-          }
-        }
-        EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
-      }).Go();
+      const auto result1 =
+          storage
+              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                EXPECT_FALSE(fields.umany_to_umany.Empty());
+                EXPECT_FALSE(fields.omany_to_omany.Empty());
+                std::multiset<std::string> data_set;
+                for (const auto& row : fields.umany_to_umany.Rows()) {
+                  for (const auto& element : row) {
+                    data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                    current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                    current::ToString(element.phew));
+                  }
+                }
+                EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_set, ' '));
+                // Use vector instead of set and expect the same result, because the data is already sorted.
+                std::vector<std::string> data_vec;
+                for (const auto& row : fields.omany_to_omany.Rows()) {
+                  for (const auto& element : row) {
+                    data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                       current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                       current::ToString(element.phew));
+                  }
+                }
+                EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
+                data_vec.clear();
+                std::multiset<int32_t> rows;
+                for (const auto& row : fields.umany_to_omany.Rows()) {
+                  rows.insert(current::storage::sfinae::GetRow(*row.begin()));
+                }
+                for (const auto& row : rows) {
+                  for (const auto& element : fields.umany_to_omany.Row(row)) {
+                    data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                       current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                       current::ToString(element.phew));
+                  }
+                }
+                EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
+                data_vec.clear();
+                for (const auto& row : fields.omany_to_umany.Rows()) {
+                  int32_t row_value = current::storage::sfinae::GetRow(*row.begin());
+                  std::multiset<std::string> cols;
+                  for (const auto& element : row) {
+                    cols.insert(current::storage::sfinae::GetCol(element));
+                  }
+                  for (const auto& col_value : cols) {
+                    data_vec.push_back(current::ToString(row_value) + ',' + current::ToString(col_value) + '=' +
+                                       current::ToString(Value(fields.omany_to_umany.Get(row_value, col_value)).phew));
+                  }
+                }
+                EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
+              })
+              .Go();
       EXPECT_TRUE(WasCommitted(result1));
-      const auto result2 = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        EXPECT_FALSE(fields.umany_to_umany.Empty());
-        EXPECT_FALSE(fields.omany_to_omany.Empty());
-        std::multiset<std::string> data_set;
-        for (const auto& col : fields.umany_to_umany.Cols()) {
-          for (const auto& element : col) {
-            data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                            current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                            current::ToString(element.phew));
-          }
-        }
-        EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_set, ' '));
-        // Use vector instead of set and expect the same result, because the data is already sorted.
-        std::vector<std::string> data_vec;
-        for (const auto& col : fields.omany_to_omany.Cols()) {
-          for (const auto& element : col) {
-            data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                               current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                               current::ToString(element.phew));
-          }
-        }
-        EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_vec, ' '));
-        data_vec.clear();
-        for (const auto& col : fields.umany_to_omany.Cols()) {
-          std::string col_value = current::storage::sfinae::GetCol(*col.begin());
-          std::multiset<int32_t> rows;
-          for (const auto& element : col) {
-            rows.insert(current::storage::sfinae::GetRow(element));
-          }
-          for (const auto& row_value : rows) {
-            data_vec.push_back(current::ToString(col_value) + ',' + current::ToString(row_value) + '=' +
-                               current::ToString(Value(fields.umany_to_omany.Get(row_value, col_value)).phew));
-          }
-        }
-        EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_vec, ' '));
-        data_vec.clear();
-        std::multiset<std::string> cols;
-        for (const auto& col : fields.omany_to_umany.Cols()) {
-          cols.insert(current::storage::sfinae::GetCol(*col.begin()));
-        }
-        for (const auto& col : cols) {
-          for (const auto& element : fields.omany_to_umany.Col(col)) {
-            data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                               current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                               current::ToString(element.phew));
-          }
-        }
-        EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_vec, ' '));
-      }).Go();
+      const auto result2 =
+          storage
+              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                EXPECT_FALSE(fields.umany_to_umany.Empty());
+                EXPECT_FALSE(fields.omany_to_omany.Empty());
+                std::multiset<std::string> data_set;
+                for (const auto& col : fields.umany_to_umany.Cols()) {
+                  for (const auto& element : col) {
+                    data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                    current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                    current::ToString(element.phew));
+                  }
+                }
+                EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_set, ' '));
+                // Use vector instead of set and expect the same result, because the data is already sorted.
+                std::vector<std::string> data_vec;
+                for (const auto& col : fields.omany_to_omany.Cols()) {
+                  for (const auto& element : col) {
+                    data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                       current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                       current::ToString(element.phew));
+                  }
+                }
+                EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_vec, ' '));
+                data_vec.clear();
+                for (const auto& col : fields.umany_to_omany.Cols()) {
+                  std::string col_value = current::storage::sfinae::GetCol(*col.begin());
+                  std::multiset<int32_t> rows;
+                  for (const auto& element : col) {
+                    rows.insert(current::storage::sfinae::GetRow(element));
+                  }
+                  for (const auto& row_value : rows) {
+                    data_vec.push_back(current::ToString(col_value) + ',' + current::ToString(row_value) + '=' +
+                                       current::ToString(Value(fields.umany_to_omany.Get(row_value, col_value)).phew));
+                  }
+                }
+                EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_vec, ' '));
+                data_vec.clear();
+                std::multiset<std::string> cols;
+                for (const auto& col : fields.omany_to_umany.Cols()) {
+                  cols.insert(current::storage::sfinae::GetCol(*col.begin()));
+                }
+                for (const auto& col : cols) {
+                  for (const auto& element : fields.omany_to_umany.Col(col)) {
+                    data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                       current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                       current::ToString(element.phew));
+                  }
+                }
+                EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_vec, ' '));
+              })
+              .Go();
       EXPECT_TRUE(WasCommitted(result2));
-      const auto result3 = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        std::set<std::string> data_set;
-        for (const auto& element : fields.umany_to_umany.Row(2)) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("2,too=3 2,two=2", current::strings::Join(data_set, ' '));
-        // Use vector instead of set and expect the same result, because the data is already sorted.
-        std::vector<std::string> data_vec;
-        for (const auto& element : fields.omany_to_omany.Row(2)) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        EXPECT_EQ("2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
-        data_vec.clear();
-        for (const auto& element : fields.umany_to_omany.Row(2)) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        EXPECT_EQ("2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
-        data_set.clear();
-        for (const auto& element : fields.omany_to_umany.Row(2)) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("2,too=3 2,two=2", current::strings::Join(data_set, ' '));
-      }).Go();
+      const auto result3 =
+          storage
+              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                std::set<std::string> data_set;
+                for (const auto& element : fields.umany_to_umany.Row(2)) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("2,too=3 2,two=2", current::strings::Join(data_set, ' '));
+                // Use vector instead of set and expect the same result, because the data is already sorted.
+                std::vector<std::string> data_vec;
+                for (const auto& element : fields.omany_to_omany.Row(2)) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                EXPECT_EQ("2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
+                data_vec.clear();
+                for (const auto& element : fields.umany_to_omany.Row(2)) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                EXPECT_EQ("2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
+                data_set.clear();
+                for (const auto& element : fields.omany_to_umany.Row(2)) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("2,too=3 2,two=2", current::strings::Join(data_set, ' '));
+              })
+              .Go();
       EXPECT_TRUE(WasCommitted(result3));
     }
 
     // Iterate over a `OneToOne`, compare its ordered and unordered versions.
     {
-      const auto result1 = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        EXPECT_FALSE(fields.uone_to_uone.Empty());
-        EXPECT_FALSE(fields.oone_to_oone.Empty());
-        std::multiset<std::string> data_set;
-        for (const auto& element : fields.uone_to_uone.Rows()) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("1,one=1 3,too=4 4,fiv=5", current::strings::Join(data_set, ' '));
-        // Use vector instead of set and expect the same result, because the data is already sorted.
-        std::vector<std::string> data_vec;
-        for (const auto& element : fields.oone_to_oone.Rows()) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        EXPECT_EQ("1,one=1 3,too=4 4,fiv=5", current::strings::Join(data_vec, ' '));
-        data_set.clear();
-        for (const auto& element : fields.uone_to_oone.Rows()) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("1,one=1 3,too=4 4,fiv=5", current::strings::Join(data_set, ' '));
-        data_vec.clear();
-        for (const auto& element : fields.oone_to_uone.Rows()) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        EXPECT_EQ("1,one=1 3,too=4 4,fiv=5", current::strings::Join(data_vec, ' '));
-      }).Go();
+      const auto result1 =
+          storage
+              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                EXPECT_FALSE(fields.uone_to_uone.Empty());
+                EXPECT_FALSE(fields.oone_to_oone.Empty());
+                std::multiset<std::string> data_set;
+                for (const auto& element : fields.uone_to_uone.Rows()) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("1,one=1 3,too=4 4,fiv=5", current::strings::Join(data_set, ' '));
+                // Use vector instead of set and expect the same result, because the data is already sorted.
+                std::vector<std::string> data_vec;
+                for (const auto& element : fields.oone_to_oone.Rows()) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                EXPECT_EQ("1,one=1 3,too=4 4,fiv=5", current::strings::Join(data_vec, ' '));
+                data_set.clear();
+                for (const auto& element : fields.uone_to_oone.Rows()) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("1,one=1 3,too=4 4,fiv=5", current::strings::Join(data_set, ' '));
+                data_vec.clear();
+                for (const auto& element : fields.oone_to_uone.Rows()) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                EXPECT_EQ("1,one=1 3,too=4 4,fiv=5", current::strings::Join(data_vec, ' '));
+              })
+              .Go();
       EXPECT_TRUE(WasCommitted(result1));
-      const auto result2 = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        EXPECT_FALSE(fields.uone_to_uone.Empty());
-        EXPECT_FALSE(fields.oone_to_oone.Empty());
-        std::multiset<std::string> data_set;
-        for (const auto& element : fields.uone_to_uone.Cols()) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("fiv,4=5 one,1=1 too,3=4", current::strings::Join(data_set, ' '));
-        // Use vector instead of set and expect the same result, because the data is already sorted.
-        std::vector<std::string> data_vec;
-        for (const auto& element : fields.oone_to_oone.Cols()) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        EXPECT_EQ("fiv,4=5 one,1=1 too,3=4", current::strings::Join(data_vec, ' '));
-        data_vec.clear();
-        for (const auto& element : fields.uone_to_oone.Cols()) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        EXPECT_EQ("fiv,4=5 one,1=1 too,3=4", current::strings::Join(data_vec, ' '));
-        data_set.clear();
-        for (const auto& element : fields.oone_to_uone.Cols()) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("fiv,4=5 one,1=1 too,3=4", current::strings::Join(data_set, ' '));
-      }).Go();
+      const auto result2 =
+          storage
+              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                EXPECT_FALSE(fields.uone_to_uone.Empty());
+                EXPECT_FALSE(fields.oone_to_oone.Empty());
+                std::multiset<std::string> data_set;
+                for (const auto& element : fields.uone_to_uone.Cols()) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("fiv,4=5 one,1=1 too,3=4", current::strings::Join(data_set, ' '));
+                // Use vector instead of set and expect the same result, because the data is already sorted.
+                std::vector<std::string> data_vec;
+                for (const auto& element : fields.oone_to_oone.Cols()) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                EXPECT_EQ("fiv,4=5 one,1=1 too,3=4", current::strings::Join(data_vec, ' '));
+                data_vec.clear();
+                for (const auto& element : fields.uone_to_oone.Cols()) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                EXPECT_EQ("fiv,4=5 one,1=1 too,3=4", current::strings::Join(data_vec, ' '));
+                data_set.clear();
+                for (const auto& element : fields.oone_to_uone.Cols()) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("fiv,4=5 one,1=1 too,3=4", current::strings::Join(data_set, ' '));
+              })
+              .Go();
       EXPECT_TRUE(WasCommitted(result2));
     }
 
     // Iterate over a `OneToMany`, compare its ordered and unordered versions.
     {
-      const auto result1 = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        EXPECT_FALSE(fields.uone_to_umany.Empty());
-        EXPECT_FALSE(fields.oone_to_omany.Empty());
-        std::multiset<std::string> data_set;
-        for (const auto& row : fields.uone_to_umany.Rows()) {
-          for (const auto& element : row) {
-            data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                            current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                            current::ToString(element.phew));
-          }
-        }
-        EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_set, ' '));
-        // Use vector instead of set and expect the same result, because the data is already sorted.
-        std::vector<std::string> data_vec;
-        for (const auto& row : fields.oone_to_omany.Rows()) {
-          for (const auto& element : row) {
-            data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                               current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                               current::ToString(element.phew));
-          }
-        }
-        EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
-        data_vec.clear();
-        std::multiset<int32_t> rows;
-        for (const auto& row : fields.uone_to_omany.Rows()) {
-          rows.insert(current::storage::sfinae::GetRow(*row.begin()));
-        }
-        for (const auto& row : rows) {
-          for (const auto& element : fields.uone_to_omany.Row(row)) {
-            data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                               current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                               current::ToString(element.phew));
-          }
-        }
-        EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
-        data_vec.clear();
-        for (const auto& row : fields.oone_to_umany.Rows()) {
-          int32_t row_value = current::storage::sfinae::GetRow(*row.begin());
-          std::multiset<std::string> cols;
-          for (const auto& element : row) {
-            cols.insert(current::storage::sfinae::GetCol(element));
-          }
-          for (const auto& col_value : cols) {
-            data_vec.push_back(current::ToString(row_value) + ',' + current::ToString(col_value) + '=' +
-                               current::ToString(Value(fields.oone_to_umany.Get(row_value, col_value)).phew));
-          }
-        }
-        EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
-      }).Go();
+      const auto result1 =
+          storage
+              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                EXPECT_FALSE(fields.uone_to_umany.Empty());
+                EXPECT_FALSE(fields.oone_to_omany.Empty());
+                std::multiset<std::string> data_set;
+                for (const auto& row : fields.uone_to_umany.Rows()) {
+                  for (const auto& element : row) {
+                    data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                    current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                    current::ToString(element.phew));
+                  }
+                }
+                EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_set, ' '));
+                // Use vector instead of set and expect the same result, because the data is already sorted.
+                std::vector<std::string> data_vec;
+                for (const auto& row : fields.oone_to_omany.Rows()) {
+                  for (const auto& element : row) {
+                    data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                       current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                       current::ToString(element.phew));
+                  }
+                }
+                EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
+                data_vec.clear();
+                std::multiset<int32_t> rows;
+                for (const auto& row : fields.uone_to_omany.Rows()) {
+                  rows.insert(current::storage::sfinae::GetRow(*row.begin()));
+                }
+                for (const auto& row : rows) {
+                  for (const auto& element : fields.uone_to_omany.Row(row)) {
+                    data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                       current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                       current::ToString(element.phew));
+                  }
+                }
+                EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
+                data_vec.clear();
+                for (const auto& row : fields.oone_to_umany.Rows()) {
+                  int32_t row_value = current::storage::sfinae::GetRow(*row.begin());
+                  std::multiset<std::string> cols;
+                  for (const auto& element : row) {
+                    cols.insert(current::storage::sfinae::GetCol(element));
+                  }
+                  for (const auto& col_value : cols) {
+                    data_vec.push_back(current::ToString(row_value) + ',' + current::ToString(col_value) + '=' +
+                                       current::ToString(Value(fields.oone_to_umany.Get(row_value, col_value)).phew));
+                  }
+                }
+                EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
+              })
+              .Go();
       EXPECT_TRUE(WasCommitted(result1));
-      const auto result2 = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        EXPECT_FALSE(fields.uone_to_umany.Empty());
-        EXPECT_FALSE(fields.oone_to_omany.Empty());
-        std::multiset<std::string> data_set;
-        for (const auto& element : fields.uone_to_umany.Cols()) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("fiv,2=10 one,1=1 six,1=6 two,2=4", current::strings::Join(data_set, ' '));
-        // Use vector instead of set and expect the same result, because the data is already sorted.
-        std::vector<std::string> data_vec;
-        for (const auto& element : fields.oone_to_omany.Cols()) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        data_vec.clear();
-        for (const auto& element : fields.uone_to_omany.Cols()) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        data_set.clear();
-        EXPECT_EQ("fiv,2=10 one,1=1 six,1=6 two,2=4", current::strings::Join(data_vec, ' '));
-        for (const auto& element : fields.oone_to_umany.Cols()) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("fiv,2=10 one,1=1 six,1=6 two,2=4", current::strings::Join(data_set, ' '));
-      }).Go();
+      const auto result2 =
+          storage
+              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                EXPECT_FALSE(fields.uone_to_umany.Empty());
+                EXPECT_FALSE(fields.oone_to_omany.Empty());
+                std::multiset<std::string> data_set;
+                for (const auto& element : fields.uone_to_umany.Cols()) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("fiv,2=10 one,1=1 six,1=6 two,2=4", current::strings::Join(data_set, ' '));
+                // Use vector instead of set and expect the same result, because the data is already sorted.
+                std::vector<std::string> data_vec;
+                for (const auto& element : fields.oone_to_omany.Cols()) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                data_vec.clear();
+                for (const auto& element : fields.uone_to_omany.Cols()) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                data_set.clear();
+                EXPECT_EQ("fiv,2=10 one,1=1 six,1=6 two,2=4", current::strings::Join(data_vec, ' '));
+                for (const auto& element : fields.oone_to_umany.Cols()) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("fiv,2=10 one,1=1 six,1=6 two,2=4", current::strings::Join(data_set, ' '));
+              })
+              .Go();
       EXPECT_TRUE(WasCommitted(result2));
-      const auto result3 = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        std::set<std::string> data_set;
-        for (const auto& element : fields.uone_to_umany.Row(2)) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("2,fiv=10 2,two=4", current::strings::Join(data_set, ' '));
-        // Use vector instead of set and expect the same result, because the data is already sorted.
-        std::vector<std::string> data_vec;
-        for (const auto& element : fields.oone_to_omany.Row(2)) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        EXPECT_EQ("2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
-        data_vec.clear();
-        for (const auto& element : fields.uone_to_omany.Row(2)) {
-          data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                             current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                             current::ToString(element.phew));
-        }
-        EXPECT_EQ("2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
-        data_set.clear();
-        for (const auto& element : fields.oone_to_umany.Row(2)) {
-          data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                          current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                          current::ToString(element.phew));
-        }
-        EXPECT_EQ("2,fiv=10 2,two=4", current::strings::Join(data_set, ' '));
-      }).Go();
+      const auto result3 =
+          storage
+              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                std::set<std::string> data_set;
+                for (const auto& element : fields.uone_to_umany.Row(2)) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("2,fiv=10 2,two=4", current::strings::Join(data_set, ' '));
+                // Use vector instead of set and expect the same result, because the data is already sorted.
+                std::vector<std::string> data_vec;
+                for (const auto& element : fields.oone_to_omany.Row(2)) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                EXPECT_EQ("2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
+                data_vec.clear();
+                for (const auto& element : fields.uone_to_omany.Row(2)) {
+                  data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                     current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                     current::ToString(element.phew));
+                }
+                EXPECT_EQ("2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
+                data_set.clear();
+                for (const auto& element : fields.oone_to_umany.Row(2)) {
+                  data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                  current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                  current::ToString(element.phew));
+                }
+                EXPECT_EQ("2,fiv=10 2,two=4", current::strings::Join(data_set, ' '));
+              })
+              .Go();
       EXPECT_TRUE(WasCommitted(result3));
     }
 
     // Rollback a transaction involving a `ManyToMany`, `OneToOne` and `OneToMany`.
     {
-      const auto result1 = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_EQ(3u, fields.umany_to_umany.Size());
-        EXPECT_EQ(2u, fields.umany_to_umany.Rows().Size());
-        EXPECT_EQ(3u, fields.umany_to_umany.Cols().Size());
-        EXPECT_EQ(3u, fields.uone_to_uone.Size());
-        EXPECT_EQ(3u, fields.uone_to_uone.Rows().Size());
-        EXPECT_EQ(3u, fields.uone_to_uone.Cols().Size());
-        EXPECT_EQ(4u, fields.uone_to_umany.Size());
-        EXPECT_EQ(2u, fields.uone_to_umany.Rows().Size());
-        EXPECT_EQ(4u, fields.uone_to_umany.Cols().Size());
+      const auto result1 = storage
+                               ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                 EXPECT_EQ(3u, fields.umany_to_umany.Size());
+                                 EXPECT_EQ(2u, fields.umany_to_umany.Rows().Size());
+                                 EXPECT_EQ(3u, fields.umany_to_umany.Cols().Size());
+                                 EXPECT_EQ(3u, fields.uone_to_uone.Size());
+                                 EXPECT_EQ(3u, fields.uone_to_uone.Rows().Size());
+                                 EXPECT_EQ(3u, fields.uone_to_uone.Cols().Size());
+                                 EXPECT_EQ(4u, fields.uone_to_umany.Size());
+                                 EXPECT_EQ(2u, fields.uone_to_umany.Rows().Size());
+                                 EXPECT_EQ(4u, fields.uone_to_umany.Cols().Size());
 
-        fields.d.Add(Record{"one", 100});
-        fields.d.Add(Record{"four", 4});
-        fields.d.Erase("two");
+                                 fields.d.Add(Record{"one", 100});
+                                 fields.d.Add(Record{"four", 4});
+                                 fields.d.Erase("two");
 
-        fields.umany_to_umany.Add(Cell{1, "one", 42});
-        fields.umany_to_umany.Add(Cell{3, "three", 3});
-        fields.umany_to_umany.Erase(2, "two");
+                                 fields.umany_to_umany.Add(Cell{1, "one", 42});
+                                 fields.umany_to_umany.Add(Cell{3, "three", 3});
+                                 fields.umany_to_umany.Erase(2, "two");
 
-        fields.uone_to_uone.Add(Cell{3, "too", 6});  // Adds {3,too=6}, overwrites {3,too=4}
-        fields.uone_to_uone.Add(Cell{4, "for", 4});  // Adds {4,for=4}, removes {4,fiv=5}
-        fields.uone_to_uone.Add(Cell{5, "fiv", 7});  // Adds {5,fiv=7}
-        fields.uone_to_uone.EraseRow(1);
+                                 fields.uone_to_uone.Add(Cell{3, "too", 6});  // Adds {3,too=6}, overwrites {3,too=4}
+                                 fields.uone_to_uone.Add(Cell{4, "for", 4});  // Adds {4,for=4}, removes {4,fiv=5}
+                                 fields.uone_to_uone.Add(Cell{5, "fiv", 7});  // Adds {5,fiv=7}
+                                 fields.uone_to_uone.EraseRow(1);
 
-        fields.uone_to_umany.Add(Cell{2, "six", 7});  // Adds {2,six=7}, removes {1,six=6}
-        fields.uone_to_umany.Add(Cell{2, "two", 5});  // Adds {2,two=5}, overwrites {2,two=4}
-        fields.uone_to_umany.Add(Cell{4, "sev", 1});  // Adds {4,sev=1}
-        fields.uone_to_umany.EraseCol("one");         // Removes {1,one=1}
-        fields.uone_to_umany.Erase(2, "fiv");         // Removes {2,fiv=10}
+                                 fields.uone_to_umany.Add(Cell{2, "six", 7});  // Adds {2,six=7}, removes {1,six=6}
+                                 fields.uone_to_umany.Add(Cell{2, "two", 5});  // Adds {2,two=5}, overwrites {2,two=4}
+                                 fields.uone_to_umany.Add(Cell{4, "sev", 1});  // Adds {4,sev=1}
+                                 fields.uone_to_umany.EraseCol("one");         // Removes {1,one=1}
+                                 fields.uone_to_umany.Erase(2, "fiv");         // Removes {2,fiv=10}
 
-        CURRENT_STORAGE_THROW_ROLLBACK();
-      }).Go();
+                                 CURRENT_STORAGE_THROW_ROLLBACK();
+                               })
+                               .Go();
       EXPECT_FALSE(WasCommitted(result1));
 
-      const auto result2 = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        EXPECT_EQ(3u, fields.umany_to_umany.Size());
-        EXPECT_EQ(2u, fields.umany_to_umany.Rows().Size());
-        EXPECT_EQ(3u, fields.umany_to_umany.Cols().Size());
+      const auto result2 = storage
+                               ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                                 EXPECT_EQ(3u, fields.umany_to_umany.Size());
+                                 EXPECT_EQ(2u, fields.umany_to_umany.Rows().Size());
+                                 EXPECT_EQ(3u, fields.umany_to_umany.Cols().Size());
 
-        EXPECT_EQ(3u, fields.uone_to_uone.Size());
-        EXPECT_EQ(3u, fields.uone_to_uone.Rows().Size());
-        EXPECT_EQ(3u, fields.uone_to_uone.Cols().Size());
-        EXPECT_FALSE(fields.uone_to_uone.Cols().Has("three"));
-        EXPECT_TRUE(fields.uone_to_uone.Rows().Has(3));
-        EXPECT_TRUE(fields.uone_to_uone.Cols().Has("one"));
+                                 EXPECT_EQ(3u, fields.uone_to_uone.Size());
+                                 EXPECT_EQ(3u, fields.uone_to_uone.Rows().Size());
+                                 EXPECT_EQ(3u, fields.uone_to_uone.Cols().Size());
+                                 EXPECT_FALSE(fields.uone_to_uone.Cols().Has("three"));
+                                 EXPECT_TRUE(fields.uone_to_uone.Rows().Has(3));
+                                 EXPECT_TRUE(fields.uone_to_uone.Cols().Has("one"));
 
-        EXPECT_EQ(4u, fields.uone_to_umany.Size());
-        EXPECT_EQ(2u, fields.uone_to_umany.Rows().Size());
-        EXPECT_EQ(4u, fields.uone_to_umany.Cols().Size());
-        EXPECT_FALSE(fields.uone_to_umany.Rows().Has(4));
-        EXPECT_FALSE(fields.uone_to_umany.Cols().Has("sev"));
-        EXPECT_TRUE(fields.uone_to_umany.Rows().Has(1));
-        EXPECT_TRUE(fields.uone_to_umany.Cols().Has("fiv"));
-      }).Go();
+                                 EXPECT_EQ(4u, fields.uone_to_umany.Size());
+                                 EXPECT_EQ(2u, fields.uone_to_umany.Rows().Size());
+                                 EXPECT_EQ(4u, fields.uone_to_umany.Cols().Size());
+                                 EXPECT_FALSE(fields.uone_to_umany.Rows().Has(4));
+                                 EXPECT_FALSE(fields.uone_to_umany.Cols().Has("sev"));
+                                 EXPECT_TRUE(fields.uone_to_umany.Rows().Has(1));
+                                 EXPECT_TRUE(fields.uone_to_umany.Cols().Has("fiv"));
+                               })
+                               .Go();
       EXPECT_TRUE(WasCommitted(result2));
     }
 
     // Iterate over a `ManyToMany` with deleted elements, confirm the integrity of `forward_` and `transposed_`.
     {
-      const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_TRUE(fields.umany_to_umany.Rows().Has(2));
-        EXPECT_TRUE(fields.umany_to_umany.Cols().Has("two"));
-        EXPECT_TRUE(fields.umany_to_umany.Cols().Has("too"));
+      const auto result =
+          storage
+              ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                EXPECT_TRUE(fields.umany_to_umany.Rows().Has(2));
+                EXPECT_TRUE(fields.umany_to_umany.Cols().Has("two"));
+                EXPECT_TRUE(fields.umany_to_umany.Cols().Has("too"));
 
-        fields.umany_to_umany.Erase(2, "two");
-        EXPECT_TRUE(fields.umany_to_umany.Rows().Has(2));  // Still has another "2" left, the {2, "too"} key.
-        EXPECT_FALSE(fields.umany_to_umany.Cols().Has("two"));
-        EXPECT_TRUE(fields.umany_to_umany.Cols().Has("too"));
-        EXPECT_EQ(2u, fields.umany_to_umany.Rows().Size());
-        EXPECT_EQ(2u, fields.umany_to_umany.Cols().Size());
+                fields.umany_to_umany.Erase(2, "two");
+                EXPECT_TRUE(fields.umany_to_umany.Rows().Has(2));  // Still has another "2" left, the {2, "too"} key.
+                EXPECT_FALSE(fields.umany_to_umany.Cols().Has("two"));
+                EXPECT_TRUE(fields.umany_to_umany.Cols().Has("too"));
+                EXPECT_EQ(2u, fields.umany_to_umany.Rows().Size());
+                EXPECT_EQ(2u, fields.umany_to_umany.Cols().Size());
 
-        fields.umany_to_umany.Erase(2, "too");
-        EXPECT_FALSE(fields.umany_to_umany.Rows().Has(2));
-        EXPECT_FALSE(fields.umany_to_umany.Cols().Has("two"));
-        EXPECT_FALSE(fields.umany_to_umany.Cols().Has("too"));
-        EXPECT_EQ(1u, fields.umany_to_umany.Rows().Size());
-        EXPECT_EQ(1u, fields.umany_to_umany.Cols().Size());
+                fields.umany_to_umany.Erase(2, "too");
+                EXPECT_FALSE(fields.umany_to_umany.Rows().Has(2));
+                EXPECT_FALSE(fields.umany_to_umany.Cols().Has("two"));
+                EXPECT_FALSE(fields.umany_to_umany.Cols().Has("too"));
+                EXPECT_EQ(1u, fields.umany_to_umany.Rows().Size());
+                EXPECT_EQ(1u, fields.umany_to_umany.Cols().Size());
 
-        std::multiset<std::string> data1;
-        std::multiset<std::string> data2;
-        for (const auto& row : fields.umany_to_umany.Rows()) {
-          for (const auto& element : row) {
-            data1.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                         current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                         current::ToString(element.phew));
-          }
-        }
-        for (const auto& col : fields.umany_to_umany.Cols()) {
-          for (const auto& element : col) {
-            data2.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                         current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                         current::ToString(element.phew));
-          }
-        }
+                std::multiset<std::string> data1;
+                std::multiset<std::string> data2;
+                for (const auto& row : fields.umany_to_umany.Rows()) {
+                  for (const auto& element : row) {
+                    data1.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                 current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                 current::ToString(element.phew));
+                  }
+                }
+                for (const auto& col : fields.umany_to_umany.Cols()) {
+                  for (const auto& element : col) {
+                    data2.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                 current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                 current::ToString(element.phew));
+                  }
+                }
 
-        EXPECT_EQ("1,one=1", current::strings::Join(data1, ' '));
-        EXPECT_EQ("one,1=1", current::strings::Join(data2, ' '));
+                EXPECT_EQ("1,one=1", current::strings::Join(data1, ' '));
+                EXPECT_EQ("one,1=1", current::strings::Join(data2, ' '));
 
-        CURRENT_STORAGE_THROW_ROLLBACK();
-      }).Go();
+                CURRENT_STORAGE_THROW_ROLLBACK();
+              })
+              .Go();
       EXPECT_FALSE(WasCommitted(result));
     }
 
     // Iterate over a `OneToOne` with deleted elements, confirm the integrity of `forward_` and `transposed_`.
     {
-      const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_TRUE(fields.uone_to_uone.Rows().Has(1));
-        EXPECT_TRUE(fields.uone_to_uone.Cols().Has("one"));
-        EXPECT_TRUE(fields.uone_to_uone.Cols().Has("too"));
+      const auto result = storage
+                              ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                EXPECT_TRUE(fields.uone_to_uone.Rows().Has(1));
+                                EXPECT_TRUE(fields.uone_to_uone.Cols().Has("one"));
+                                EXPECT_TRUE(fields.uone_to_uone.Cols().Has("too"));
 
-        fields.uone_to_uone.Add(Cell{3, "two", 5});
-        EXPECT_TRUE(fields.uone_to_uone.Rows().Has(3));
-        EXPECT_FALSE(fields.uone_to_uone.Cols().Has("too"));
-        EXPECT_TRUE(fields.uone_to_uone.Cols().Has("two"));
-        EXPECT_EQ(3u, fields.uone_to_uone.Rows().Size());
-        EXPECT_EQ(3u, fields.uone_to_uone.Cols().Size());
+                                fields.uone_to_uone.Add(Cell{3, "two", 5});
+                                EXPECT_TRUE(fields.uone_to_uone.Rows().Has(3));
+                                EXPECT_FALSE(fields.uone_to_uone.Cols().Has("too"));
+                                EXPECT_TRUE(fields.uone_to_uone.Cols().Has("two"));
+                                EXPECT_EQ(3u, fields.uone_to_uone.Rows().Size());
+                                EXPECT_EQ(3u, fields.uone_to_uone.Cols().Size());
 
-        fields.uone_to_uone.EraseCol("two");
-        EXPECT_FALSE(fields.uone_to_uone.Rows().Has(3));
-        EXPECT_FALSE(fields.uone_to_uone.Cols().Has("too"));
-        EXPECT_FALSE(fields.uone_to_uone.Cols().Has("two"));
-        EXPECT_EQ(2u, fields.uone_to_uone.Rows().Size());
-        EXPECT_EQ(2u, fields.uone_to_uone.Cols().Size());
+                                fields.uone_to_uone.EraseCol("two");
+                                EXPECT_FALSE(fields.uone_to_uone.Rows().Has(3));
+                                EXPECT_FALSE(fields.uone_to_uone.Cols().Has("too"));
+                                EXPECT_FALSE(fields.uone_to_uone.Cols().Has("two"));
+                                EXPECT_EQ(2u, fields.uone_to_uone.Rows().Size());
+                                EXPECT_EQ(2u, fields.uone_to_uone.Cols().Size());
 
-        std::multiset<std::string> rows;
-        std::multiset<std::string> cols;
-        for (const auto& element : fields.uone_to_uone.Rows()) {
-          rows.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                      current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                      current::ToString(element.phew));
-        }
-        for (const auto& element : fields.uone_to_uone.Cols()) {
-          cols.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                      current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                      current::ToString(element.phew));
-        }
+                                std::multiset<std::string> rows;
+                                std::multiset<std::string> cols;
+                                for (const auto& element : fields.uone_to_uone.Rows()) {
+                                  rows.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                              current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                              current::ToString(element.phew));
+                                }
+                                for (const auto& element : fields.uone_to_uone.Cols()) {
+                                  cols.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                              current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                              current::ToString(element.phew));
+                                }
 
-        EXPECT_EQ("1,one=1 4,fiv=5", current::strings::Join(rows, ' '));
-        EXPECT_EQ("fiv,4=5 one,1=1", current::strings::Join(cols, ' '));
+                                EXPECT_EQ("1,one=1 4,fiv=5", current::strings::Join(rows, ' '));
+                                EXPECT_EQ("fiv,4=5 one,1=1", current::strings::Join(cols, ' '));
 
-        CURRENT_STORAGE_THROW_ROLLBACK();
-      }).Go();
+                                CURRENT_STORAGE_THROW_ROLLBACK();
+                              })
+                              .Go();
       EXPECT_FALSE(WasCommitted(result));
     }
 
     // Iterate over a `OneToMany` with deleted elements, confirm the integrity of `forward_` and `transposed_`.
     {
-      const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        EXPECT_TRUE(fields.uone_to_umany.Rows().Has(1));
-        EXPECT_TRUE(fields.uone_to_umany.Cols().Has("six"));
-        EXPECT_TRUE(fields.uone_to_umany.Cols().Has("one"));
+      const auto result = storage
+                              ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                                EXPECT_TRUE(fields.uone_to_umany.Rows().Has(1));
+                                EXPECT_TRUE(fields.uone_to_umany.Cols().Has("six"));
+                                EXPECT_TRUE(fields.uone_to_umany.Cols().Has("one"));
 
-        fields.uone_to_umany.Add(Cell{3, "one", 6});  // Adds {3,one=6}, removes {1,one=1}
-        EXPECT_TRUE(fields.uone_to_umany.Rows().Has(3));
-        EXPECT_TRUE(fields.uone_to_umany.Rows().Has(1));  // There is still {1,six=6}
-        EXPECT_EQ(3u, fields.uone_to_umany.Rows().Size());
-        EXPECT_EQ(4u, fields.uone_to_umany.Cols().Size());
+                                fields.uone_to_umany.Add(Cell{3, "one", 6});  // Adds {3,one=6}, removes {1,one=1}
+                                EXPECT_TRUE(fields.uone_to_umany.Rows().Has(3));
+                                EXPECT_TRUE(fields.uone_to_umany.Rows().Has(1));  // There is still {1,six=6}
+                                EXPECT_EQ(3u, fields.uone_to_umany.Rows().Size());
+                                EXPECT_EQ(4u, fields.uone_to_umany.Cols().Size());
 
-        fields.uone_to_umany.EraseCol("six");
-        EXPECT_FALSE(fields.uone_to_umany.Rows().Has(1));
-        EXPECT_FALSE(fields.uone_to_umany.Cols().Has("six"));
-        EXPECT_EQ(2u, fields.uone_to_umany.Rows().Size());
-        EXPECT_EQ(3u, fields.uone_to_umany.Cols().Size());
+                                fields.uone_to_umany.EraseCol("six");
+                                EXPECT_FALSE(fields.uone_to_umany.Rows().Has(1));
+                                EXPECT_FALSE(fields.uone_to_umany.Cols().Has("six"));
+                                EXPECT_EQ(2u, fields.uone_to_umany.Rows().Size());
+                                EXPECT_EQ(3u, fields.uone_to_umany.Cols().Size());
 
-        std::multiset<std::string> rows;
-        std::multiset<std::string> cols;
-        for (const auto& row : fields.uone_to_umany.Rows()) {
-          for (const auto& element : row) {
-            rows.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
-                        current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
-                        current::ToString(element.phew));
-          }
-        }
-        for (const auto& element : fields.uone_to_umany.Cols()) {
-          cols.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
-                      current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
-                      current::ToString(element.phew));
-        }
+                                std::multiset<std::string> rows;
+                                std::multiset<std::string> cols;
+                                for (const auto& row : fields.uone_to_umany.Rows()) {
+                                  for (const auto& element : row) {
+                                    rows.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
+                                                current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
+                                                current::ToString(element.phew));
+                                  }
+                                }
+                                for (const auto& element : fields.uone_to_umany.Cols()) {
+                                  cols.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
+                                              current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
+                                              current::ToString(element.phew));
+                                }
 
-        EXPECT_EQ("2,fiv=10 2,two=4 3,one=6", current::strings::Join(rows, ' '));
-        EXPECT_EQ("fiv,2=10 one,3=6 two,2=4", current::strings::Join(cols, ' '));
+                                EXPECT_EQ("2,fiv=10 2,two=4 3,one=6", current::strings::Join(rows, ' '));
+                                EXPECT_EQ("fiv,2=10 one,3=6 two,2=4", current::strings::Join(cols, ' '));
 
-        CURRENT_STORAGE_THROW_ROLLBACK();
-      }).Go();
+                                CURRENT_STORAGE_THROW_ROLLBACK();
+                              })
+                              .Go();
       EXPECT_FALSE(WasCommitted(result));
     }
 
@@ -875,59 +924,61 @@ TEST(TransactionalStorage, SmokeTest) {
       std::this_thread::yield();
     }
 
-    const auto result = replayed->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-      EXPECT_FALSE(fields.d.Empty());
-      EXPECT_EQ(2u, fields.d.Size());
-      EXPECT_EQ(1, Value(fields.d["one"]).rhs);
-      EXPECT_EQ(2, Value(fields.d["two"]).rhs);
-      EXPECT_FALSE(Exists(fields.d["three"]));
+    const auto result = replayed
+                            ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                              EXPECT_FALSE(fields.d.Empty());
+                              EXPECT_EQ(2u, fields.d.Size());
+                              EXPECT_EQ(1, Value(fields.d["one"]).rhs);
+                              EXPECT_EQ(2, Value(fields.d["two"]).rhs);
+                              EXPECT_FALSE(Exists(fields.d["three"]));
 
-      EXPECT_FALSE(fields.umany_to_umany.Empty());
-      EXPECT_EQ(3u, fields.umany_to_umany.Size());
-      EXPECT_EQ(1, Value(fields.umany_to_umany.Get(1, "one")).phew);
-      EXPECT_EQ(2, Value(fields.umany_to_umany.Get(2, "two")).phew);
-      EXPECT_EQ(3, Value(fields.umany_to_umany.Get(2, "too")).phew);
-      EXPECT_FALSE(Exists(fields.umany_to_umany.Get(3, "three")));
+                              EXPECT_FALSE(fields.umany_to_umany.Empty());
+                              EXPECT_EQ(3u, fields.umany_to_umany.Size());
+                              EXPECT_EQ(1, Value(fields.umany_to_umany.Get(1, "one")).phew);
+                              EXPECT_EQ(2, Value(fields.umany_to_umany.Get(2, "two")).phew);
+                              EXPECT_EQ(3, Value(fields.umany_to_umany.Get(2, "too")).phew);
+                              EXPECT_FALSE(Exists(fields.umany_to_umany.Get(3, "three")));
 
-      EXPECT_FALSE(fields.uone_to_uone.Empty());
-      EXPECT_EQ(3u, fields.uone_to_uone.Size());
-      EXPECT_EQ(1, Value(fields.uone_to_uone.Get(1, "one")).phew);
-      EXPECT_EQ(1, Value(fields.uone_to_uone.GetEntryFromCol("one")).phew);
-      EXPECT_EQ(4, Value(fields.uone_to_uone.Get(3, "too")).phew);
-      EXPECT_EQ(4, Value(fields.uone_to_uone.GetEntryFromRow(3)).phew);
-      EXPECT_EQ(5, Value(fields.uone_to_uone.Get(4, "fiv")).phew);
-      EXPECT_EQ(5, Value(fields.uone_to_uone.GetEntryFromCol("fiv")).phew);
-      EXPECT_FALSE(Exists(fields.uone_to_uone.Get(2, "two")));
-      EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromRow(2)));
-      EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromCol("two")));
-      EXPECT_FALSE(Exists(fields.uone_to_uone.Get(2, "too")));
-      EXPECT_TRUE(Exists(fields.uone_to_uone.GetEntryFromCol("too")));
-      EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromCol("three")));
-      EXPECT_TRUE(Exists(fields.uone_to_uone.GetEntryFromRow(4)));
-      EXPECT_FALSE(fields.uone_to_uone.Cols().Has("three"));
-      EXPECT_TRUE(fields.uone_to_uone.Cols().Has("too"));
+                              EXPECT_FALSE(fields.uone_to_uone.Empty());
+                              EXPECT_EQ(3u, fields.uone_to_uone.Size());
+                              EXPECT_EQ(1, Value(fields.uone_to_uone.Get(1, "one")).phew);
+                              EXPECT_EQ(1, Value(fields.uone_to_uone.GetEntryFromCol("one")).phew);
+                              EXPECT_EQ(4, Value(fields.uone_to_uone.Get(3, "too")).phew);
+                              EXPECT_EQ(4, Value(fields.uone_to_uone.GetEntryFromRow(3)).phew);
+                              EXPECT_EQ(5, Value(fields.uone_to_uone.Get(4, "fiv")).phew);
+                              EXPECT_EQ(5, Value(fields.uone_to_uone.GetEntryFromCol("fiv")).phew);
+                              EXPECT_FALSE(Exists(fields.uone_to_uone.Get(2, "two")));
+                              EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromRow(2)));
+                              EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromCol("two")));
+                              EXPECT_FALSE(Exists(fields.uone_to_uone.Get(2, "too")));
+                              EXPECT_TRUE(Exists(fields.uone_to_uone.GetEntryFromCol("too")));
+                              EXPECT_FALSE(Exists(fields.uone_to_uone.GetEntryFromCol("three")));
+                              EXPECT_TRUE(Exists(fields.uone_to_uone.GetEntryFromRow(4)));
+                              EXPECT_FALSE(fields.uone_to_uone.Cols().Has("three"));
+                              EXPECT_TRUE(fields.uone_to_uone.Cols().Has("too"));
 
-      EXPECT_FALSE(fields.uone_to_umany.Empty());
-      EXPECT_EQ(4u, fields.uone_to_umany.Size());
-      EXPECT_EQ(1, Value(fields.uone_to_umany.Get(1, "one")).phew);
-      EXPECT_EQ(1, Value(fields.uone_to_umany.GetEntryFromCol("one")).phew);
-      EXPECT_EQ(4, Value(fields.uone_to_umany.Get(2, "two")).phew);
-      EXPECT_EQ(4, Value(fields.uone_to_umany.GetEntryFromCol("two")).phew);
-      EXPECT_EQ(6, Value(fields.uone_to_umany.Get(1, "six")).phew);
-      EXPECT_EQ(6, Value(fields.uone_to_umany.GetEntryFromCol("six")).phew);
-      EXPECT_EQ(10, Value(fields.uone_to_umany.Get(2, "fiv")).phew);
-      EXPECT_EQ(10, Value(fields.uone_to_umany.GetEntryFromCol("fiv")).phew);
-      EXPECT_FALSE(Exists(fields.uone_to_umany.Get(3, "six")));
-      EXPECT_FALSE(Exists(fields.uone_to_umany.GetEntryFromCol("sev")));
-      EXPECT_FALSE(Exists(fields.uone_to_umany.Get(4, "sev")));
-      EXPECT_TRUE(Exists(fields.uone_to_umany.GetEntryFromCol("one")));
-      EXPECT_FALSE(Exists(fields.uone_to_umany.GetEntryFromCol("too")));
-      EXPECT_TRUE(Exists(fields.uone_to_umany.Get(2, "two")));
-      EXPECT_FALSE(fields.uone_to_umany.Cols().Has("sev"));
-      EXPECT_TRUE(fields.uone_to_umany.Cols().Has("fiv"));
-      EXPECT_FALSE(fields.uone_to_umany.Rows().Has(3));
-      EXPECT_TRUE(fields.uone_to_umany.Rows().Has(2));
-    }).Go();
+                              EXPECT_FALSE(fields.uone_to_umany.Empty());
+                              EXPECT_EQ(4u, fields.uone_to_umany.Size());
+                              EXPECT_EQ(1, Value(fields.uone_to_umany.Get(1, "one")).phew);
+                              EXPECT_EQ(1, Value(fields.uone_to_umany.GetEntryFromCol("one")).phew);
+                              EXPECT_EQ(4, Value(fields.uone_to_umany.Get(2, "two")).phew);
+                              EXPECT_EQ(4, Value(fields.uone_to_umany.GetEntryFromCol("two")).phew);
+                              EXPECT_EQ(6, Value(fields.uone_to_umany.Get(1, "six")).phew);
+                              EXPECT_EQ(6, Value(fields.uone_to_umany.GetEntryFromCol("six")).phew);
+                              EXPECT_EQ(10, Value(fields.uone_to_umany.Get(2, "fiv")).phew);
+                              EXPECT_EQ(10, Value(fields.uone_to_umany.GetEntryFromCol("fiv")).phew);
+                              EXPECT_FALSE(Exists(fields.uone_to_umany.Get(3, "six")));
+                              EXPECT_FALSE(Exists(fields.uone_to_umany.GetEntryFromCol("sev")));
+                              EXPECT_FALSE(Exists(fields.uone_to_umany.Get(4, "sev")));
+                              EXPECT_TRUE(Exists(fields.uone_to_umany.GetEntryFromCol("one")));
+                              EXPECT_FALSE(Exists(fields.uone_to_umany.GetEntryFromCol("too")));
+                              EXPECT_TRUE(Exists(fields.uone_to_umany.Get(2, "two")));
+                              EXPECT_FALSE(fields.uone_to_umany.Cols().Has("sev"));
+                              EXPECT_TRUE(fields.uone_to_umany.Cols().Has("fiv"));
+                              EXPECT_FALSE(fields.uone_to_umany.Rows().Has(3));
+                              EXPECT_TRUE(fields.uone_to_umany.Rows().Has(2));
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
   }
 }
@@ -1191,17 +1242,20 @@ TEST(TransactionalStorage, TransactionMetaFields) {
 
   current::Owned<storage_t> storage = storage_t::CreateMasterStorage();
   const auto& data = storage->UnderlyingStream()->Data();
-  const auto TransactionByIndex =
-      [&data](uint64_t index) -> const storage_t::transaction_t& { return (*data->Iterate(index).begin()).entry; };
+  const auto TransactionByIndex = [&data](uint64_t index) -> const storage_t::transaction_t& {
+    return (*data->Iterate(index).begin()).entry;
+  };
 
   // Try to delete nonexistent entry, setting `who` transaction meta field.
   // No state should be changed as a result of executing the transaction.
   {
     current::time::SetNow(std::chrono::microseconds(100));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      fields.d.Erase("nonexistent");
-      fields.SetTransactionMetaField("who", "anyone");
-    }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              fields.d.Erase("nonexistent");
+                              fields.SetTransactionMetaField("who", "anyone");
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
   }
 
@@ -1209,17 +1263,19 @@ TEST(TransactionalStorage, TransactionMetaFields) {
   {
     current::time::SetNow(std::chrono::microseconds(200));
     bool second_step_executed = false;
-    const auto result = storage->ReadWriteTransaction(
-                                     [](MutableFields<storage_t> fields) -> int {
-                                       fields.d.Add(Record{"nonexistent", 0});
-                                       fields.SetTransactionMetaField("where", "here");
-                                       CURRENT_STORAGE_THROW_ROLLBACK_WITH_VALUE(int, 42);
-                                       return 0;
-                                     },
-                                     [&second_step_executed](int v) {
-                                       EXPECT_EQ(42, v);
-                                       second_step_executed = true;
-                                     }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction(
+                                [](MutableFields<storage_t> fields) -> int {
+                                  fields.d.Add(Record{"nonexistent", 0});
+                                  fields.SetTransactionMetaField("where", "here");
+                                  CURRENT_STORAGE_THROW_ROLLBACK_WITH_VALUE(int, 42);
+                                  return 0;
+                                },
+                                [&second_step_executed](int v) {
+                                  EXPECT_EQ(42, v);
+                                  second_step_executed = true;
+                                })
+                            .Go();
     EXPECT_FALSE(WasCommitted(result));
     EXPECT_TRUE(second_step_executed);
   }
@@ -1241,7 +1297,7 @@ TEST(TransactionalStorage, TransactionMetaFields) {
           second_step_executed = true;
         }
         // LCOV_EXCL_STOP
-        );
+    );
     EXPECT_THROW(future.Go(), current::Exception);
     EXPECT_FALSE(second_step_executed);
   }
@@ -1249,10 +1305,12 @@ TEST(TransactionalStorage, TransactionMetaFields) {
   // Add one entry, setting another meta field - `why`.
   {
     current::time::SetNow(std::chrono::microseconds(1000));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      fields.d.Add(Record{"", 42});
-      fields.SetTransactionMetaField("why", "because");
-    }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              fields.d.Add(Record{"", 42});
+                              fields.SetTransactionMetaField("why", "because");
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
   }
 
@@ -1276,35 +1334,38 @@ TEST(TransactionalStorage, LastModifiedInDictionaryContainer) {
 
   current::Owned<storage_t> storage = storage_t::CreateMasterStorage();
   const auto& data = storage->UnderlyingStream()->Data();
-  const auto TransactionByIndex =
-      [&data](uint64_t index) -> const storage_t::transaction_t& { return (*(data->Iterate(index).begin())).entry; };
+  const auto TransactionByIndex = [&data](uint64_t index) -> const storage_t::transaction_t& {
+    return (*(data->Iterate(index).begin())).entry;
+  };
 
   {
     current::time::SetNow(std::chrono::microseconds(100));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      ASSERT_FALSE(Exists(fields.d.LastModified("x")));
-      current::time::SetNow(std::chrono::microseconds(101));
-      fields.d.Add(Record{"x", 1});
-      {
-        const auto t = fields.d.LastModified("x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(101, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(102));
-      fields.d.Add(Record{"y", 2});
-      {
-        const auto t = fields.d.LastModified("y");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(102, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(103));
-      fields.d.Erase("y");
-      {
-        const auto t = fields.d.LastModified("y");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(103, Value(t).count());
-      }
-    }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              ASSERT_FALSE(Exists(fields.d.LastModified("x")));
+                              current::time::SetNow(std::chrono::microseconds(101));
+                              fields.d.Add(Record{"x", 1});
+                              {
+                                const auto t = fields.d.LastModified("x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(101, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(102));
+                              fields.d.Add(Record{"y", 2});
+                              {
+                                const auto t = fields.d.LastModified("y");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(102, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(103));
+                              fields.d.Erase("y");
+                              {
+                                const auto t = fields.d.LastModified("y");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(103, Value(t).count());
+                              }
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
 
     ASSERT_EQ(1u, data->Size());
@@ -1322,37 +1383,41 @@ TEST(TransactionalStorage, LastModifiedInDictionaryContainer) {
 
   {
     current::time::SetNow(std::chrono::microseconds(200));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      fields.d.Add(Record{"x", 100});
-      fields.d.Erase("y");
-      fields.d.Add(Record{"z", 3});
-      CURRENT_STORAGE_THROW_ROLLBACK();
-    }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              fields.d.Add(Record{"x", 100});
+                              fields.d.Erase("y");
+                              fields.d.Add(Record{"z", 3});
+                              CURRENT_STORAGE_THROW_ROLLBACK();
+                            })
+                            .Go();
     EXPECT_FALSE(WasCommitted(result));
   }
 
   {
     current::time::SetNow(std::chrono::microseconds(300));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      {
-        const auto t = fields.d.LastModified("x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(101, Value(t).count());
-      }
-      {
-        const auto t = fields.d.LastModified("y");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(103, Value(t).count());
-      }
-      EXPECT_FALSE(Exists(fields.d.LastModified("z")));
-      current::time::SetNow(std::chrono::microseconds(301));
-      fields.d.Erase("x");
-      {
-        const auto t = fields.d.LastModified("x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(301, Value(t).count());
-      }
-    }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              {
+                                const auto t = fields.d.LastModified("x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(101, Value(t).count());
+                              }
+                              {
+                                const auto t = fields.d.LastModified("y");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(103, Value(t).count());
+                              }
+                              EXPECT_FALSE(Exists(fields.d.LastModified("z")));
+                              current::time::SetNow(std::chrono::microseconds(301));
+                              fields.d.Erase("x");
+                              {
+                                const auto t = fields.d.LastModified("x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(301, Value(t).count());
+                              }
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
 
     ASSERT_EQ(2u, data->Size());
@@ -1373,35 +1438,38 @@ TEST(TransactionalStorage, LastModifiedInMatrixContainers) {
 
   current::Owned<storage_t> storage = storage_t::CreateMasterStorage();
   const auto& data = storage->UnderlyingStream()->Data();
-  const auto TransactionByIndex =
-      [&data](uint64_t index) -> const storage_t::transaction_t& { return (*(data->Iterate(index).begin())).entry; };
+  const auto TransactionByIndex = [&data](uint64_t index) -> const storage_t::transaction_t& {
+    return (*(data->Iterate(index).begin())).entry;
+  };
 
   {
     current::time::SetNow(std::chrono::microseconds(100));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      ASSERT_FALSE(Exists(fields.umany_to_umany.LastModified(1, "x")));
-      current::time::SetNow(std::chrono::microseconds(101));
-      fields.umany_to_umany.Add(Cell{1, "x", 1});
-      {
-        const auto t = fields.umany_to_umany.LastModified(1, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(101, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(102));
-      fields.uone_to_umany.Add(Cell{1, "x", 1});
-      {
-        const auto t = fields.uone_to_umany.LastModified(1, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(102, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(103));
-      fields.uone_to_uone.Add(Cell{1, "x", 1});
-      {
-        const auto t = fields.uone_to_uone.LastModified(1, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(103, Value(t).count());
-      }
-    }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              ASSERT_FALSE(Exists(fields.umany_to_umany.LastModified(1, "x")));
+                              current::time::SetNow(std::chrono::microseconds(101));
+                              fields.umany_to_umany.Add(Cell{1, "x", 1});
+                              {
+                                const auto t = fields.umany_to_umany.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(101, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(102));
+                              fields.uone_to_umany.Add(Cell{1, "x", 1});
+                              {
+                                const auto t = fields.uone_to_umany.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(102, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(103));
+                              fields.uone_to_uone.Add(Cell{1, "x", 1});
+                              {
+                                const auto t = fields.uone_to_uone.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(103, Value(t).count());
+                              }
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
 
     ASSERT_EQ(1u, data->Size());
@@ -1419,145 +1487,149 @@ TEST(TransactionalStorage, LastModifiedInMatrixContainers) {
 
   {
     current::time::SetNow(std::chrono::microseconds(200));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      EXPECT_FALSE(Exists(fields.umany_to_umany.LastModified(1, "y")));
-      EXPECT_FALSE(Exists(fields.uone_to_umany.LastModified(1, "y")));
-      EXPECT_FALSE(Exists(fields.uone_to_uone.LastModified(1, "y")));
-      fields.umany_to_umany.Add(Cell{1, "x", 100});
-      fields.uone_to_umany.Add(Cell{2, "x", 100});
-      fields.uone_to_uone.Add(Cell{2, "y", 100});
-      fields.uone_to_uone.Add(Cell{1, "y", 42});
-      fields.umany_to_umany.Erase(1, "x");
-      fields.uone_to_umany.Erase(2, "x");
-      fields.uone_to_uone.Erase(1, "y");
-      CURRENT_STORAGE_THROW_ROLLBACK();
-    }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              EXPECT_FALSE(Exists(fields.umany_to_umany.LastModified(1, "y")));
+                              EXPECT_FALSE(Exists(fields.uone_to_umany.LastModified(1, "y")));
+                              EXPECT_FALSE(Exists(fields.uone_to_uone.LastModified(1, "y")));
+                              fields.umany_to_umany.Add(Cell{1, "x", 100});
+                              fields.uone_to_umany.Add(Cell{2, "x", 100});
+                              fields.uone_to_uone.Add(Cell{2, "y", 100});
+                              fields.uone_to_uone.Add(Cell{1, "y", 42});
+                              fields.umany_to_umany.Erase(1, "x");
+                              fields.uone_to_umany.Erase(2, "x");
+                              fields.uone_to_uone.Erase(1, "y");
+                              CURRENT_STORAGE_THROW_ROLLBACK();
+                            })
+                            .Go();
     EXPECT_FALSE(WasCommitted(result));
   }
 
   {
     current::time::SetNow(std::chrono::microseconds(300));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      {
-        const auto t = fields.umany_to_umany.LastModified(1, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(101, Value(t).count());
-      }
-      {
-        const auto t = fields.uone_to_umany.LastModified(1, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(102, Value(t).count());
-      }
-      {
-        const auto t = fields.uone_to_uone.LastModified(1, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(103, Value(t).count());
-      }
-      EXPECT_FALSE(Exists(fields.uone_to_umany.LastModified(2, "x")));
-      EXPECT_FALSE(Exists(fields.uone_to_uone.LastModified(2, "y")));
-      EXPECT_FALSE(Exists(fields.uone_to_uone.LastModified(1, "y")));
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              {
+                                const auto t = fields.umany_to_umany.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(101, Value(t).count());
+                              }
+                              {
+                                const auto t = fields.uone_to_umany.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(102, Value(t).count());
+                              }
+                              {
+                                const auto t = fields.uone_to_uone.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(103, Value(t).count());
+                              }
+                              EXPECT_FALSE(Exists(fields.uone_to_umany.LastModified(2, "x")));
+                              EXPECT_FALSE(Exists(fields.uone_to_uone.LastModified(2, "y")));
+                              EXPECT_FALSE(Exists(fields.uone_to_uone.LastModified(1, "y")));
 
-      current::time::SetNow(std::chrono::microseconds(301));
-      fields.umany_to_umany.Add(Cell{1, "x", 100});
-      {
-        const auto t = fields.umany_to_umany.LastModified(1, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(301, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(302), std::chrono::microseconds(303));
-      fields.uone_to_umany.Add(Cell{2, "x", 100});
-      {
-        const auto removed_t = fields.uone_to_umany.LastModified(1, "x");
-        ASSERT_TRUE(Exists(removed_t));
-        EXPECT_EQ(302, Value(removed_t).count());
-        const auto t = fields.uone_to_umany.LastModified(2, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(303, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(304));
-      fields.uone_to_uone.Add(Cell{2, "y", 100});
-      {
-        const auto t = fields.uone_to_uone.LastModified(2, "y");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(304, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(305), std::chrono::microseconds(307));
-      fields.uone_to_uone.Add(Cell{1, "y", 42});
-      {
-        const auto removed_t1 = fields.uone_to_uone.LastModified(1, "x");
-        ASSERT_TRUE(Exists(removed_t1));
-        EXPECT_EQ(305, Value(removed_t1).count());
-        const auto removed_t2 = fields.uone_to_uone.LastModified(2, "y");
-        ASSERT_TRUE(Exists(removed_t2));
-        EXPECT_EQ(306, Value(removed_t2).count());
-        const auto t = fields.uone_to_uone.LastModified(1, "y");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(307, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(308));
-      fields.umany_to_umany.Erase(1, "x");
-      {
-        const auto t = fields.umany_to_umany.LastModified(1, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(308, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(309));
-      fields.uone_to_umany.Add(Cell{42, "z", 42});
-      {
-        const auto t = fields.uone_to_umany.LastModified(42, "z");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(309, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(310));
-      fields.uone_to_umany.EraseCol("z");
-      {
-        const auto t = fields.uone_to_umany.LastModified(42, "z");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(310, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(311));
-      fields.uone_to_umany.Erase(2, "x");
-      {
-        const auto t = fields.uone_to_umany.LastModified(2, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(311, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(312));
-      fields.uone_to_uone.Add(Cell{2, "x", 2});
-      {
-        const auto t = fields.uone_to_uone.LastModified(2, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(312, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(313));
-      fields.uone_to_uone.Add(Cell{42, "z", 42});
-      {
-        const auto t = fields.uone_to_uone.LastModified(42, "z");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(313, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(314));
-      fields.uone_to_uone.EraseRow(42);
-      {
-        const auto t = fields.uone_to_uone.LastModified(42, "z");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(314, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(315));
-      fields.uone_to_uone.EraseCol("x");
-      {
-        const auto t = fields.uone_to_uone.LastModified(2, "x");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(315, Value(t).count());
-      }
-      current::time::SetNow(std::chrono::microseconds(316));
-      fields.uone_to_uone.Erase(1, "y");
-      {
-        const auto t = fields.uone_to_uone.LastModified(1, "y");
-        ASSERT_TRUE(Exists(t));
-        EXPECT_EQ(316, Value(t).count());
-      }
-    }).Go();
+                              current::time::SetNow(std::chrono::microseconds(301));
+                              fields.umany_to_umany.Add(Cell{1, "x", 100});
+                              {
+                                const auto t = fields.umany_to_umany.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(301, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(302), std::chrono::microseconds(303));
+                              fields.uone_to_umany.Add(Cell{2, "x", 100});
+                              {
+                                const auto removed_t = fields.uone_to_umany.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(removed_t));
+                                EXPECT_EQ(302, Value(removed_t).count());
+                                const auto t = fields.uone_to_umany.LastModified(2, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(303, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(304));
+                              fields.uone_to_uone.Add(Cell{2, "y", 100});
+                              {
+                                const auto t = fields.uone_to_uone.LastModified(2, "y");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(304, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(305), std::chrono::microseconds(307));
+                              fields.uone_to_uone.Add(Cell{1, "y", 42});
+                              {
+                                const auto removed_t1 = fields.uone_to_uone.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(removed_t1));
+                                EXPECT_EQ(305, Value(removed_t1).count());
+                                const auto removed_t2 = fields.uone_to_uone.LastModified(2, "y");
+                                ASSERT_TRUE(Exists(removed_t2));
+                                EXPECT_EQ(306, Value(removed_t2).count());
+                                const auto t = fields.uone_to_uone.LastModified(1, "y");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(307, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(308));
+                              fields.umany_to_umany.Erase(1, "x");
+                              {
+                                const auto t = fields.umany_to_umany.LastModified(1, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(308, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(309));
+                              fields.uone_to_umany.Add(Cell{42, "z", 42});
+                              {
+                                const auto t = fields.uone_to_umany.LastModified(42, "z");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(309, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(310));
+                              fields.uone_to_umany.EraseCol("z");
+                              {
+                                const auto t = fields.uone_to_umany.LastModified(42, "z");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(310, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(311));
+                              fields.uone_to_umany.Erase(2, "x");
+                              {
+                                const auto t = fields.uone_to_umany.LastModified(2, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(311, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(312));
+                              fields.uone_to_uone.Add(Cell{2, "x", 2});
+                              {
+                                const auto t = fields.uone_to_uone.LastModified(2, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(312, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(313));
+                              fields.uone_to_uone.Add(Cell{42, "z", 42});
+                              {
+                                const auto t = fields.uone_to_uone.LastModified(42, "z");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(313, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(314));
+                              fields.uone_to_uone.EraseRow(42);
+                              {
+                                const auto t = fields.uone_to_uone.LastModified(42, "z");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(314, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(315));
+                              fields.uone_to_uone.EraseCol("x");
+                              {
+                                const auto t = fields.uone_to_uone.LastModified(2, "x");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(315, Value(t).count());
+                              }
+                              current::time::SetNow(std::chrono::microseconds(316));
+                              fields.uone_to_uone.Erase(1, "y");
+                              {
+                                const auto t = fields.uone_to_uone.LastModified(1, "y");
+                                ASSERT_TRUE(Exists(t));
+                                EXPECT_EQ(316, Value(t).count());
+                              }
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
 
     ASSERT_EQ(2u, data->Size());
@@ -1617,8 +1689,9 @@ TEST(TransactionalStorage, WaitUntilLocalLogIsReplayed) {
     master_storage->ReadWriteTransaction([](MutableFields<storage_t> fields) { fields.d.Add(Record{"one", 1}); }).Go();
     master_storage->ReadWriteTransaction([](MutableFields<storage_t> fields) { fields.d.Add(Record{"two", 2}); }).Go();
     master_storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      fields.d.Add(Record{"three", 3});
-    }).Go();
+                    fields.d.Add(Record{"three", 3});
+                  })
+        .Go();
   }
 
   // Test following storage.
@@ -1639,19 +1712,23 @@ TEST(TransactionalStorage, WaitUntilLocalLogIsReplayed) {
     // Wait until the whole log is replayed.
     bool done = false;
     while (!done) {
-      done = Value(storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields)
-                                                    -> bool { return Exists(fields.d["three"]); }).Go());
+      done = Value(
+          storage
+              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) -> bool { return Exists(fields.d["three"]); })
+              .Go());
     }
 
     // Check the data.
-    const auto result = storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-      EXPECT_TRUE(Exists(fields.d["one"]));
-      EXPECT_EQ(1, Value(fields.d["one"]).rhs);
-      EXPECT_TRUE(Exists(fields.d["two"]));
-      EXPECT_EQ(2, Value(fields.d["two"]).rhs);
-      EXPECT_TRUE(Exists(fields.d["three"]));
-      EXPECT_EQ(3, Value(fields.d["three"]).rhs);
-    }).Go();
+    const auto result = storage
+                            ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                              EXPECT_TRUE(Exists(fields.d["one"]));
+                              EXPECT_EQ(1, Value(fields.d["one"]).rhs);
+                              EXPECT_TRUE(Exists(fields.d["two"]));
+                              EXPECT_EQ(2, Value(fields.d["two"]).rhs);
+                              EXPECT_TRUE(Exists(fields.d["three"]));
+                              EXPECT_EQ(3, Value(fields.d["three"]).rhs);
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
 
     // TODO(dkorolev): Test for no write transaction possible?
@@ -1692,25 +1769,29 @@ TEST(TransactionalStorage, ReplicationViaHTTP) {
   // Perform a couple transactions.
   {
     current::time::SetNow(std::chrono::microseconds(100));
-    const auto result = master_storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      current::time::SetNow(std::chrono::microseconds(101));
-      fields.d.Add(Record{"one", 1});
-      current::time::SetNow(std::chrono::microseconds(102));
-      fields.d.Add(Record{"two", 2});
-      fields.SetTransactionMetaField("user", "dima");
-      current::time::SetNow(std::chrono::microseconds(103));
-    }).Go();
+    const auto result = master_storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              current::time::SetNow(std::chrono::microseconds(101));
+                              fields.d.Add(Record{"one", 1});
+                              current::time::SetNow(std::chrono::microseconds(102));
+                              fields.d.Add(Record{"two", 2});
+                              fields.SetTransactionMetaField("user", "dima");
+                              current::time::SetNow(std::chrono::microseconds(103));
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
   }
   {
     current::time::SetNow(std::chrono::microseconds(200));
-    const auto result = master_storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      current::time::SetNow(std::chrono::microseconds(201));
-      fields.d.Add(Record{"three", 3});
-      current::time::SetNow(std::chrono::microseconds(202));
-      fields.d.Erase("two");
-      current::time::SetNow(std::chrono::microseconds(203));
-    }).Go();
+    const auto result = master_storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              current::time::SetNow(std::chrono::microseconds(201));
+                              fields.d.Add(Record{"three", 3});
+                              current::time::SetNow(std::chrono::microseconds(202));
+                              fields.d.Erase("two");
+                              current::time::SetNow(std::chrono::microseconds(203));
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
     current::time::SetNow(std::chrono::microseconds(300));
     master_storage->PublisherUsed()->UpdateHead();
@@ -1772,12 +1853,14 @@ TEST(TransactionalStorage, ReplicationViaHTTP) {
   }
 
   // Test data consistency performing a transaction in the replicated storage.
-  const auto result = replicated_storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-    EXPECT_EQ(2u, fields.d.Size());
-    EXPECT_EQ(1, Value(fields.d["one"]).rhs);
-    EXPECT_EQ(3, Value(fields.d["three"]).rhs);
-    EXPECT_FALSE(Exists(fields.d["two"]));
-  }).Go();
+  const auto result = replicated_storage
+                          ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                            EXPECT_EQ(2u, fields.d.Size());
+                            EXPECT_EQ(1, Value(fields.d["one"]).rhs);
+                            EXPECT_EQ(3, Value(fields.d["three"]).rhs);
+                            EXPECT_FALSE(Exists(fields.d["two"]));
+                          })
+                          .Go();
   EXPECT_TRUE(WasCommitted(result));
 }
 
@@ -1843,18 +1926,22 @@ TEST(TransactionalStorage, WorkWithUnderlyingStream) {
 
   {
     current::time::SetNow(std::chrono::microseconds(100));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      fields.d.Add(Record{"one", 1});
-      current::time::SetNow(std::chrono::microseconds(101));
-    }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              fields.d.Add(Record{"one", 1});
+                              current::time::SetNow(std::chrono::microseconds(101));
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
   }
   {
     current::time::SetNow(std::chrono::microseconds(200));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      fields.d.Add(Record{"two", 2});
-      current::time::SetNow(std::chrono::microseconds(201));
-    }).Go();
+    const auto result = storage
+                            ->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                              fields.d.Add(Record{"two", 2});
+                              current::time::SetNow(std::chrono::microseconds(201));
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
   }
 
@@ -1913,16 +2000,16 @@ CURRENT_STRUCT(SimplePost) {
 CURRENT_STRUCT(SimpleLikeBase) {
   CURRENT_FIELD(row, std::string);
   CURRENT_FIELD(col, std::string);
-  CURRENT_CONSTRUCTOR(SimpleLikeBase)(const std::string& who = "", const std::string& what = "")
-      : row(who), col(what) {}
+  CURRENT_CONSTRUCTOR(SimpleLikeBase)
+  (const std::string& who = "", const std::string& what = "") : row(who), col(what) {}
 };
 
 CURRENT_STRUCT(SimpleLike, SimpleLikeBase) {
   using brief_t = SUPER;
   CURRENT_FIELD(details, Optional<std::string>);
   CURRENT_CONSTRUCTOR(SimpleLike)(const std::string& who = "", const std::string& what = "") : SUPER(who, what) {}
-  CURRENT_CONSTRUCTOR(SimpleLike)(const std::string& who, const std::string& what, const std::string& details)
-      : SUPER(who, what), details(details) {}
+  CURRENT_CONSTRUCTOR(SimpleLike)
+  (const std::string& who, const std::string& what, const std::string& details) : SUPER(who, what), details(details) {}
 };
 
 CURRENT_STRUCT(SimpleLikeValidPatch) {
@@ -1938,8 +2025,8 @@ CURRENT_STRUCT(SimpleLikeInvalidPatch) {
 CURRENT_STRUCT(SimpleComposite) {
   CURRENT_FIELD(row, std::string);
   CURRENT_FIELD(col, std::chrono::microseconds);
-  CURRENT_CONSTRUCTOR(SimpleComposite)(const std::string& row = "",
-                                       const std::chrono::microseconds col = std::chrono::microseconds(0))
+  CURRENT_CONSTRUCTOR(SimpleComposite)
+  (const std::string& row = "", const std::chrono::microseconds col = std::chrono::microseconds(0))
       : row(row), col(col) {}
 
   // Without this line, POST is not allowed in RESTful access to this container.
@@ -2211,15 +2298,17 @@ TEST(TransactionalStorage, RESTfulAPITest) {
       {
         EXPECT_EQ(200,
                   static_cast<int>(HTTP(PATCH(base_url + "/api_plain/data/like/max/beer",
-                                              SimpleLikeValidPatch(std::string("Cheers!")))).code));
+                                              SimpleLikeValidPatch(std::string("Cheers!"))))
+                                       .code));
         EXPECT_EQ(
             400,
             static_cast<int>(HTTP(PATCH(base_url + "/api_plain/data/like/max/beer", SimpleLikeInvalidPatch())).code));
       }
       {
-        EXPECT_EQ(200,
-                  static_cast<int>(HTTP(PATCH(base_url + "/api_hypermedia/data/like/dima/beer",
-                                              SimpleLikeValidPatch(nullptr))).code));
+        EXPECT_EQ(
+            200,
+            static_cast<int>(
+                HTTP(PATCH(base_url + "/api_hypermedia/data/like/dima/beer", SimpleLikeValidPatch(nullptr))).code));
         EXPECT_EQ(400,
                   static_cast<int>(
                       HTTP(PATCH(base_url + "/api_hypermedia/data/like/dima/beer", SimpleLikeInvalidPatch())).code));
@@ -2352,244 +2441,244 @@ TEST(TransactionalStorage, RESTfulAPIMatrixTest) {
     // Try all three REST implementations, as well as both POST and PUT.
     EXPECT_EQ(201,
               static_cast<int>(HTTP(POST(base_url + "/plain/data/composite_m2m",
-                                         SimpleComposite("!1", std::chrono::microseconds(2)))).code));
+                                         SimpleComposite("!1", std::chrono::microseconds(2))))
+                                   .code));
     EXPECT_EQ(201,
               static_cast<int>(HTTP(POST(base_url + "/simple/data/composite_m2m",
-                                         SimpleComposite("!1", std::chrono::microseconds(3)))).code));
+                                         SimpleComposite("!1", std::chrono::microseconds(3))))
+                                   .code));
     EXPECT_EQ(201,
               static_cast<int>(HTTP(POST(base_url + "/hypermedia/data/composite_m2m",
-                                         SimpleComposite("!2", std::chrono::microseconds(1)))).code));
+                                         SimpleComposite("!2", std::chrono::microseconds(1))))
+                                   .code));
     EXPECT_EQ(201,
               static_cast<int>(HTTP(PUT(base_url + "/plain/data/composite_m2m/!2/3",
-                                        SimpleComposite("!2", std::chrono::microseconds(3)))).code));
+                                        SimpleComposite("!2", std::chrono::microseconds(3))))
+                                   .code));
     EXPECT_EQ(201,
               static_cast<int>(HTTP(PUT(base_url + "/simple/data/composite_m2m/!3/1",
-                                        SimpleComposite("!3", std::chrono::microseconds(1)))).code));
+                                        SimpleComposite("!3", std::chrono::microseconds(1))))
+                                   .code));
     EXPECT_EQ(201,
               static_cast<int>(HTTP(PUT(base_url + "/hypermedia/data/composite_m2m/!3/2",
-                                        SimpleComposite("!3", std::chrono::microseconds(2)))).code));
+                                        SimpleComposite("!3", std::chrono::microseconds(2))))
+                                   .code));
   }
 
-  {
-    // Browse the collection in various ways using the `Plain` API.
-    {
-      const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      // The top-level container is still unordered, so meh.
-      std::vector<std::string> elements = current::strings::Split<current::strings::ByLines>(response.body);
-      std::sort(elements.begin(), elements.end());
-      EXPECT_EQ(
-          "!1\t2\t{\"row\":\"!1\",\"col\":2}\n"
-          "!1\t3\t{\"row\":\"!1\",\"col\":3}\n"
-          "!2\t1\t{\"row\":\"!2\",\"col\":1}\n"
-          "!2\t3\t{\"row\":\"!2\",\"col\":3}\n"
-          "!3\t1\t{\"row\":\"!3\",\"col\":1}\n"
-          "!3\t2\t{\"row\":\"!3\",\"col\":2}",
-          current::strings::Join(elements, '\n'));
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m.row"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ("!1\t2\n!2\t2\n!3\t2\n", response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m.col"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ("1\t2\n2\t2\n3\t2\n", response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m.row/!2"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ("{\"row\":\"!2\",\"col\":1}\n{\"row\":\"!2\",\"col\":3}\n", response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m.col/3"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ("{\"row\":\"!1\",\"col\":3}\n{\"row\":\"!2\",\"col\":3}\n", response.body);
-    }
-  }
+  {// Browse the collection in various ways using the `Plain` API.
+   {const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  // The top-level container is still unordered, so meh.
+  std::vector<std::string> elements = current::strings::Split<current::strings::ByLines>(response.body);
+  std::sort(elements.begin(), elements.end());
+  EXPECT_EQ(
+      "!1\t2\t{\"row\":\"!1\",\"col\":2}\n"
+      "!1\t3\t{\"row\":\"!1\",\"col\":3}\n"
+      "!2\t1\t{\"row\":\"!2\",\"col\":1}\n"
+      "!2\t3\t{\"row\":\"!2\",\"col\":3}\n"
+      "!3\t1\t{\"row\":\"!3\",\"col\":1}\n"
+      "!3\t2\t{\"row\":\"!3\",\"col\":2}",
+      current::strings::Join(elements, '\n'));
+}
+{
+  const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m.row"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ("!1\t2\n!2\t2\n!3\t2\n", response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m.col"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ("1\t2\n2\t2\n3\t2\n", response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m.row/!2"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ("{\"row\":\"!2\",\"col\":1}\n{\"row\":\"!2\",\"col\":3}\n", response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/plain/data/composite_m2m.col/3"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ("{\"row\":\"!1\",\"col\":3}\n{\"row\":\"!2\",\"col\":3}\n", response.body);
+}
+}
 
-  {
-    // Browse the collection in various ways using the `Simple` API.
-    {
-      const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      using parsed_t = current::storage::rest::simple::SimpleRESTContainerResponse;
-      parsed_t parsed;
-      ASSERT_NO_THROW(ParseJSON<parsed_t>(response.body, parsed));
-      // Don't test the body of `"/simple/data/composite_m2m"`, it's unordered and machine-dependent.
-      std::vector<std::string> strings;
-      for (const auto& resource : parsed.data) {
-        strings.push_back(JSON(resource));
-      }
-      std::sort(strings.begin(), strings.end());
-      EXPECT_EQ(
-          "\"/data/composite_m2m/!1/2\"\n"
-          "\"/data/composite_m2m/!1/3\"\n"
-          "\"/data/composite_m2m/!2/1\"\n"
-          "\"/data/composite_m2m/!2/3\"\n"
-          "\"/data/composite_m2m/!3/1\"\n"
-          "\"/data/composite_m2m/!3/2\"",
-          current::strings::Join(strings, '\n'));
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m.row"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"message\":null,\"error\":null,\"url\":\"/data/composite_m2m.1\",\"data\":[\"/"
-          "data/composite_m2m.1/!1\",\"/data/composite_m2m.1/!2\",\"/data/composite_m2m.1/!3\"]}\n",
-          response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m.col"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"message\":null,\"error\":null,\"url\":\"/data/composite_m2m.2\",\"data\":[\"/"
-          "data/composite_m2m.2/1\",\"/data/composite_m2m.2/2\",\"/data/composite_m2m.2/3\"]}\n",
-          response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m.1/!2"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"message\":null,\"error\":null,\"url\":\"/data/composite_m2m.1/!2\",\"data\":[\"/data/"
-          "composite_m2m/!2/1\",\"/data/composite_m2m/!2/3\"]}\n",
-          response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m.2/3"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"message\":null,\"error\":null,\"url\":\"/data/composite_m2m.2/3\",\"data\":[\"/data/"
-          "composite_m2m/!1/3\",\"/data/composite_m2m/!2/3\"]}\n",
-          response.body);
-    }
-  }
-  {
-    // Browse the collection in various ways using the `Hypermedia` API.
-    {
-      const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      using parsed_t =
-          hypermedia::HypermediaRESTCollectionResponse<hypermedia::HypermediaRESTFullCollectionRecord<SimpleComposite>>;
-      parsed_t parsed;
-      ASSERT_NO_THROW(ParseJSON<parsed_t>(response.body, parsed));
-      std::vector<std::string> strings;
-      for (const auto& resource : parsed.data) {
-        strings.push_back(JSON(resource.data));
-      }
-      std::sort(strings.begin(), strings.end());
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.1"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"url\":\"/data/composite_m2m.1?i=0&n=10\",\"url_directory\":\"/data/"
-          "composite_m2m.1\",\"i\":0,\"n\":3,\"total\":3,\"url_next_page\":null,\"url_previous_page\":null,"
-          "\"data\":[{\"url\":\"/data/composite_m2m.1/"
-          "!1\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!1\",\"col\":2},{\"row\":\"!1\",\"col\":3}]}},{"
-          "\"url\":\"/data/composite_m2m.1/"
-          "!2\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!2\",\"col\":1},{\"row\":\"!2\",\"col\":3}]}},{"
-          "\"url\":\"/data/composite_m2m.1/"
-          "!3\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!3\",\"col\":1},{\"row\":\"!3\",\"col\":2}]}}]}"
-          "\n",
-          response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.2"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"url\":\"/data/composite_m2m.2?i=0&n=10\",\"url_directory\":\"/data/"
-          "composite_m2m.2\",\"i\":0,\"n\":3,\"total\":3,\"url_next_page\":null,\"url_previous_page\":null,"
-          "\"data\":[{\"url\":\"/data/composite_m2m.2/"
-          "1\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!2\",\"col\":1},{\"row\":\"!3\",\"col\":1}]}},{"
-          "\"url\":\"/data/composite_m2m.2/"
-          "2\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!1\",\"col\":2},{\"row\":\"!3\",\"col\":2}]}},{"
-          "\"url\":\"/data/composite_m2m.2/"
-          "3\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!1\",\"col\":3},{\"row\":\"!2\",\"col\":3}]}}]}\n",
-          response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.1/!2"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"url\":\"/data/composite_m2m.1/!2?i=0&n=10\",\"url_directory\":\"/data/"
-          "composite_m2m\",\"i\":0,\"n\":2,\"total\":2,\"url_next_page\":null,\"url_previous_page\":null,"
-          "\"data\":[{\"url\":\"/data/composite_m2m/!2/1\",\"data\":{\"row\":\"!2\",\"col\":1}},{\"url\":\"/"
-          "data/composite_m2m/!2/3\",\"data\":{\"row\":\"!2\",\"col\":3}}]}\n",
-          response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.2/3"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"url\":\"/data/composite_m2m.2/3?i=0&n=10\",\"url_directory\":\"/data/"
-          "composite_m2m\",\"i\":0,\"n\":2,\"total\":2,\"url_next_page\":null,\"url_previous_page\":null,"
-          "\"data\":[{\"url\":\"/data/composite_m2m/!1/3\",\"data\":{\"row\":\"!1\",\"col\":3}},{\"url\":\"/"
-          "data/composite_m2m/!2/3\",\"data\":{\"row\":\"!2\",\"col\":3}}]}\n",
-          response.body);
-    }
-    // And some inner-level pagination tests.
-    {
-      const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.1/!2?n=1"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"url\":\"/data/composite_m2m.1/!2?i=0&n=1\",\"url_directory\":\"/data/"
-          "composite_m2m\",\"i\":0,\"n\":1,\"total\":2,\"url_next_page\":\"/data/composite_m2m.1/"
-          "!2?i=1&n=1\",\"url_previous_page\":null,\"data\":[{\"url\":\"/data/composite_m2m/!2/"
-          "1\",\"data\":{\"row\":\"!2\",\"col\":1}}]}\n",
-          response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.1/!2?n=1&i=1"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"url\":\"/data/composite_m2m.1/!2?i=1&n=1\",\"url_directory\":\"/data/"
-          "composite_m2m\",\"i\":1,\"n\":1,\"total\":2,\"url_next_page\":null,\"url_previous_page\":\"/data/"
-          "composite_m2m.1/!2?i=0&n=1\",\"data\":[{\"url\":\"/data/composite_m2m/!2/"
-          "3\",\"data\":{\"row\":\"!2\",\"col\":3}}]}\n",
-          response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.2/3?n=1"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"url\":\"/data/composite_m2m.2/3?i=0&n=1\",\"url_directory\":\"/data/"
-          "composite_m2m\",\"i\":0,\"n\":1,\"total\":2,\"url_next_page\":\"/data/composite_m2m.2/"
-          "3?i=1&n=1\",\"url_previous_page\":null,\"data\":[{\"url\":\"/data/composite_m2m/!1/"
-          "3\",\"data\":{\"row\":\"!1\",\"col\":3}}]}\n",
-          response.body);
-    }
-    {
-      const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.2/3?n=1&i=1"));
-      EXPECT_EQ(200, static_cast<int>(response.code));
-      EXPECT_EQ(
-          "{\"success\":true,\"url\":\"/data/composite_m2m.2/3?i=1&n=1\",\"url_directory\":\"/data/"
-          "composite_m2m\",\"i\":1,\"n\":1,\"total\":2,\"url_next_page\":null,\"url_previous_page\":\"/data/"
-          "composite_m2m.2/3?i=0&n=1\",\"data\":[{\"url\":\"/data/composite_m2m/!2/"
-          "3\",\"data\":{\"row\":\"!2\",\"col\":3}}]}\n",
-          response.body);
-    }
-  }
+{// Browse the collection in various ways using the `Simple` API.
+ {const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m"));
+EXPECT_EQ(200, static_cast<int>(response.code));
+using parsed_t = current::storage::rest::simple::SimpleRESTContainerResponse;
+parsed_t parsed;
+ASSERT_NO_THROW(ParseJSON<parsed_t>(response.body, parsed));
+// Don't test the body of `"/simple/data/composite_m2m"`, it's unordered and machine-dependent.
+std::vector<std::string> strings;
+for (const auto& resource : parsed.data) {
+  strings.push_back(JSON(resource));
+}
+std::sort(strings.begin(), strings.end());
+EXPECT_EQ(
+    "\"/data/composite_m2m/!1/2\"\n"
+    "\"/data/composite_m2m/!1/3\"\n"
+    "\"/data/composite_m2m/!2/1\"\n"
+    "\"/data/composite_m2m/!2/3\"\n"
+    "\"/data/composite_m2m/!3/1\"\n"
+    "\"/data/composite_m2m/!3/2\"",
+    current::strings::Join(strings, '\n'));
+}
+{
+  const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m.row"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"message\":null,\"error\":null,\"url\":\"/data/composite_m2m.1\",\"data\":[\"/"
+      "data/composite_m2m.1/!1\",\"/data/composite_m2m.1/!2\",\"/data/composite_m2m.1/!3\"]}\n",
+      response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m.col"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"message\":null,\"error\":null,\"url\":\"/data/composite_m2m.2\",\"data\":[\"/"
+      "data/composite_m2m.2/1\",\"/data/composite_m2m.2/2\",\"/data/composite_m2m.2/3\"]}\n",
+      response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m.1/!2"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"message\":null,\"error\":null,\"url\":\"/data/composite_m2m.1/!2\",\"data\":[\"/data/"
+      "composite_m2m/!2/1\",\"/data/composite_m2m/!2/3\"]}\n",
+      response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/simple/data/composite_m2m.2/3"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"message\":null,\"error\":null,\"url\":\"/data/composite_m2m.2/3\",\"data\":[\"/data/"
+      "composite_m2m/!1/3\",\"/data/composite_m2m/!2/3\"]}\n",
+      response.body);
+}
+}
+{// Browse the collection in various ways using the `Hypermedia` API.
+ {const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m"));
+EXPECT_EQ(200, static_cast<int>(response.code));
+using parsed_t =
+    hypermedia::HypermediaRESTCollectionResponse<hypermedia::HypermediaRESTFullCollectionRecord<SimpleComposite>>;
+parsed_t parsed;
+ASSERT_NO_THROW(ParseJSON<parsed_t>(response.body, parsed));
+std::vector<std::string> strings;
+for (const auto& resource : parsed.data) {
+  strings.push_back(JSON(resource.data));
+}
+std::sort(strings.begin(), strings.end());
+}
+{
+  const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.1"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"url\":\"/data/composite_m2m.1?i=0&n=10\",\"url_directory\":\"/data/"
+      "composite_m2m.1\",\"i\":0,\"n\":3,\"total\":3,\"url_next_page\":null,\"url_previous_page\":null,"
+      "\"data\":[{\"url\":\"/data/composite_m2m.1/"
+      "!1\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!1\",\"col\":2},{\"row\":\"!1\",\"col\":3}]}},{"
+      "\"url\":\"/data/composite_m2m.1/"
+      "!2\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!2\",\"col\":1},{\"row\":\"!2\",\"col\":3}]}},{"
+      "\"url\":\"/data/composite_m2m.1/"
+      "!3\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!3\",\"col\":1},{\"row\":\"!3\",\"col\":2}]}}]}"
+      "\n",
+      response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.2"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"url\":\"/data/composite_m2m.2?i=0&n=10\",\"url_directory\":\"/data/"
+      "composite_m2m.2\",\"i\":0,\"n\":3,\"total\":3,\"url_next_page\":null,\"url_previous_page\":null,"
+      "\"data\":[{\"url\":\"/data/composite_m2m.2/"
+      "1\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!2\",\"col\":1},{\"row\":\"!3\",\"col\":1}]}},{"
+      "\"url\":\"/data/composite_m2m.2/"
+      "2\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!1\",\"col\":2},{\"row\":\"!3\",\"col\":2}]}},{"
+      "\"url\":\"/data/composite_m2m.2/"
+      "3\",\"data\":{\"total\":2,\"preview\":[{\"row\":\"!1\",\"col\":3},{\"row\":\"!2\",\"col\":3}]}}]}\n",
+      response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.1/!2"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"url\":\"/data/composite_m2m.1/!2?i=0&n=10\",\"url_directory\":\"/data/"
+      "composite_m2m\",\"i\":0,\"n\":2,\"total\":2,\"url_next_page\":null,\"url_previous_page\":null,"
+      "\"data\":[{\"url\":\"/data/composite_m2m/!2/1\",\"data\":{\"row\":\"!2\",\"col\":1}},{\"url\":\"/"
+      "data/composite_m2m/!2/3\",\"data\":{\"row\":\"!2\",\"col\":3}}]}\n",
+      response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.2/3"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"url\":\"/data/composite_m2m.2/3?i=0&n=10\",\"url_directory\":\"/data/"
+      "composite_m2m\",\"i\":0,\"n\":2,\"total\":2,\"url_next_page\":null,\"url_previous_page\":null,"
+      "\"data\":[{\"url\":\"/data/composite_m2m/!1/3\",\"data\":{\"row\":\"!1\",\"col\":3}},{\"url\":\"/"
+      "data/composite_m2m/!2/3\",\"data\":{\"row\":\"!2\",\"col\":3}}]}\n",
+      response.body);
+}
+// And some inner-level pagination tests.
+{
+  const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.1/!2?n=1"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"url\":\"/data/composite_m2m.1/!2?i=0&n=1\",\"url_directory\":\"/data/"
+      "composite_m2m\",\"i\":0,\"n\":1,\"total\":2,\"url_next_page\":\"/data/composite_m2m.1/"
+      "!2?i=1&n=1\",\"url_previous_page\":null,\"data\":[{\"url\":\"/data/composite_m2m/!2/"
+      "1\",\"data\":{\"row\":\"!2\",\"col\":1}}]}\n",
+      response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.1/!2?n=1&i=1"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"url\":\"/data/composite_m2m.1/!2?i=1&n=1\",\"url_directory\":\"/data/"
+      "composite_m2m\",\"i\":1,\"n\":1,\"total\":2,\"url_next_page\":null,\"url_previous_page\":\"/data/"
+      "composite_m2m.1/!2?i=0&n=1\",\"data\":[{\"url\":\"/data/composite_m2m/!2/"
+      "3\",\"data\":{\"row\":\"!2\",\"col\":3}}]}\n",
+      response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.2/3?n=1"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"url\":\"/data/composite_m2m.2/3?i=0&n=1\",\"url_directory\":\"/data/"
+      "composite_m2m\",\"i\":0,\"n\":1,\"total\":2,\"url_next_page\":\"/data/composite_m2m.2/"
+      "3?i=1&n=1\",\"url_previous_page\":null,\"data\":[{\"url\":\"/data/composite_m2m/!1/"
+      "3\",\"data\":{\"row\":\"!1\",\"col\":3}}]}\n",
+      response.body);
+}
+{
+  const auto response = HTTP(GET(base_url + "/hypermedia/data/composite_m2m.2/3?n=1&i=1"));
+  EXPECT_EQ(200, static_cast<int>(response.code));
+  EXPECT_EQ(
+      "{\"success\":true,\"url\":\"/data/composite_m2m.2/3?i=1&n=1\",\"url_directory\":\"/data/"
+      "composite_m2m\",\"i\":1,\"n\":1,\"total\":2,\"url_next_page\":null,\"url_previous_page\":\"/data/"
+      "composite_m2m.2/3?i=0&n=1\",\"data\":[{\"url\":\"/data/composite_m2m/!2/"
+      "3\",\"data\":{\"row\":\"!2\",\"col\":3}}]}\n",
+      response.body);
+}
+}
 
+{
+  // Test DELETE too.
   {
-    // Test DELETE too.
-    {
-      EXPECT_EQ(200, static_cast<int>(HTTP(GET(base_url + "/plain/data/composite_m2m/!1/2")).code));
-      EXPECT_EQ(200, static_cast<int>(HTTP(DELETE(base_url + "/plain/data/composite_m2m/!1/2")).code));
-      EXPECT_EQ(404, static_cast<int>(HTTP(GET(base_url + "/plain/data/composite_m2m/!1/2")).code));
-    }
-    {
-      EXPECT_EQ(200, static_cast<int>(HTTP(GET(base_url + "/simple/data/composite_m2m/!2/3")).code));
-      EXPECT_EQ(200, static_cast<int>(HTTP(DELETE(base_url + "/simple/data/composite_m2m/!2/3")).code));
-      EXPECT_EQ(404, static_cast<int>(HTTP(GET(base_url + "/simple/data/composite_m2m/!2/3")).code));
-    }
-    {
-      EXPECT_EQ(200, static_cast<int>(HTTP(GET(base_url + "/hypermedia/data/composite_m2m/!3/1")).code));
-      EXPECT_EQ(200, static_cast<int>(HTTP(DELETE(base_url + "/hypermedia/data/composite_m2m/!3/1")).code));
-      EXPECT_EQ(404, static_cast<int>(HTTP(GET(base_url + "/hypermedia/data/composite_m2m/!3/1")).code));
-    }
+    EXPECT_EQ(200, static_cast<int>(HTTP(GET(base_url + "/plain/data/composite_m2m/!1/2")).code));
+    EXPECT_EQ(200, static_cast<int>(HTTP(DELETE(base_url + "/plain/data/composite_m2m/!1/2")).code));
+    EXPECT_EQ(404, static_cast<int>(HTTP(GET(base_url + "/plain/data/composite_m2m/!1/2")).code));
   }
+  {
+    EXPECT_EQ(200, static_cast<int>(HTTP(GET(base_url + "/simple/data/composite_m2m/!2/3")).code));
+    EXPECT_EQ(200, static_cast<int>(HTTP(DELETE(base_url + "/simple/data/composite_m2m/!2/3")).code));
+    EXPECT_EQ(404, static_cast<int>(HTTP(GET(base_url + "/simple/data/composite_m2m/!2/3")).code));
+  }
+  {
+    EXPECT_EQ(200, static_cast<int>(HTTP(GET(base_url + "/hypermedia/data/composite_m2m/!3/1")).code));
+    EXPECT_EQ(200, static_cast<int>(HTTP(DELETE(base_url + "/hypermedia/data/composite_m2m/!3/1")).code));
+    EXPECT_EQ(404, static_cast<int>(HTTP(GET(base_url + "/hypermedia/data/composite_m2m/!3/1")).code));
+  }
+}
 }
 
 namespace transactional_storage_test {
@@ -2714,9 +2803,11 @@ TEST(TransactionalStorage, CQSTest) {
     const std::string user_key = ([&]() {
       const auto post_response = HTTP(POST(base_url + "/api/data/user", SimpleUser("dima", "DK")));
       EXPECT_EQ(201, static_cast<int>(post_response.code));
-      return current::strings::Split(Value(ParseJSON<current::storage::rest::generic::RESTResourceUpdateResponse>(
-                                               post_response.body).resource_url),
-                                     '/').back();
+      return current::strings::Split(
+                 Value(ParseJSON<current::storage::rest::generic::RESTResourceUpdateResponse>(post_response.body)
+                           .resource_url),
+                 '/')
+          .back();
     })();
 
     {
@@ -2732,9 +2823,11 @@ TEST(TransactionalStorage, CQSTest) {
     const std::string user_key = ([&]() {
       const auto post_response = HTTP(POST(base_url + "/api/data/user", SimpleUser("max", "MZ")));
       EXPECT_EQ(201, static_cast<int>(post_response.code));
-      return current::strings::Split(Value(ParseJSON<current::storage::rest::generic::RESTResourceUpdateResponse>(
-                                               post_response.body).resource_url),
-                                     '/').back();
+      return current::strings::Split(
+                 Value(ParseJSON<current::storage::rest::generic::RESTResourceUpdateResponse>(post_response.body)
+                           .resource_url),
+                 '/')
+          .back();
     })();
 
     {
@@ -3026,18 +3119,21 @@ TEST(TransactionalStorage, UseExternallyProvidedStreamStream) {
   using namespace transactional_storage_test;
   using storage_t = TestStorage<StreamInMemoryStreamPersister>;
 
-  static_assert(std::is_same<typename storage_t::persister_t::stream_t,
-                             current::stream::Stream<typename storage_t::persister_t::transaction_t,
-                                                       current::persistence::Memory>>::value,
-                "");
+  static_assert(
+      std::is_same<
+          typename storage_t::persister_t::stream_t,
+          current::stream::Stream<typename storage_t::persister_t::transaction_t, current::persistence::Memory>>::value,
+      "");
 
   auto storage = storage_t::CreateMasterStorage();
 
   {
     current::time::SetNow(std::chrono::microseconds(100));
-    const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      fields.d.Add(Record{"own_stream", 42});
-    }).Go();
+    const auto result =
+        storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+                 fields.d.Add(Record{"own_stream", 42});
+               })
+            .Go();
     EXPECT_TRUE(WasCommitted(result));
   }
 
@@ -3075,63 +3171,67 @@ TEST(TransactionalStorage, UseExternallyProvidedStreamStreamOfBroaderType) {
 
   static_assert(std::is_same<typename storage_t::persister_t::stream_t,
                              current::stream::Stream<Variant<transaction_t, StreamEntryOutsideStorage>,
-                                                       current::persistence::Memory>>::value,
+                                                     current::persistence::Memory>>::value,
                 "");
 
   auto owned_stream = storage_t::stream_t::CreateStream();
   auto storage = storage_t::CreateMasterStorageAtopExistingStream(owned_stream);
 
-  {
-    // Add three records to the stream: first and third externally, second through the storage.
-    { storage->PublisherUsed()->Publish(StreamEntryOutsideStorage("one"), std::chrono::microseconds(1)); }
+  {// Add three records to the stream: first and third externally, second through the storage.
+   {storage->PublisherUsed()->Publish(StreamEntryOutsideStorage("one"), std::chrono::microseconds(1));
+}
 
-    {
-      current::time::SetNow(std::chrono::microseconds(2));
-      const auto result = storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        fields.d.Add(Record{"two", 2});
-      }).Go();
-      EXPECT_TRUE(WasCommitted(result));
-    }
-    { storage->PublisherUsed()->Publish(StreamEntryOutsideStorage("three"), std::chrono::microseconds(3)); }
-  }
+{
+  current::time::SetNow(std::chrono::microseconds(2));
+  const auto result =
+      storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
+               fields.d.Add(Record{"two", 2});
+             })
+          .Go();
+  EXPECT_TRUE(WasCommitted(result));
+}
+{ storage->PublisherUsed()->Publish(StreamEntryOutsideStorage("three"), std::chrono::microseconds(3)); }
+}
 
-  {
-    // Subscribe to and collect transactions.
-    std::string collected_transactions;
-    StorageStreamTestProcessor<transaction_t> processor(collected_transactions);
-    processor.SetAllowTerminateOnOnMoreEntriesOfRightType();
-    storage->Subscribe<transaction_t>(processor);
-    EXPECT_EQ(
-        "{\"index\":1,\"us\":2}\t"
-        "{\"meta\":{\"begin_us\":2,\"end_us\":2,\"fields\":{}},\"mutations\":["
-        "{\"RecordDictionaryUpdated\":{\"us\":2,\"data\":{\"lhs\":\"two\",\"rhs\":2}},"
-        "\"\":\"T9200018162904582576\"}]}\n",
-        collected_transactions);
-  }
+{
+  // Subscribe to and collect transactions.
+  std::string collected_transactions;
+  StorageStreamTestProcessor<transaction_t> processor(collected_transactions);
+  processor.SetAllowTerminateOnOnMoreEntriesOfRightType();
+  storage->Subscribe<transaction_t>(processor);
+  EXPECT_EQ(
+      "{\"index\":1,\"us\":2}\t"
+      "{\"meta\":{\"begin_us\":2,\"end_us\":2,\"fields\":{}},\"mutations\":["
+      "{\"RecordDictionaryUpdated\":{\"us\":2,\"data\":{\"lhs\":\"two\",\"rhs\":2}},"
+      "\"\":\"T9200018162904582576\"}]}\n",
+      collected_transactions);
+}
 
-  {
-    // Subscribe to and collect non-transactions.
-    std::string collected_non_transactions;
-    StorageStreamTestProcessor<StreamEntryOutsideStorage> processor(collected_non_transactions);
-    processor.SetAllowTerminateOnOnMoreEntriesOfRightType();
-    storage->Subscribe<StreamEntryOutsideStorage>(processor);
-    EXPECT_EQ("{\"index\":0,\"us\":1}\t{\"s\":\"one\"}\n{\"index\":2,\"us\":3}\t{\"s\":\"three\"}\n",
-              collected_non_transactions);
-  }
+{
+  // Subscribe to and collect non-transactions.
+  std::string collected_non_transactions;
+  StorageStreamTestProcessor<StreamEntryOutsideStorage> processor(collected_non_transactions);
+  processor.SetAllowTerminateOnOnMoreEntriesOfRightType();
+  storage->Subscribe<StreamEntryOutsideStorage>(processor);
+  EXPECT_EQ("{\"index\":0,\"us\":1}\t{\"s\":\"one\"}\n{\"index\":2,\"us\":3}\t{\"s\":\"three\"}\n",
+            collected_non_transactions);
+}
 
-  {
-    // Confirm replaying storage with a mixed-content stream does its job.
-    auto replayed = storage_t::CreateFollowingStorageAtopExistingStream(storage->UnderlyingStream());
-    while (replayed->LastAppliedTimestamp() < std::chrono::microseconds(2)) {  // As `3` is a non-transaction.
-      std::this_thread::yield();
-    }
-    const auto result = replayed->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-      EXPECT_EQ(1u, fields.d.Size());
-      ASSERT_TRUE(Exists(fields.d["two"]));
-      EXPECT_EQ(2, Value(fields.d["two"]).rhs);
-    }).Go();
-    EXPECT_TRUE(WasCommitted(result));
+{
+  // Confirm replaying storage with a mixed-content stream does its job.
+  auto replayed = storage_t::CreateFollowingStorageAtopExistingStream(storage->UnderlyingStream());
+  while (replayed->LastAppliedTimestamp() < std::chrono::microseconds(2)) {  // As `3` is a non-transaction.
+    std::this_thread::yield();
   }
+  const auto result = replayed
+                          ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                            EXPECT_EQ(1u, fields.d.Size());
+                            ASSERT_TRUE(Exists(fields.d["two"]));
+                            EXPECT_EQ(2, Value(fields.d["two"]).rhs);
+                          })
+                          .Go();
+  EXPECT_TRUE(WasCommitted(result));
+}
 }
 
 TEST(TransactionalStorage, FollowingStorageFlipsToMaster) {
@@ -3184,9 +3284,10 @@ TEST(TransactionalStorage, FollowingStorageFlipsToMaster) {
     // Publish one record.
     current::time::SetNow(std::chrono::microseconds(100));
     {
-      const auto result = master_storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-        fields.user.Add(SimpleUser("John", "JD"));
-      }).Go();
+      const auto result =
+          master_storage
+              ->ReadWriteTransaction([](MutableFields<storage_t> fields) { fields.user.Add(SimpleUser("John", "JD")); })
+              .Go();
       EXPECT_TRUE(WasCommitted(result));
     }
 
@@ -3196,9 +3297,9 @@ TEST(TransactionalStorage, FollowingStorageFlipsToMaster) {
       size_t user_size;
       user_size = 0u;
       do {
-        const auto result = follower_storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-          return fields.user.Size();
-        }).Go();
+        const auto result =
+            follower_storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) { return fields.user.Size(); })
+                .Go();
         EXPECT_TRUE(WasCommitted(result));
         user_size = Value(result);
       } while (user_size == 0u);
@@ -3207,10 +3308,12 @@ TEST(TransactionalStorage, FollowingStorageFlipsToMaster) {
 
     // Check that the the following storage now has the same record as the master one.
     {
-      const auto result = follower_storage->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
-        ASSERT_TRUE(Exists(fields.user["John"]));
-        EXPECT_EQ("JD", Value(fields.user["John"]).name);
-      }).Go();
+      const auto result = follower_storage
+                              ->ReadOnlyTransaction([](ImmutableFields<storage_t> fields) {
+                                ASSERT_TRUE(Exists(fields.user["John"]));
+                                EXPECT_EQ("JD", Value(fields.user["John"]).name);
+                              })
+                              .Go();
       EXPECT_TRUE(WasCommitted(result));
     }
     {
@@ -3262,9 +3365,10 @@ TEST(TransactionalStorage, FollowingStorageFlipsToMaster) {
   // Publish record and check that everything goes well.
   current::time::SetNow(std::chrono::microseconds(200));
   {
-    const auto result = follower_storage->ReadWriteTransaction([](MutableFields<storage_t> fields) {
-      fields.user.Add(SimpleUser("max", "MZ"));
-    }).Go();
+    const auto result =
+        follower_storage
+            ->ReadWriteTransaction([](MutableFields<storage_t> fields) { fields.user.Add(SimpleUser("max", "MZ")); })
+            .Go();
     EXPECT_TRUE(WasCommitted(result));
   }
   current::time::SetNow(std::chrono::microseconds(300));
@@ -3275,13 +3379,15 @@ TEST(TransactionalStorage, FollowingStorageFlipsToMaster) {
     const auto user_key = post_response.body;
 
     // Ensure that all the records are in place.
-    const auto result = follower_storage->ReadOnlyTransaction([user_key](ImmutableFields<storage_t> fields) {
-      EXPECT_EQ(3u, fields.user.Size());
-      ASSERT_TRUE(Exists(fields.user["max"]));
-      EXPECT_EQ("MZ", Value(fields.user["max"]).name);
-      ASSERT_TRUE(Exists(fields.user[user_key]));
-      EXPECT_EQ("DK", Value(fields.user[user_key]).name);
-    }).Go();
+    const auto result = follower_storage
+                            ->ReadOnlyTransaction([user_key](ImmutableFields<storage_t> fields) {
+                              EXPECT_EQ(3u, fields.user.Size());
+                              ASSERT_TRUE(Exists(fields.user["max"]));
+                              EXPECT_EQ("MZ", Value(fields.user["max"]).name);
+                              ASSERT_TRUE(Exists(fields.user[user_key]));
+                              EXPECT_EQ("DK", Value(fields.user[user_key]).name);
+                            })
+                            .Go();
     EXPECT_TRUE(WasCommitted(result));
   }
 }

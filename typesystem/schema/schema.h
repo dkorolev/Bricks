@@ -29,10 +29,10 @@ SOFTWARE.
 
 #include "../../port.h"
 
+#include <functional>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
-#include <functional>
 
 #include "json_schema_format.h"
 
@@ -40,8 +40,8 @@ SOFTWARE.
 #include "../serialization/json.h"
 
 #include "../../bricks/strings/strings.h"
-#include "../../bricks/util/singleton.h"
 #include "../../bricks/util/sha256.h"
+#include "../../bricks/util/singleton.h"
 
 #include "../../bricks/exception.h"
 
@@ -168,11 +168,13 @@ struct CurrentStructPrinter<CPPLanguageSelector::CurrentStructs> {
     std::ostream& os_;
     const std::string type_code_;
     OptionalNamespaceScope(std::ostream& os, TypeID type_id) : os_(os), type_code_(current::ToString(type_id)) {
-      os_ << "#ifndef CURRENT_SCHEMA_FOR_T" << type_code_ << '\n' << "#define CURRENT_SCHEMA_FOR_T" << type_code_
-          << '\n' << "namespace t" << type_code_ << " {\n";
+      os_ << "#ifndef CURRENT_SCHEMA_FOR_T" << type_code_ << '\n'
+          << "#define CURRENT_SCHEMA_FOR_T" << type_code_ << '\n'
+          << "namespace t" << type_code_ << " {\n";
     }
     ~OptionalNamespaceScope() {
-      os_ << "}  // namespace t" << type_code_ << '\n' << "#endif  // CURRENT_SCHEMA_FOR_T_" << type_code_ << '\n'
+      os_ << "}  // namespace t" << type_code_ << '\n'
+          << "#endif  // CURRENT_SCHEMA_FOR_T_" << type_code_ << '\n'
           << '\n';
     }
   };
@@ -407,8 +409,10 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
         os_ << "#endif  // CURRENT_NAMESPACE_" << nmspc << "_DEFINED\n";
 
         // Thing two: natural evolvers for all the generated types.
-        os_ << '\n' << "namespace current {\n"
-            << "namespace type_evolution {\n" << '\n';
+        os_ << '\n'
+            << "namespace current {\n"
+            << "namespace type_evolution {\n"
+            << '\n';
 
         // To only output distinct `Variant<>` & `CURRENT_VARIANT`-s once.
         // TODO(dkorolev): Strictly speaking, unnecessary, as we guard each evolver by its own `#ifdef`.
@@ -431,7 +435,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
             const std::string origin = namespaced_origin_struct_name;
             const std::string origin_guard =
                 "DEFAULT_EVOLUTION_" + current::strings::ToUpper(SHA256(origin)) + "  // " + origin;
-            os_ << "#ifndef " << origin_guard << '\n' << "#define " << origin_guard << '\n'
+            os_ << "#ifndef " << origin_guard << '\n'
+                << "#define " << origin_guard << '\n'
                 << "template <typename CURRENT_ACTIVE_EVOLVER>\n"
                 << "struct Evolve<" << nmspc << ", " << origin << ", CURRENT_ACTIVE_EVOLVER> {\n"
                 << "  using FROM = " << nmspc << ";\n"
@@ -454,7 +459,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
             }
             os_ << "  }\n"
                 << "};\n"
-                << "#endif\n" << '\n';
+                << "#endif\n"
+                << '\n';
           } else if (Exists<ReflectedType_Variant>(type_substance)) {
             // Default evolver for `CURRENT_VARIANT`, or for a plain `Variant<>`.
             const auto bare_variant_name = Value<ReflectedType_Variant>(type_substance).name;
@@ -482,7 +488,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                 "DEFAULT_EVOLUTION_" + current::strings::ToUpper(SHA256(origin)) + "  // " + origin;
             os_ << "// Default evolution for `Variant<" << current::strings::Join(cases, ", ") << ">`.\n";
             const std::string evltr = nmspc + '_' + bare_variant_name + "_Cases";
-            os_ << "#ifndef " << origin_guard << '\n' << "#define " << origin_guard << '\n'
+            os_ << "#ifndef " << origin_guard << '\n'
+                << "#define " << origin_guard << '\n'
                 << "template <typename DST, typename FROM_NAMESPACE, typename INTO, typename CURRENT_ACTIVE_EVOLVER>\n"
                 << "struct " << evltr << " {\n"
                 << "  DST& into;\n"
@@ -506,7 +513,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                 << ", INTO, CURRENT_ACTIVE_EVOLVER>(into));\n"
                 << "  }\n"
                 << "};\n"
-                << "#endif\n" << '\n';
+                << "#endif\n"
+                << '\n';
           } else if (Exists<ReflectedType_Enum>(type_substance)) {
             // Default evolver for `CURRENT_ENUM`.
             const auto& e = Value<ReflectedType_Enum>(type_substance);
@@ -514,7 +522,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
             const std::string origin_guard =
                 "DEFAULT_EVOLUTION_" + current::strings::ToUpper(SHA256(origin)) + "  // " + origin;
             os_ << "// Default evolution for `CURRENT_ENUM(" << e.name << ")`.\n"
-                << "#ifndef " << origin_guard << '\n' << "#define " << origin_guard << '\n'
+                << "#ifndef " << origin_guard << '\n'
+                << "#define " << origin_guard << '\n'
                 << "template <typename CURRENT_ACTIVE_EVOLVER>\n"
                 << "struct Evolve<" << nmspc << ", " << origin << ", CURRENT_ACTIVE_EVOLVER> {\n"
                 << "  template <typename INTO>\n"
@@ -523,7 +532,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                 << "    into = static_cast<typename INTO::" << e.name << ">(from);\n"
                 << "  }\n"
                 << "};\n"
-                << "#endif\n" << '\n';
+                << "#endif\n"
+                << '\n';
           } else if (Exists<ReflectedType_Optional>(type_substance)) {
             // Default evolver for this particular `Optional<T>`.
             // The global, top-level one, can only work if the underlying type does not change.
@@ -537,7 +547,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                   "DEFAULT_EVOLUTION_" + current::strings::ToUpper(SHA256(origin)) + "  // " + origin;
               // No need to spell out evolution of `Optional<>` for basic types, string-s, and millis/micros.
               os_ << "// Default evolution for `Optional<" << bare_optional_type_name << ">`.\n"
-                  << "#ifndef " << origin_guard << '\n' << "#define " << origin_guard << '\n'
+                  << "#ifndef " << origin_guard << '\n'
+                  << "#define " << origin_guard << '\n'
                   << "template <typename CURRENT_ACTIVE_EVOLVER>\n"
                   << "struct Evolve<" << nmspc << ", " << origin << ", CURRENT_ACTIVE_EVOLVER> {\n"
                   << "  template <typename INTO, typename INTO_TYPE>\n"
@@ -554,7 +565,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                   << "    }\n"
                   << "  }\n"
                   << "};\n"
-                  << "#endif\n" << '\n';
+                  << "#endif\n"
+                  << '\n';
             }
           }
         }
@@ -1130,16 +1142,10 @@ struct LanguageTypeScriptReservedWordException : Exception {
 template <>
 struct LanguageSyntaxImpl<Language::TypeScript> final {
   static std::string Header(const std::string& unique_hash) {
-    return (
-      std::string("// Autogenerated TypeScript and io-ts types for C5T/Current JSON.\n") +
-      "// peerDependencies: io-ts@0.5.1 c5t-current-schema-ts@0.1.0\n" +
-      "// hash: " + unique_hash + "\n" +
-      "/* tslint:disable */\n" +
-      "\n" +
-      "import * as iots from 'io-ts';\n" +
-      "import * as C5TCurrent from 'c5t-current-schema-ts';\n" +
-      "\n"
-    );
+    return (std::string("// Autogenerated TypeScript and io-ts types for C5T/Current JSON.\n") +
+            "// peerDependencies: io-ts@0.5.1 c5t-current-schema-ts@0.1.0\n" + "// hash: " + unique_hash + "\n" +
+            "/* tslint:disable */\n" + "\n" + "import * as iots from 'io-ts';\n" +
+            "import * as C5TCurrent from 'c5t-current-schema-ts';\n" + "\n");
   }
 
   static std::string Footer(const std::string&) { return ""; }
@@ -1147,18 +1153,62 @@ struct LanguageSyntaxImpl<Language::TypeScript> final {
   static void AssertValidTypeScriptIdentifier(const std::string& name) {
     // https://github.com/Microsoft/TypeScript/blob/2a6aacd0ef614a38b08ef712adc377c13648f373/doc/spec.md#2.2.1
     static std::set<std::string> typescript_reserved_words{
-      // TypeScript keywords that are reserved and cannot be used as an Identifier:
-      "break", "case", " catch", "class", "const", "continue", "debugger", "default", "delete", "do",
-      "else", "enum", "export", "extends", "false", "finally", "for", "function", "if", "import", "in",
-      "instanceof", "new", "null", "return", "super", "switch", "this", "throw", "true", "try", "typeof",
-      "var", "void", "while", "with",
-      // TypeScript keywords that cannot be used as identifiers in strict mode code, but are otherwise not restricted:
-      "implements", "interface", "let", "package", "private", "protected", "public", "static", "yield",
-      // TypeScript keywords cannot be used as user defined type names, but are otherwise not restricted:
-      "any", "boolean", "number", "string", "symbol",
-      // Imported symbols:
-      "iots", "C5TCurrent"
-    };
+        // TypeScript keywords that are reserved and cannot be used as an Identifier:
+        "break",
+        "case",
+        " catch",
+        "class",
+        "const",
+        "continue",
+        "debugger",
+        "default",
+        "delete",
+        "do",
+        "else",
+        "enum",
+        "export",
+        "extends",
+        "false",
+        "finally",
+        "for",
+        "function",
+        "if",
+        "import",
+        "in",
+        "instanceof",
+        "new",
+        "null",
+        "return",
+        "super",
+        "switch",
+        "this",
+        "throw",
+        "true",
+        "try",
+        "typeof",
+        "var",
+        "void",
+        "while",
+        "with",
+        // TypeScript keywords that cannot be used as identifiers in strict mode code, but are otherwise not restricted:
+        "implements",
+        "interface",
+        "let",
+        "package",
+        "private",
+        "protected",
+        "public",
+        "static",
+        "yield",
+        // TypeScript keywords cannot be used as user defined type names, but are otherwise not restricted:
+        "any",
+        "boolean",
+        "number",
+        "string",
+        "symbol",
+        // Imported symbols:
+        "iots",
+        "C5TCurrent"};
     if (typescript_reserved_words.count(name)) {
       CURRENT_THROW(LanguageTypeScriptReservedWordException(name));
     }
@@ -1189,9 +1239,7 @@ struct LanguageSyntaxImpl<Language::TypeScript> final {
               oss_ << "UNKNOWN_BASIC_TYPE_" + current::ToString(p.type_id);  // LCOV_EXCL_LINE
             }
           }
-          void operator()(const ReflectedType_Enum& e) const {
-            oss_ << "C5TCurrent.Enum_IO('" << e.name << "')";
-          }
+          void operator()(const ReflectedType_Enum& e) const { oss_ << "C5TCurrent.Enum_IO('" << e.name << "')"; }
           void operator()(const ReflectedType_Vector& v) const {
             oss_ << "C5TCurrent.Vector_IO(" << self_.TypeName(v.element_type) << ")";
           }
@@ -1220,18 +1268,14 @@ struct LanguageSyntaxImpl<Language::TypeScript> final {
             oss_ << "C5TCurrent.UnorderedSet_IO(" << self_.TypeName(s.value_type) << ')';
           }
           void operator()(const ReflectedType_Pair& p) const {
-            oss_ << "C5TCurrent.Pair_IO(" << self_.TypeName(p.first_type) << ", "
-                 << self_.TypeName(p.second_type) << ')';
+            oss_ << "C5TCurrent.Pair_IO(" << self_.TypeName(p.first_type) << ", " << self_.TypeName(p.second_type)
+                 << ')';
           }
           void operator()(const ReflectedType_Optional& o) const {
             oss_ << "C5TCurrent.Optional_IO(" << self_.TypeName(o.optional_type) << ')';
           }
-          void operator()(const ReflectedType_Variant& v) const {
-            oss_ << v.name << "_IO";
-          }
-          void operator()(const ReflectedType_Struct& s) const {
-            oss_ << s.CanonicalName() << "_IO";
-          }
+          void operator()(const ReflectedType_Variant& v) const { oss_ << v.name << "_IO"; }
+          void operator()(const ReflectedType_Struct& s) const { oss_ << s.CanonicalName() << "_IO"; }
         };
 
         std::ostringstream oss;
@@ -1273,7 +1317,9 @@ struct LanguageSyntaxImpl<Language::TypeScript> final {
         os_ << "  " << name << ",\n";
       }
       typenames.push_back("iots.null");
-      os_ << "  " << "iots.null" << ",\n";
+      os_ << "  "
+          << "iots.null"
+          << ",\n";
       os_ << "], '" << v.name << "');\nexport type " << v.name << " = iots.UnionType<[\n";
       for (auto cit = typenames.begin(); cit != typenames.end(); ++cit) {
         os_ << "  typeof " << (*cit) << ((cit + 1) != typenames.end() ? ",\n" : "\n");
@@ -1541,7 +1587,7 @@ struct ToStringImpl<reflection::Language, false, true> final {
     }
   }
 };
-}  // namespace current::strings
+}  // namespace strings
 
 }  // namespace current
 

@@ -31,8 +31,8 @@ SOFTWARE.
 
 #include "../bricks/util/future.h"
 
-#include "../blocks/ss/ss.h"
 #include "../blocks/persistence/exceptions.h"
+#include "../blocks/ss/ss.h"
 
 namespace current {
 namespace storage {

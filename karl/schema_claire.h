@@ -33,8 +33,8 @@ SOFTWARE.
 #include "current_build.h.mock"
 #endif
 
-#include "../typesystem/struct.h"
 #include "../typesystem/optional.h"
+#include "../typesystem/struct.h"
 #include "../typesystem/variant.h"
 
 #include "../blocks/url/url.h"
@@ -159,7 +159,7 @@ CURRENT_STRUCT(status) {
   // clang-format on
   // LCOV_EXCL_STOP
 };
-}  // namespace current::karl::default_user_status
+}  // namespace default_user_status
 
 // For now, Karl parses the passed in JSON twice: once as `ClaireStatus` for generic response,
 // and once as `ClaireServiceStatus<T>`, where `T` is a `Variant` containing the client-, service-side blob.
@@ -173,7 +173,7 @@ CURRENT_STRUCT_T_DERIVED(ClaireServiceStatus, ClaireStatus) {
 
 // clang-format on
 
-}  // namespace current::karl
+}  // namespace karl
 }  // namespace current
 
 #endif  // KARL_SCHEMA_CLAIRE_H

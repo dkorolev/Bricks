@@ -27,9 +27,9 @@ SOFTWARE.
 
 #include "../../port.h"
 
-#include "../../typesystem/variant.h"
-#include "../../bricks/time/chrono.h"
 #include "../../bricks/sync/locks.h"
+#include "../../bricks/time/chrono.h"
+#include "../../typesystem/variant.h"
 
 namespace current {
 namespace ss {
@@ -59,7 +59,7 @@ struct CanPublish<char[N], std::string> {
   constexpr static bool value = true;
 };
 
-}  // namespace current::ss
+}  // namespace ss
 }  // namespace current
 
 #endif  // BLOCKS_SS_TYPES_H

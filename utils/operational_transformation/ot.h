@@ -29,8 +29,8 @@ SOFTWARE.
 
 #include "../../typesystem/serialization/json.h"
 
-#include <deque>
 #include <codecvt>
+#include <deque>
 
 namespace current {
 namespace utils {
@@ -45,7 +45,7 @@ static std::string AsUTF8String(const std::deque<wchar_t>& rope) {
 }
 
 template <typename PROCESSOR>
-typename std::result_of<decltype(&PROCESSOR::GenerateOutput)(PROCESSOR*, const std::deque<wchar_t>&, bool)>::type OT(
+typename std::result_of<decltype (&PROCESSOR::GenerateOutput)(PROCESSOR*, const std::deque<wchar_t>&, bool)>::type OT(
     const std::string& json, PROCESSOR&& processor) {
   rapidjson::Document document;
   if (document.Parse<0>(&json[0]).HasParseError()) {
@@ -122,8 +122,8 @@ inline std::string OT(const std::string& json) {
   return OT(json, PassthroughProcessor());
 }
 
-}  // namespace current::utils::ot
-}  // namespace current::utils
+}  // namespace ot
+}  // namespace utils
 }  // namespace current
 
 #endif  // UTILS_OPERATIONAL_TRANSFORMATION_H

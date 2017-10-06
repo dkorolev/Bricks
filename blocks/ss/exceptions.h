@@ -25,8 +25,8 @@ SOFTWARE.
 #ifndef BLOCKS_SS_EXCEPTIONS_H
 #define BLOCKS_SS_EXCEPTIONS_H
 
-#include "../../port.h"
 #include "../../bricks/exception.h"
+#include "../../port.h"
 
 #include <chrono>
 
@@ -52,7 +52,7 @@ struct InconsistentTimestampException : InconsistentIndexOrTimestampException {
                                                                        static_cast<long long>(found.count()))) {}
 };
 
-}  // namespace current::ss
+}  // namespace ss
 }  // namespace current
 
 #endif  // BLOCKS_SS_EXCEPTIONS_H

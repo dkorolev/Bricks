@@ -23,8 +23,8 @@ SOFTWARE.
 *******************************************************************************/
 
 #include <iostream>
-#include <string>
 #include <sstream>
+#include <string>
 
 #include "../../typesystem/serialization/json.h"
 

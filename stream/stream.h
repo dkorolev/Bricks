@@ -35,17 +35,17 @@ SOFTWARE.
 #include <thread>
 
 #include "exceptions.h"
-#include "stream_impl.h"
 #include "pubsub.h"
+#include "stream_impl.h"
 
-#include "../typesystem/struct.h"
 #include "../typesystem/schema/schema.h"
+#include "../typesystem/struct.h"
 
 #include "../blocks/http/api.h"
-#include "../blocks/persistence/memory.h"
 #include "../blocks/persistence/file.h"
-#include "../blocks/ss/ss.h"
+#include "../blocks/persistence/memory.h"
 #include "../blocks/ss/signature.h"
+#include "../blocks/ss/ss.h"
 
 #include "../bricks/sync/locks.h"
 #include "../bricks/sync/owned_borrowed.h"
@@ -101,8 +101,8 @@ CURRENT_STRUCT(SubscribableStreamSchema) {
   CURRENT_FIELD(namespace_name, std::string);
 
   CURRENT_DEFAULT_CONSTRUCTOR(SubscribableStreamSchema) {}
-  CURRENT_CONSTRUCTOR(SubscribableStreamSchema)(
-      current::reflection::TypeID type_id, const std::string& entry_name, const std::string& namespace_name)
+  CURRENT_CONSTRUCTOR(SubscribableStreamSchema)
+  (current::reflection::TypeID type_id, const std::string& entry_name, const std::string& namespace_name)
       : type_id(type_id), entry_name(entry_name), namespace_name(namespace_name) {}
 
   bool operator==(const SubscribableStreamSchema& rhs) const {
@@ -373,15 +373,12 @@ class Stream final {
         } else {
           std::unique_lock<std::mutex> lock(bare_impl.publishing_mutex);
           current::WaitableTerminateSignalBulkNotifier::Scope scope(bare_impl.notifier, terminate_signal_);
-          terminate_signal_.WaitUntil(
-              lock,
-              [this, &bare_impl, &index, &begin_idx, &head]() {
-                return terminate_signal_ ||
-                       bare_impl.persister.template Size<current::locks::MutexLockStatus::AlreadyLocked>() > index ||
-                       (index > begin_idx &&
-                        bare_impl.persister.template CurrentHead<current::locks::MutexLockStatus::AlreadyLocked>() >
-                            head);
-              });
+          terminate_signal_.WaitUntil(lock, [this, &bare_impl, &index, &begin_idx, &head]() {
+            return terminate_signal_ ||
+                   bare_impl.persister.template Size<current::locks::MutexLockStatus::AlreadyLocked>() > index ||
+                   (index > begin_idx &&
+                    bare_impl.persister.template CurrentHead<current::locks::MutexLockStatus::AlreadyLocked>() > head);
+          });
         }
       }
     }
@@ -397,10 +394,7 @@ class Stream final {
    public:
     using subscriber_thread_t = SubscriberThreadInstance<TYPE_SUBSCRIBED_TO, F>;
 
-    SubscriberScope(Borrowed<impl_t> impl,
-                    F& subscriber,
-                    uint64_t begin_idx,
-                    std::function<void()> done_callback)
+    SubscriberScope(Borrowed<impl_t> impl, F& subscriber, uint64_t begin_idx, std::function<void()> done_callback)
         : base_t(
               std::move(std::make_unique<subscriber_thread_t>(std::move(impl), subscriber, begin_idx, done_callback))) {
     }
@@ -539,12 +533,10 @@ class Stream final {
           subscription_id, borrowed_impl, std::move(r), std::move(request_params));
 
       current::stream::SubscriberScope http_chunked_subscriber_scope =
-          Subscribe(*http_chunked_subscriber,
-                    begin_idx,
-                    [this, borrowed_impl, subscription_id]() {
-                      // Note: Called from a locked section of `borrowed_impl->http_subscriptions_mutex`.
-                      borrowed_impl->http_subscriptions[subscription_id].second = nullptr;
-                    });
+          Subscribe(*http_chunked_subscriber, begin_idx, [this, borrowed_impl, subscription_id]() {
+            // Note: Called from a locked section of `borrowed_impl->http_subscriptions_mutex`.
+            borrowed_impl->http_subscriptions[subscription_id].second = nullptr;
+          });
 
       {
         std::lock_guard<std::mutex> lock(borrowed_impl->http_subscriptions_mutex);

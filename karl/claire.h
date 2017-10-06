@@ -36,19 +36,19 @@ SOFTWARE.
 #endif
 
 #include <atomic>
-#include <thread>
-#include <mutex>
 #include <condition_variable>
+#include <mutex>
+#include <thread>
 
-#include "schema_claire.h"
-#include "locator.h"
 #include "exceptions.h"
+#include "locator.h"
 #include "respond_with_schema.h"
+#include "schema_claire.h"
 
 #include "../blocks/http/api.h"
 
-#include "../bricks/time/chrono.h"
 #include "../bricks/sync/locks.h"
+#include "../bricks/time/chrono.h"
 #include "../bricks/util/random.h"
 
 namespace current {
@@ -417,10 +417,9 @@ class GenericClaire final : private DummyClaireNotifiable {
       const std::chrono::microseconds now = current::time::Now();
 
       if (projected_next_keepalive > now) {
-        keepalive_condition_variable_.wait_for(
-            lock,
-            projected_next_keepalive - now,
-            [this]() { return destructing_.load() || keepalive_thread_force_wakeup_.load(); });
+        keepalive_condition_variable_.wait_for(lock, projected_next_keepalive - now, [this]() {
+          return destructing_.load() || keepalive_thread_force_wakeup_.load();
+        });
       }
 
       if (destructing_) {
@@ -552,7 +551,7 @@ class GenericClaire final : private DummyClaireNotifiable {
 
 using Claire = GenericClaire<Variant<default_user_status::status>>;
 
-}  // namespace current::karl
+}  // namespace karl
 }  // namespace current
 
 #endif  // KARL_CLAIRE_H

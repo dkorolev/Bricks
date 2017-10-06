@@ -582,7 +582,7 @@ struct VisitAllFields {
   static void WithObjectImpl(TT&&, const F&, crnt::vi::is<>) {}
 };
 
-}  // namespace crnt::r
+}  // namespace reflection
 
 // TODO(dkorolev): Find a better place for this code. Must be included from the top-level `current.h`.
 
@@ -595,7 +595,7 @@ struct is_same_or_base_of<C, C> {
   constexpr static bool value = true;
 };
 
-}  // namespace crnt
+}  // namespace current
 
 namespace current {
 namespace reflection {
@@ -608,7 +608,7 @@ using ::crnt::r::CurrentStructFieldsConsistency;
 using ::crnt::r::FieldType;
 using ::crnt::r::FieldTypeWrapper;
 
-}  // namespace current::reflection
+}  // namespace reflection
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_STRUCT_H

@@ -50,21 +50,24 @@ TEST(EventStore, SmokeWithInMemoryEventStore) {
 
   EXPECT_EQ(0u, event_store.readonly_nonstorage_event_log_persister->Size());
 
-  const auto add_event_result = event_store.event_store_storage->ReadWriteTransaction([](MutableFields<db_t> fields) {
-    EXPECT_TRUE(fields.events.Empty());
-    Event event;
-    event.key = "id";
-    event.body.some_event_data = "foo";
-    fields.events.Add(event);
-  }).Go();
+  const auto add_event_result = event_store.event_store_storage
+                                    ->ReadWriteTransaction([](MutableFields<db_t> fields) {
+                                      EXPECT_TRUE(fields.events.Empty());
+                                      Event event;
+                                      event.key = "id";
+                                      event.body.some_event_data = "foo";
+                                      fields.events.Add(event);
+                                    })
+                                    .Go();
   EXPECT_TRUE(WasCommitted(add_event_result));
 
-  const auto verify_event_added_result =
-      event_store.event_store_storage->ReadOnlyTransaction([](ImmutableFields<db_t> fields) {
-        EXPECT_EQ(1u, fields.events.Size());
-        EXPECT_TRUE(Exists(fields.events["id"]));
-        EXPECT_EQ("foo", Value(fields.events["id"]).body.some_event_data);
-      }).Go();
+  const auto verify_event_added_result = event_store.event_store_storage
+                                             ->ReadOnlyTransaction([](ImmutableFields<db_t> fields) {
+                                               EXPECT_EQ(1u, fields.events.Size());
+                                               EXPECT_TRUE(Exists(fields.events["id"]));
+                                               EXPECT_EQ("foo", Value(fields.events["id"]).body.some_event_data);
+                                             })
+                                             .Go();
   EXPECT_TRUE(WasCommitted(verify_event_added_result));
 
   EXPECT_EQ(0u, event_store.readonly_nonstorage_event_log_persister->Size());
@@ -97,21 +100,25 @@ TEST(EventStore, SmokeWithDiskPersistedEventStore) {
 
     EXPECT_EQ(0u, event_store.readonly_nonstorage_event_log_persister->Size());
 
-    const auto add_event_result = event_store.event_store_storage->ReadWriteTransaction([](MutableFields<db_t> fields) {
-      EXPECT_TRUE(fields.events.Empty());
-      Event event;
-      event.key = "another_id";
-      event.body.some_event_data = "bar";
-      fields.events.Add(event);
-    }).Go();
+    const auto add_event_result = event_store.event_store_storage
+                                      ->ReadWriteTransaction([](MutableFields<db_t> fields) {
+                                        EXPECT_TRUE(fields.events.Empty());
+                                        Event event;
+                                        event.key = "another_id";
+                                        event.body.some_event_data = "bar";
+                                        fields.events.Add(event);
+                                      })
+                                      .Go();
     EXPECT_TRUE(WasCommitted(add_event_result));
 
     const auto verify_event_added_result =
-        event_store.event_store_storage->ReadOnlyTransaction([](ImmutableFields<db_t> fields) {
-          EXPECT_EQ(1u, fields.events.Size());
-          EXPECT_TRUE(Exists(fields.events["another_id"]));
-          EXPECT_EQ("bar", Value(fields.events["another_id"]).body.some_event_data);
-        }).Go();
+        event_store.event_store_storage
+            ->ReadOnlyTransaction([](ImmutableFields<db_t> fields) {
+              EXPECT_EQ(1u, fields.events.Size());
+              EXPECT_TRUE(Exists(fields.events["another_id"]));
+              EXPECT_EQ("bar", Value(fields.events["another_id"]).body.some_event_data);
+            })
+            .Go();
     EXPECT_TRUE(WasCommitted(verify_event_added_result));
 
     EXPECT_EQ(0u, event_store.readonly_nonstorage_event_log_persister->Size());
@@ -133,11 +140,13 @@ TEST(EventStore, SmokeWithDiskPersistedEventStore) {
     event_store_t resumed_event_store(FLAGS_event_store_test_port, "", persistence_file_name);
 
     const auto verify_persisted_result =
-        resumed_event_store.event_store_storage->ReadOnlyTransaction([](ImmutableFields<db_t> fields) {
-          EXPECT_EQ(1u, fields.events.Size());
-          EXPECT_TRUE(Exists(fields.events["another_id"]));
-          EXPECT_EQ("bar", Value(fields.events["another_id"]).body.some_event_data);
-        }).Go();
+        resumed_event_store.event_store_storage
+            ->ReadOnlyTransaction([](ImmutableFields<db_t> fields) {
+              EXPECT_EQ(1u, fields.events.Size());
+              EXPECT_TRUE(Exists(fields.events["another_id"]));
+              EXPECT_EQ("bar", Value(fields.events["another_id"]).body.some_event_data);
+            })
+            .Go();
     EXPECT_TRUE(WasCommitted(verify_persisted_result));
   }
 }
@@ -157,13 +166,15 @@ TEST(EventStore, SmokeWithHTTP) {
 
   EXPECT_EQ(0u, event_store.readonly_nonstorage_event_log_persister->Size());
 
-  const auto add_event_result = event_store.event_store_storage->ReadWriteTransaction([](MutableFields<db_t> fields) {
-    EXPECT_TRUE(fields.events.Empty());
-    Event event;
-    event.key = "http1";
-    event.body.some_event_data = "yeah1";
-    fields.events.Add(event);
-  }).Go();
+  const auto add_event_result = event_store.event_store_storage
+                                    ->ReadWriteTransaction([](MutableFields<db_t> fields) {
+                                      EXPECT_TRUE(fields.events.Empty());
+                                      Event event;
+                                      event.key = "http1";
+                                      event.body.some_event_data = "yeah1";
+                                      fields.events.Add(event);
+                                    })
+                                    .Go();
   EXPECT_TRUE(WasCommitted(add_event_result));
 
   {
@@ -194,11 +205,13 @@ TEST(EventStore, SmokeWithHTTP) {
   EXPECT_EQ("1\n", HTTP(GET(Printf("http://localhost:%d/subscribe?sizeonly", FLAGS_event_store_test_port))).body);
 
   const auto verify_http_event_added_result =
-      event_store.event_store_storage->ReadOnlyTransaction([](ImmutableFields<db_t> fields) {
-        EXPECT_EQ(2u, fields.events.Size());
-        EXPECT_TRUE(Exists(fields.events["http2"]));
-        EXPECT_EQ("yeah2", Value(fields.events["http2"]).body.some_event_data);
-      }).Go();
+      event_store.event_store_storage
+          ->ReadOnlyTransaction([](ImmutableFields<db_t> fields) {
+            EXPECT_EQ(2u, fields.events.Size());
+            EXPECT_TRUE(Exists(fields.events["http2"]));
+            EXPECT_EQ("yeah2", Value(fields.events["http2"]).body.some_event_data);
+          })
+          .Go();
   EXPECT_TRUE(WasCommitted(verify_http_event_added_result));
 
   ASSERT_EQ(1u, event_store.readonly_nonstorage_event_log_persister->Size());

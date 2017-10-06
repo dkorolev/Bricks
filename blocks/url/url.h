@@ -71,7 +71,7 @@ namespace impl {
 namespace {
 const char* const kDefaultScheme = "http";
 const char* const kDefaultHost = "localhost";
-}
+}  // namespace
 
 struct URLWithoutParametersParser {
   std::string host = "";
@@ -459,10 +459,9 @@ struct URL : URLParametersExtractor, URLWithoutParametersParser {
   static bool IsPathValidToRegister(const std::string& path) {
     const std::set<char> valid_nonalnum_chars{
         '/', '-', '.', '_', '~', '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=', ':', '@'};
-    return find_if(path.begin(),
-                   path.end(),
-                   [&valid_nonalnum_chars](char c) { return !(isalnum(c) || valid_nonalnum_chars.count(c)); }) ==
-           path.end();
+    return find_if(path.begin(), path.end(), [&valid_nonalnum_chars](char c) {
+             return !(isalnum(c) || valid_nonalnum_chars.count(c));
+           }) == path.end();
   }
 };
 

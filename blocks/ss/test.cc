@@ -32,9 +32,9 @@ SOFTWARE.
 #include <deque>
 #include <string>
 
-#include "../../typesystem/serialization/json.h"
-#include "../../bricks/time/chrono.h"
 #include "../../bricks/strings/join.h"
+#include "../../bricks/time/chrono.h"
+#include "../../typesystem/serialization/json.h"
 
 #include "../../3rdparty/gtest/gtest-main.h"
 

@@ -25,11 +25,11 @@ SOFTWARE.
 #ifndef BLOCKS_URL_EXCEPTIONS_H
 #define BLOCKS_URL_EXCEPTIONS_H
 
-#include "../../port.h"
 #include "../../bricks/exception.h"
-#include "../../typesystem/struct.h"
+#include "../../port.h"
 #include "../../typesystem/reflection/reflection.h"
 #include "../../typesystem/schema/schema.h"
+#include "../../typesystem/struct.h"
 
 namespace current {
 namespace url {
@@ -64,7 +64,7 @@ struct URLParseSpecificObjectAsURLParameterException : URLParseObjectAsURLParame
       : URLParseObjectAsURLParameterException(key, error, DescribeT()) {}
 };
 
-}  // namespace current::url
+}  // namespace url
 }  // namespace current
 
 #endif  // BLOCKS_URL_EXCEPTIONS_H

@@ -67,7 +67,7 @@ inline const T& UnpackFromString(std::string const& s, T& x) {
   return x;
 }
 
-}  // namespace string
+}  // namespace strings
 }  // namespace current
 
 #endif  // BRICKS_STRINGS_FIXED_SIZE_SERIALIZER_H

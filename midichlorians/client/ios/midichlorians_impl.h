@@ -36,8 +36,8 @@
 
 #include <string>
 
-#include "../../../port.h"
 #include "../../../bricks/util/singleton.h"
+#include "../../../port.h"
 #include "../../../typesystem/serialization/json.h"
 
 #ifdef CURRENT_MIDICHLORIANS_DATA_DICTIONARY_H
@@ -49,8 +49,8 @@
 #define COMPILE_MIDICHLORIANS_DATA_DICTIONARY_FOR_IOS_CLIENT
 #include "../../midichlorians_data_dictionary.h"
 
-#import <Foundation/Foundation.h>
 #import <CoreLocation/CoreLocation.h>
+#import <Foundation/Foundation.h>
 
 using current::midichlorians::ios::iOSBaseEvent;
 using current::midichlorians::ios::iOSFirstLaunchEvent;

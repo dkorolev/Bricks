@@ -24,8 +24,8 @@ SOFTWARE.
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 
-#include "../../storage/storage.h"
 #include "../../storage/persister/stream.h"
+#include "../../storage/storage.h"
 
 #include "../../bricks/file/file.h"
 

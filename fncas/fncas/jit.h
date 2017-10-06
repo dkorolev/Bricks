@@ -32,20 +32,20 @@
 
 #define FNCAS_JIT_COMPILED
 
+#include <iostream>
 #include <sstream>
 #include <stack>
 #include <string>
 #include <vector>
-#include <iostream>
 
 #include <dlfcn.h>
 
-#include "../../bricks/strings/printf.h"
 #include "../../bricks/file/file.h"
+#include "../../bricks/strings/printf.h"
 
 #include "base.h"
-#include "node.h"
 #include "differentiate.h"
+#include "node.h"
 
 namespace fncas {
 namespace impl {
@@ -163,8 +163,7 @@ struct compiled_expression final : noncopyable {
   static void syscall(const std::string& command) {
     int retval = system(command.c_str());
     if (retval) {
-      std::cerr << command << std::endl
-                << retval << std::endl;
+      std::cerr << command << std::endl << retval << std::endl;
       exit(-1);
     }
   }
@@ -820,7 +819,7 @@ struct g_impl_selector<JIT::NASM> {
   using type = g_compiled<JIT::NASM>;
 };
 
-}  // namespace fncas::impl
+}  // namespace impl
 }  // namespace fncas
 
 #endif  // FNCAS_USE_LONG_DOUBLE

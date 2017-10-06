@@ -39,9 +39,9 @@ SOFTWARE.
 
 #include "../exception.h"
 
-#include "../util/singleton.h"
 #include "../strings/fixed_size_serializer.h"
 #include "../strings/util.h"
+#include "../util/singleton.h"
 
 #ifdef CURRENT_WINDOWS
 #define timegm _mkgmtime
@@ -153,7 +153,7 @@ struct FixedSizeSerializer<std::chrono::microseconds> {
   }
 };
 
-}  // namespace current::strings
+}  // namespace strings
 
 namespace time {
 
@@ -191,7 +191,7 @@ struct IsTimestampImpl<DefaultTimeArgument> {
 template <typename T>
 using IsTimestamp = IsTimestampImpl<decay<T>>;
 
-}  // namespace current::time
+}  // namespace time
 
 template <time::TimeRepresentation T = time::TimeRepresentation::Local>
 inline std::string FormatDateTime(std::chrono::microseconds t, const char* format_string = "%Y/%m/%d %H:%M:%S") {
@@ -245,8 +245,9 @@ inline std::chrono::microseconds DateTimeStringToTimestamp(
       tm.tm_isdst = 0;
       tt = ::timegm(&tm);
     }
-    const auto result = std::chrono::time_point_cast<std::chrono::microseconds>(
-                            std::chrono::system_clock::from_time_t(tt)).time_since_epoch();
+    const auto result =
+        std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::from_time_t(tt))
+            .time_since_epoch();
     if (padding == time::SecondsToMicrosecondsPadding::Lower) {
       return result;
     } else {

@@ -31,9 +31,9 @@ SOFTWARE.
 
 #include "../serialization.h"
 
-#include "../../struct.h"
-#include "../../optional.h"
 #include "../../helpers.h"
+#include "../../optional.h"
+#include "../../struct.h"
 
 #include "../../../bricks/strings/chunk.h"
 #include "../../../bricks/template/pod.h"  // `current::copy_free`.
@@ -420,8 +420,8 @@ inline Optional<T> TryParseJSON(const strings::Chunk& source) {
   return TryParseJSON<T, J>(source.c_str());
 }
 
-}  // namespace current::serialization::json
-}  // namespace current::serialization
+}  // namespace json
+}  // namespace serialization
 
 // Keep top-level symbols both in `current::` and in global namespace.
 using serialization::json::JSON;

@@ -24,8 +24,8 @@ SOFTWARE.
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 
-#include "../../bricks/file/file.h"
 #include "../../bricks/template/rtti_dynamic_call.h"
+#include "../../bricks/file/file.h"
 #include "../../bricks/template/typelist.h"
 #include "../../typesystem/struct.h"
 

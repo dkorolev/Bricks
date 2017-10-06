@@ -44,13 +44,13 @@ SOFTWARE.
 #endif
 
 #include "base.h"
-#include "helpers.h"
 #include "exceptions.h"
+#include "helpers.h"
 
 #include "../bricks/template/call_all_constructors.h"
 #include "../bricks/template/mapreduce.h"
-#include "../bricks/template/typelist.h"
 #include "../bricks/template/rtti_dynamic_call.h"
+#include "../bricks/template/typelist.h"
 
 namespace current {
 

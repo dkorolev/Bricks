@@ -29,9 +29,9 @@ SOFTWARE.
 
 #include <fstream>
 
-#include "../../typesystem/struct.h"
-#include "../../bricks/strings/strings.h"
 #include "../../bricks/exception.h"
+#include "../../bricks/strings/strings.h"
+#include "../../typesystem/struct.h"
 
 namespace current {
 

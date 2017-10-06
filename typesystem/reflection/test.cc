@@ -32,8 +32,8 @@ SOFTWARE.
 
 #include "reflection.h"
 
-#include "../../bricks/strings/strings.h"
 #include "../../3rdparty/gtest/gtest-main.h"
+#include "../../bricks/strings/strings.h"
 
 namespace reflection_test {
 
@@ -193,10 +193,10 @@ CURRENT_STRUCT(X){};
 CURRENT_STRUCT(Y){};
 namespace explicitly_declared_named_variant_one {
 CURRENT_VARIANT(Variant_B_A_X_Y_E, A, X, Y);
-}  // namespace reflection_test::explicitly_declared_named_variant_one
+}  // namespace explicitly_declared_named_variant_one
 namespace explicitly_declared_named_variant_two {
 CURRENT_VARIANT(Variant_B_A_X_Y_E, A, X, Y);
-}  // namespace reflection_test::explicitly_declared_named_variant_two
+}  // namespace explicitly_declared_named_variant_two
 
 static_assert(!std::is_same<explicitly_declared_named_variant_one::Variant_B_A_X_Y_E, Variant<A, X, Y>>::value, "");
 static_assert(!std::is_same<explicitly_declared_named_variant_two::Variant_B_A_X_Y_E, Variant<A, X, Y>>::value, "");
@@ -230,15 +230,19 @@ TEST(Reflection, CurrentStructInternals) {
 
   Foo foo;
   foo.i = 100u;
-  foo.CURRENT_REFLECTION([](const std::string& name, const uint64_t& value) {
-    EXPECT_EQ("i", name);
-    EXPECT_EQ(100u, value);
-  }, Index<FieldNameAndImmutableValue, 0>());
+  foo.CURRENT_REFLECTION(
+      [](const std::string& name, const uint64_t& value) {
+        EXPECT_EQ("i", name);
+        EXPECT_EQ(100u, value);
+      },
+      Index<FieldNameAndImmutableValue, 0>());
 
-  foo.CURRENT_REFLECTION([](const std::string& name, uint64_t& value) {
-    EXPECT_EQ("i", name);
-    value = 123u;
-  }, Index<FieldNameAndMutableValue, 0>());
+  foo.CURRENT_REFLECTION(
+      [](const std::string& name, uint64_t& value) {
+        EXPECT_EQ("i", name);
+        value = 123u;
+      },
+      Index<FieldNameAndMutableValue, 0>());
   EXPECT_EQ(123u, foo.i);
 
   static_assert(std::is_same<SuperType<Bar>, ::current::CurrentStruct>::value, "");
@@ -475,11 +479,11 @@ CURRENT_STRUCT(BaseTypeTwo){};
 
 namespace one {
 CURRENT_STRUCT(IdenticalCurrentStructWithDifferentBaseType, BaseTypeOne){};
-}  // namespace reflection_test::one
+}  // namespace one
 
 namespace two {
 CURRENT_STRUCT(IdenticalCurrentStructWithDifferentBaseType, BaseTypeTwo){};
-}  // namespace reflection_test::two
+}  // namespace two
 
 using current::reflection::Reflector;
 
@@ -490,23 +494,24 @@ TEST(Reflection, BaseTypeMatters) {
   using current::reflection::ReflectedTypeBase;
   EXPECT_NE(static_cast<uint64_t>(Value<ReflectedTypeBase>(Reflector().ReflectType<BaseTypeOne>()).type_id),
             static_cast<uint64_t>(Value<ReflectedTypeBase>(Reflector().ReflectType<BaseTypeTwo>()).type_id));
-  EXPECT_NE(
-      static_cast<uint64_t>(Value<ReflectedTypeBase>(
-                                Reflector().ReflectType<one::IdenticalCurrentStructWithDifferentBaseType>()).type_id),
-      static_cast<uint64_t>(Value<ReflectedTypeBase>(
-                                Reflector().ReflectType<two::IdenticalCurrentStructWithDifferentBaseType>()).type_id));
+  EXPECT_NE(static_cast<uint64_t>(
+                Value<ReflectedTypeBase>(Reflector().ReflectType<one::IdenticalCurrentStructWithDifferentBaseType>())
+                    .type_id),
+            static_cast<uint64_t>(
+                Value<ReflectedTypeBase>(Reflector().ReflectType<two::IdenticalCurrentStructWithDifferentBaseType>())
+                    .type_id));
   EXPECT_EQ(9200000000962478099ull,
             static_cast<uint64_t>(Value<ReflectedTypeBase>(Reflector().ReflectType<BaseTypeOne>()).type_id));
   EXPECT_EQ(9200000001392004228ull,
             static_cast<uint64_t>(Value<ReflectedTypeBase>(Reflector().ReflectType<BaseTypeTwo>()).type_id));
-  EXPECT_EQ(
-      9205123477974540226ull,
-      static_cast<uint64_t>(Value<ReflectedTypeBase>(
-                                Reflector().ReflectType<one::IdenticalCurrentStructWithDifferentBaseType>()).type_id));
-  EXPECT_EQ(
-      9205123533591385154ull,
-      static_cast<uint64_t>(Value<ReflectedTypeBase>(
-                                Reflector().ReflectType<two::IdenticalCurrentStructWithDifferentBaseType>()).type_id));
+  EXPECT_EQ(9205123477974540226ull,
+            static_cast<uint64_t>(
+                Value<ReflectedTypeBase>(Reflector().ReflectType<one::IdenticalCurrentStructWithDifferentBaseType>())
+                    .type_id));
+  EXPECT_EQ(9205123533591385154ull,
+            static_cast<uint64_t>(
+                Value<ReflectedTypeBase>(Reflector().ReflectType<two::IdenticalCurrentStructWithDifferentBaseType>())
+                    .type_id));
 }
 
 #endif  // CURRENT_TYPE_SYSTEM_REFLECTION_TEST_CC

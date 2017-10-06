@@ -31,8 +31,8 @@ SOFTWARE.
 #include "primitives.h"
 #include "typeid.h"
 
-#include "../../variant.h"
 #include "../../reflection/reflection.h"
+#include "../../variant.h"
 
 #include "../../../bricks/template/call_all_constructors.h"
 #include "../../../bricks/template/enable_if.h"
@@ -248,9 +248,8 @@ class JSONVariantPerStyle<JSONVariantStyle::Current, JSON_FORMAT, VARIANT> {
   class Impl {
    public:
     Impl() {
-      current::metaprogramming::call_all_constructors_with<Registerer,
-                                                           deserializers_map_t,
-                                                           typename VARIANT::typelist_t>(deserializers_);
+      current::metaprogramming::
+          call_all_constructors_with<Registerer, deserializers_map_t, typename VARIANT::typelist_t>(deserializers_);
     }
 
     void DoLoadVariant(JSONParser<JSON_FORMAT>& json_parser, VARIANT& destination) const {
@@ -394,7 +393,7 @@ class JSONVariantPerStyle<JSONVariantStyle::NewtonsoftFSharp, JSON_FORMAT, VARIA
   }
 };
 
-}  // namespace current::serialization::json
+}  // namespace json
 
 template <class JSON_FORMAT, typename T>
 struct SerializeImpl<json::JSONStringifier<JSON_FORMAT>, T, std::enable_if_t<IS_CURRENT_VARIANT(T)>> {
@@ -426,7 +425,7 @@ struct DeserializeImpl<json::JSONParser<JSON_FORMAT>, T, std::enable_if_t<IS_CUR
   }
 };
 
-}  // namespace current::serialization
+}  // namespace serialization
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_VARIANT_H

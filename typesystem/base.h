@@ -66,7 +66,7 @@ struct Index {};
 template <typename T>
 struct TypeSelector {};
 
-}  // namespace crnt::r
+}  // namespace r
 }  // namespace crnt
 
 namespace current {
@@ -83,7 +83,7 @@ using ::crnt::r::FieldNameAndMutableValue;
 using ::crnt::r::SimpleIndex;
 using ::crnt::r::Index;
 using ::crnt::r::TypeSelector;
-}  // namespace current::reflection
+}  // namespace reflection
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_BASE_H

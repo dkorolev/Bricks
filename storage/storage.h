@@ -52,50 +52,51 @@ SOFTWARE.
 
 #include "container/dictionary.h"
 #include "container/many_to_many.h"
-#include "container/one_to_one.h"
 #include "container/one_to_many.h"
+#include "container/one_to_one.h"
 
 #include "persister/stream.h"
 
-#include "../typesystem/struct.h"
-#include "../typesystem/serialization/json.h"
 #include "../typesystem/optional.h"
+#include "../typesystem/serialization/json.h"
+#include "../typesystem/struct.h"
 
 #include "../bricks/exception.h"
 #include "../bricks/strings/strings.h"
-#include "../bricks/time/chrono.h"
 #include "../bricks/sync/waitable_atomic.h"
+#include "../bricks/time/chrono.h"
 
 namespace current {
 namespace storage {
 
-#define CURRENT_STORAGE_FIELD_ENTRY_Dictionary_IMPL(dictionary_type, entry_type, entry_name)        \
-  struct entry_name;                                                                                \
-  CURRENT_STRUCT(entry_name##Updated) {                                                             \
-    CURRENT_FIELD(us, std::chrono::microseconds);                                                   \
-    CURRENT_FIELD(data, entry_type);                                                                \
-    CURRENT_DEFAULT_CONSTRUCTOR(entry_name##Updated) {}                                             \
-    CURRENT_CONSTRUCTOR(entry_name##Updated)(std::chrono::microseconds us, const entry_type& value) \
-        : us(us), data(value) {}                                                                    \
-    using storage_field_t = entry_name;                                                             \
-  };                                                                                                \
-  CURRENT_STRUCT(entry_name##Deleted) {                                                             \
-    CURRENT_FIELD(us, std::chrono::microseconds);                                                   \
-    CURRENT_FIELD(key, ::current::storage::sfinae::entry_key_t<entry_type>);                        \
-    CURRENT_DEFAULT_CONSTRUCTOR(entry_name##Deleted) {}                                             \
-    CURRENT_CONSTRUCTOR(entry_name##Deleted)(std::chrono::microseconds us, const entry_type& value) \
-        : us(us), key(::current::storage::sfinae::GetKey(value)) {}                                 \
-    using storage_field_t = entry_name;                                                             \
-  };                                                                                                \
-  struct entry_name {                                                                               \
-    template <typename T, typename E1, typename E2>                                                 \
-    using field_t = dictionary_type<T, E1, E2>;                                                     \
-    using entry_t = entry_type;                                                                     \
-    using key_t = ::current::storage::sfinae::entry_key_t<entry_type>;                              \
-    using update_event_t = entry_name##Updated;                                                     \
-    using delete_event_t = entry_name##Deleted;                                                     \
-    using persisted_event_1_t = entry_name##Updated;                                                \
-    using persisted_event_2_t = entry_name##Deleted;                                                \
+#define CURRENT_STORAGE_FIELD_ENTRY_Dictionary_IMPL(dictionary_type, entry_type, entry_name) \
+  struct entry_name;                                                                         \
+  CURRENT_STRUCT(entry_name##Updated) {                                                      \
+    CURRENT_FIELD(us, std::chrono::microseconds);                                            \
+    CURRENT_FIELD(data, entry_type);                                                         \
+    CURRENT_DEFAULT_CONSTRUCTOR(entry_name##Updated) {}                                      \
+    CURRENT_CONSTRUCTOR(entry_name##Updated)                                                 \
+    (std::chrono::microseconds us, const entry_type& value) : us(us), data(value) {}         \
+    using storage_field_t = entry_name;                                                      \
+  };                                                                                         \
+  CURRENT_STRUCT(entry_name##Deleted) {                                                      \
+    CURRENT_FIELD(us, std::chrono::microseconds);                                            \
+    CURRENT_FIELD(key, ::current::storage::sfinae::entry_key_t<entry_type>);                 \
+    CURRENT_DEFAULT_CONSTRUCTOR(entry_name##Deleted) {}                                      \
+    CURRENT_CONSTRUCTOR(entry_name##Deleted)                                                 \
+    (std::chrono::microseconds us, const entry_type& value)                                  \
+        : us(us), key(::current::storage::sfinae::GetKey(value)) {}                          \
+    using storage_field_t = entry_name;                                                      \
+  };                                                                                         \
+  struct entry_name {                                                                        \
+    template <typename T, typename E1, typename E2>                                          \
+    using field_t = dictionary_type<T, E1, E2>;                                              \
+    using entry_t = entry_type;                                                              \
+    using key_t = ::current::storage::sfinae::entry_key_t<entry_type>;                       \
+    using update_event_t = entry_name##Updated;                                              \
+    using delete_event_t = entry_name##Deleted;                                              \
+    using persisted_event_1_t = entry_name##Updated;                                         \
+    using persisted_event_2_t = entry_name##Deleted;                                         \
   }
 
 #define CURRENT_STORAGE_FIELD_ENTRY_UnorderedDictionary(entry_type, entry_name) \
@@ -110,8 +111,8 @@ namespace storage {
     CURRENT_FIELD(us, std::chrono::microseconds);                                                                      \
     CURRENT_FIELD(data, entry_type);                                                                                   \
     CURRENT_DEFAULT_CONSTRUCTOR(entry_name##Updated) {}                                                                \
-    CURRENT_CONSTRUCTOR(entry_name##Updated)(std::chrono::microseconds us, const entry_type& value)                    \
-        : us(us), data(value) {}                                                                                       \
+    CURRENT_CONSTRUCTOR(entry_name##Updated)                                                                           \
+    (std::chrono::microseconds us, const entry_type& value) : us(us), data(value) {}                                   \
     using storage_field_t = entry_name;                                                                                \
   };                                                                                                                   \
   CURRENT_STRUCT(entry_name##Deleted) {                                                                                \
@@ -120,7 +121,8 @@ namespace storage {
                   (std::pair<::current::storage::sfinae::entry_row_t<entry_type>,                                      \
                              ::current::storage::sfinae::entry_col_t<entry_type>>));                                   \
     CURRENT_DEFAULT_CONSTRUCTOR(entry_name##Deleted) {}                                                                \
-    CURRENT_CONSTRUCTOR(entry_name##Deleted)(std::chrono::microseconds us, const entry_type& value)                    \
+    CURRENT_CONSTRUCTOR(entry_name##Deleted)                                                                           \
+    (std::chrono::microseconds us, const entry_type& value)                                                            \
         : us(us),                                                                                                      \
           key(std::make_pair(::current::storage::sfinae::GetRow(value), ::current::storage::sfinae::GetCol(value))) {} \
     using storage_field_t = entry_name;                                                                                \
@@ -395,7 +397,7 @@ struct NullPersister {};
 template <typename MUTATIONS_VARIANT, typename STREAM_RECORD_TYPE = CURRENT_STORAGE_DEFAULT_PERSISTER_PARAM>
 using NullStoragePersister = NullStoragePersisterImpl<MUTATIONS_VARIANT, NullPersister, STREAM_RECORD_TYPE>;
 
-}  // namespace current::storage::persister
+}  // namespace persister
 
 template <template <template <typename...> class, template <typename> class, typename> class STORAGE>
 using transaction_t = typename STORAGE<persister::NullStoragePersister,

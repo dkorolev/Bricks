@@ -25,14 +25,14 @@ SOFTWARE.
 #ifndef BLOCKS_HTTP_REQUEST_H
 #define BLOCKS_HTTP_REQUEST_H
 
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "../url/url.h"
 
 #include "../../bricks/net/http/http.h"
-#include "../../bricks/time/chrono.h"
 #include "../../bricks/template/decay.h"
+#include "../../bricks/time/chrono.h"
 
 namespace current {
 namespace http {

@@ -28,9 +28,9 @@
 
 #include "../../bricks/port.h"
 
-#include <vector>
-#include <cstdlib>
 #include <cstdint>
+#include <cstdlib>
+#include <vector>
 
 namespace fncas {
 
@@ -84,7 +84,7 @@ class JITImplementation;
 
 enum class OptimizationDirection { Minimize, Maximize };
 
-}  // namespace fncas::impl
+}  // namespace impl
 
 using impl::JIT;
 using impl::OptimizationDirection;

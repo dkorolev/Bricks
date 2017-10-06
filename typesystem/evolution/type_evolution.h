@@ -30,9 +30,9 @@ SOFTWARE.
 
 #include "macros.h"
 
+#include "../optional.h"
 #include "../struct.h"
 #include "../variant.h"
-#include "../optional.h"
 
 #include "../../bricks/template/pod.h"
 
@@ -120,7 +120,7 @@ struct Evolve<FROM_NAMESPACE, Optional<OPTIONAL_INNER_TYPE>, EVOLVER> {
   }
 };
 
-}  // namespace current::type_evolution
+}  // namespace type_evolution
 }  // namespace current
 
 #define CURRENT_TYPE_EVOLVER(evolver, from_namespace, type_name, ...)                      \

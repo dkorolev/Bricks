@@ -36,8 +36,8 @@
 #include <numeric>
 #include <vector>
 
-#include "../../typesystem/struct.h"
 #include "../../typesystem/serialization/json.h"
+#include "../../typesystem/struct.h"
 
 namespace fncas {
 
@@ -191,7 +191,7 @@ ValueAndPoint Backtracking(F&& f,
   }
 }
 
-}  // namespace fncas::impl
+}  // namespace impl
 }  // namespace fncas
 
 #endif  // #ifndef FNCAS_FNCAS_MATHUTIL_H

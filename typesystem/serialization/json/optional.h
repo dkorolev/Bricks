@@ -142,7 +142,7 @@ struct IsJSONSerializable<Optional<T>> {
 };
 }  // namespace json
 
-}  // namespace current::serialization
+}  // namespace serialization
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_OPTIONAL_H

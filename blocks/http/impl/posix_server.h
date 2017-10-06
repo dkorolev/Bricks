@@ -26,14 +26,14 @@ SOFTWARE.
 #define BLOCKS_HTTP_IMPL_POSIX_SERVER_H
 
 #include <atomic>
-#include <string>
+#include <iostream>  // TODO(dkorolev): More robust logging here.
 #include <map>
 #include <memory>
+#include <string>
 #include <thread>
-#include <iostream>  // TODO(dkorolev): More robust logging here.
 
-#include "../types.h"
 #include "../request.h"
+#include "../types.h"
 
 #include "../../url/url.h"
 

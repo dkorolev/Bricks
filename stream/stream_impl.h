@@ -33,8 +33,8 @@ SOFTWARE.
 #include "../bricks/util/random.h"
 #include "../bricks/util/waitable_terminate_signal.h"
 
-#include "../blocks/persistence/memory.h"
 #include "../blocks/persistence/file.h"
+#include "../blocks/persistence/memory.h"
 #include "../blocks/ss/pubsub.h"
 
 namespace current {
@@ -117,8 +117,7 @@ struct StreamImpl {
   mutable http_subscriptions_t http_subscriptions;
 
   template <typename... ARGS>
-  StreamImpl(ARGS&&... args)
-      : persister(publishing_mutex, std::forward<ARGS>(args)...) {}
+  StreamImpl(ARGS&&... args) : persister(publishing_mutex, std::forward<ARGS>(args)...) {}
 };
 
 template <typename ENTRY, template <typename> class PERSISTENCE_LAYER>

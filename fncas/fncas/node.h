@@ -27,14 +27,14 @@
 #define FNCAS_FNCAS_NODE_H
 
 #include <cmath>
+#include <exception>
 #include <functional>
 #include <limits>
 #include <map>
+#include <sstream>
 #include <stack>
 #include <string>
-#include <sstream>
 #include <vector>
-#include <exception>
 
 #include "base.h"
 #include "exceptions.h"
@@ -55,7 +55,8 @@ using function_impl::sqr;
 using function_impl::unit_step;
 using function_impl::ramp;
 
-#define FNCAS_FUNCTION(f) inline double current_fncas_##f(double_t x) { return f(x); }
+#define FNCAS_FUNCTION(f) \
+  inline double current_fncas_##f(double_t x) { return f(x); }
 #include "fncas_functions.dsl.h"
 #undef FNCAS_FUNCTION
 
@@ -319,7 +320,7 @@ static_assert(sizeof(V) == 8, "sizeof(V) should be 8, as sizeof(node_index_t).")
 // Class "x" is the placeholder class an instance of which is to be passed to the user function
 // to record the computation rather than perform it.
 
-}  // namespace fncas::impl
+}  // namespace impl
 }  // namespace fncas
 
 // A thin wrapper replacing `std::vector<V>`, with the sole purpose of being able to inherit from it
@@ -477,7 +478,7 @@ struct f_impl_selector<JIT::Super> {
   using type = f_super;
 };
 
-}  // namespace fncas::impl
+}  // namespace impl
 }  // namespace fncas
 
 // Arithmetic operations and mathematical functions are defined outside namespace fncas::impl.
