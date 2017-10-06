@@ -34,6 +34,7 @@ SOFTWARE.
 #define _WINSOCKAPI_  // `gtest` includes `windows.h` on Windows, and this macro has to be defined before it.
 
 #include "gtest.h"
+#include "../../bricks/dflags/dflags.h"  // `clang-format-5` rearranges headers, making this one essential. -- D.K.
 
 DEFINE_string(current_runtime_arch, "", "The expected architecture to run on, `uname` on *nix systems.");
 
