@@ -106,3 +106,27 @@ TEST(Time, DateTimeFormatFunctions) {
                                                      current::time::SecondsToMicrosecondsPadding::Upper).count());
   EXPECT_EQ(0, current::RFC850DateTimeStringToTimestamp("Not valid string,").count());
 }
+
+TEST(Time, TimeParsingFromStringShouldBeConsistent) {
+  // A helper to eliminate room for parse pattern copy-pasting errors.
+  const auto TextToEpochSeconds = [](std::string time_as_string) -> int {
+    return current::LocalDateTimeStringToTimestamp(time_as_string, "%m/%d/%Y %r").count() / 1000000;
+  };
+
+  // Call string-to-epoch-microseconds converter on the following timestamp.
+  std::string timestamp_of_interest = "11/06/2016 01:54:43 AM";
+
+  // First right after the one below, then right after the one below the one below.
+  std::string previous_call_one = "11/06/2016 12:03:55 AM";
+  std::string previous_call_two = "11/06/2016 02:08:14 AM";
+
+  // Here we go.
+  TextToEpochSeconds(previous_call_one);
+  const int t1 = TextToEpochSeconds(timestamp_of_interest);
+
+  TextToEpochSeconds(previous_call_two);
+  const int t2 = TextToEpochSeconds(timestamp_of_interest);
+
+  // Surprise!
+  EXPECT_EQ(t1, t2) << "Like, seriously, `" << timestamp_of_interest << "` parses differently?";
+}
