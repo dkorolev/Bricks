@@ -30,6 +30,8 @@ SOFTWARE.
 #ifndef CURRENT_PORT_H
 #define CURRENT_PORT_H
 
+#include <functional>
+
 // TODO(dkorolev): Needed by Nathan. Remove later.
 #include <cassert>
 
