@@ -85,6 +85,23 @@ TEST(OptimizationVars, DenseVector) {
   ASSERT_THROW(c.DenseDoubleVector(100), current::expression::VarsManagementException);
 }
 
+TEST(OptimizationVars, LockingDownDeathTest) {
+  using namespace current::expression;
+  VarsContext context;
+  c["dense"].DenseDoubleVector(2);
+  c["sparse"][42] = 42;
+  c["strings"]["foo"] = 1;
+  c.Lock();
+  c["dense"][0];
+  c["dense"][1];
+  c["sparse"][42];
+  c["strings"]["foo"];
+  ASSERT_THROW(c["dense"][2], current::expression::VarsManagementException);
+  ASSERT_THROW(c["sparse"][100], current::expression::VarsManagementException);
+  ASSERT_THROW(c["strings"]["bar"], current::expression::VarsManagementException);
+  ASSERT_THROW(c["foo"], current::expression::VarsManagementException);
+}
+
 TEST(OptimizationVars, MultiDimensionalIntInt) {
   using namespace current::expression;
   VarsContext context;

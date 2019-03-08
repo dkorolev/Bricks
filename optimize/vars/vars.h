@@ -44,15 +44,48 @@ struct VarsManagementException final : current::Exception {
   using Exception::Exception;
 };
 
+class VarsContextInterface {
+ public:
+  virtual bool IsLocked() const = 0;
+  virtual void Lock() = 0;
+};
+
 class VarsContext;
 
 class VarsManager final {
  private:
   VarsContext* active_context_ = nullptr;
+  VarsContextInterface* active_context_interface_ = nullptr;
 
  public:
   static VarsManager& TLS() { return ThreadLocalSingleton<VarsManager>(); }
-  VarsContext*& Active() { return active_context_; }
+  VarsContext& Active() const {
+    if (!active_context_) {
+      CURRENT_THROW(VarsManagementException("Vars context is required."));
+    }
+    return *active_context_;
+  }
+  void SetActive(VarsContext* ptr1, VarsContextInterface* ptr2) {
+    if (active_context_) {
+      CURRENT_THROW(VarsManagementException("Attempted to create nested context for variables."));
+    }
+    active_context_ = ptr1;
+    active_context_interface_ = ptr2;
+  }
+  void ConfirmActive(VarsContext const* ptr1, VarsContextInterface const* ptr2) const {
+    if (!(active_context_ == ptr1 && active_context_interface_ == ptr2)) {
+      CURRENT_THROW(VarsManagementException("Attempted to create nested context for variables."));
+    }
+  }
+  void ClearActive(VarsContext const* ptr1, VarsContextInterface const* ptr2) {
+    if (!(active_context_ == ptr1 && active_context_interface_ == ptr2)) {
+      std::cerr << "Internal error when deleting variables context." << std::endl;
+      std::exit(-1);
+    }
+    active_context_ = nullptr;
+    active_context_interface_ = nullptr;
+  }
+  VarsContextInterface const& ActiveViaInterface() { return *active_context_interface_; }
 };
 
 namespace json {
@@ -84,6 +117,9 @@ struct VarNode {
   double value;                                        // `type == Value`.
 
   void DenseDoubleVector(size_t dim) {
+    if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
+      CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
+    }
     if (!dim || dim > static_cast<size_t>(1e6)) {
       // NOTE(dkorolev): The `1M` size cutoff is somewhat arbitrary here, but I honestly don't believe
       //                 this optimization code should be used to optimize an 1M++-variables model.
@@ -98,6 +134,17 @@ struct VarNode {
   }
 
   VarNode& operator[](size_t i) {
+    if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
+      if (type == Type::Vector && i < children_vector.size()) {
+        return children_vector[i];
+      } else if (type == Type::IntMap) {
+        auto const cit = children_int_map.find(i);
+        if (cit != children_int_map.end()) {
+          return cit->second;
+        }
+      }
+      CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
+    }
     if (type == Type::Vector) {
       if (i < children_vector.size()) {
         return children_vector[i];
@@ -115,6 +162,15 @@ struct VarNode {
   }
 
   VarNode& operator[](std::string const& s) {
+    if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
+      if (type == Type::StringMap) {
+        auto const cit = children_string_map.find(s);
+        if (cit != children_string_map.end()) {
+          return cit->second;
+        }
+      }
+      CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
+    }
     if (type == Type::Unset) {
       type = Type::StringMap;
     }
@@ -125,6 +181,9 @@ struct VarNode {
   }
 
   void operator=(double x) {
+    if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
+      CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
+    }
     if (type != Type::Unset) {
       CURRENT_THROW(VarsManagementException("Attempted to assign a value to an already assigned node."));
     }
@@ -132,24 +191,24 @@ struct VarNode {
     value = x;
   }
 
-  json::Node Dump() const {
+  json::Node DoDump() const {
     if (type == Type::Vector) {
       json::V dense;
       dense.z.reserve(children_vector.size());
       for (VarNode const& c : children_vector) {
-        dense.z.push_back(c.Dump());
+        dense.z.push_back(c.DoDump());
       }
       return dense;
     } else if (type == Type::IntMap) {
       json::I sparse_by_int;
       for (std::pair<size_t, VarNode> const& e : children_int_map) {
-        sparse_by_int.z[static_cast<uint32_t>(e.first)] = e.second.Dump();
+        sparse_by_int.z[static_cast<uint32_t>(e.first)] = e.second.DoDump();
       }
       return sparse_by_int;
     } else if (type == Type::StringMap) {
       json::S sparse_by_string;
       for (std::pair<std::string, VarNode> const& e : children_string_map) {
-        sparse_by_string.z[e.first] = e.second.Dump();
+        sparse_by_string.z[e.first] = e.second.DoDump();
       }
       return sparse_by_string;
     } else if (type == Type::Value) {
@@ -162,40 +221,34 @@ struct VarNode {
   }
 };
 
-class VarsContext final {
+class VarsContext final : public VarsContextInterface {
  private:
   VarNode root_;
+  bool locked_ = false;
 
  public:
-  VarsContext() {
-    VarsManager& tls = VarsManager::TLS();
-    if (tls.Active()) {
-      CURRENT_THROW(VarsManagementException("Attempted to create nested context for variables."));
-    }
-    tls.Active() = this;
-  }
-  ~VarsContext() {
-    VarsManager& tls = VarsManager::TLS();
-    if (!tls.Active() || tls.Active() != this) {
-      std::cerr << "Internal error when deleting variables context." << std::endl;
-      std::exit(-1);
-    }
-    tls.Active() = nullptr;
-  }
+  VarsContext() { VarsManager::TLS().SetActive(this, this); }
+  ~VarsContext() { VarsManager::TLS().ClearActive(this, this); }
   VarNode& RootNode() {
-    VarsManager& tls = VarsManager::TLS();
-    if (!tls.Active() || tls.Active() != this) {
-      CURRENT_THROW(VarsManagementException("Vars context is required to access them."));
-    }
+    VarsManager::TLS().ConfirmActive(this, this);
     return root_;
+  }
+  bool IsLocked() const override {
+    VarsManager::TLS().ConfirmActive(this, this);
+    return locked_;
+  }
+  void Lock() override {
+    VarsManager::TLS().ConfirmActive(this, this);
+    locked_ = true;
   }
 };
 
 struct VarsAccessor final {
-  void DenseDoubleVector(size_t dim) { VarsManager::TLS().Active()->RootNode().DenseDoubleVector(dim); }
-  VarNode& operator[](size_t i) { return VarsManager::TLS().Active()->RootNode()[i]; }
-  VarNode& operator[](std::string const& s) { return VarsManager::TLS().Active()->RootNode()[s]; }
-  json::Node Dump() const { return VarsManager::TLS().Active()->RootNode().Dump(); }
+  void DenseDoubleVector(size_t dim) { VarsManager::TLS().Active().RootNode().DenseDoubleVector(dim); }
+  VarNode& operator[](size_t i) { return VarsManager::TLS().Active().RootNode()[i]; }
+  VarNode& operator[](std::string const& s) { return VarsManager::TLS().Active().RootNode()[s]; }
+  void Lock() const { return VarsManager::TLS().Active().Lock(); }
+  json::Node Dump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
 };
 
 static struct VarsAccessor c;  // `c` for Constants.
