@@ -6,6 +6,7 @@ Objectives:
 * Support string indexing. (`x["foo"]`, `x["regularization"]["c"]`, etc.).
 * Support multidimensional indexing. (`x[1][2]`, `x[0]["my_feature"]`, etc.)
 * Of course, support the good old dense vectors as well. (`x["model"].DenseDoubleVector(1000);`).
+* Keep the syntax clean, use a thread-local singleton to maintain the state, and local scoped variable to manage vars' lifetime.
 
 Strong typing is enforced, and attempts to use the variable in the context different from what it was before will result in an exception.
 
