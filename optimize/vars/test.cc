@@ -46,7 +46,7 @@ TEST(OptimizationVars, SparseByInt) {
   c[100] = 101;
   c[42] = 0;
   // The indexes should be sorted. -- D.K.
-  EXPECT_EQ("{'I':{'z':[[1,{'X':{'x':2.0}}],[42,{'X':{'x':0.0}}],[100,{'X':{'x':101.0}}]]}}",
+  EXPECT_EQ("{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}],[42,{'X':{'i':2,'x':0.0}}],[100,{'X':{'i':1,'x':101.0}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
   ASSERT_THROW(c.DenseDoubleVector(100), current::expression::VarsManagementException);
   ASSERT_THROW(c["foo"], current::expression::VarsManagementException);
@@ -62,7 +62,7 @@ TEST(OptimizationVars, SparseByString) {
   c["bar"] = 2;
   c["baz"] = 3;
   // The string "indexes" should be sorted. -- D.K.
-  EXPECT_EQ("{'S':{'z':{'bar':{'X':{'x':2.0}},'baz':{'X':{'x':3.0}},'foo':{'X':{'x':1.0}}}}}",
+  EXPECT_EQ("{'S':{'z':{'bar':{'X':{'i':1,'x':2.0}},'baz':{'X':{'i':2,'x':3.0}},'foo':{'X':{'i':0,'x':1.0}}}}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
   ASSERT_THROW(c.DenseDoubleVector(100), current::expression::VarsManagementException);
   ASSERT_THROW(c[42], current::expression::VarsManagementException);
@@ -77,7 +77,7 @@ TEST(OptimizationVars, DenseVector) {
   c.DenseDoubleVector(5);
   c[2] = 2;
   c[4] = 4;
-  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'x':2.0}},{'U':{}},{'X':{'x':4.0}}]}}",
+  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'i':0,'x':2.0}},{'U':{}},{'X':{'i':1,'x':4.0}}]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
   ASSERT_THROW(c[42], current::expression::VarsManagementException);
   ASSERT_THROW(c["foo"], current::expression::VarsManagementException);
@@ -107,7 +107,7 @@ TEST(OptimizationVars, MultiDimensionalIntInt) {
   VarsContext context;
   c[1][2] = 3;
   c[4][5] = 6;
-  EXPECT_EQ("{'I':{'z':[[1,{'I':{'z':[[2,{'X':{'x':3.0}}]]}}],[4,{'I':{'z':[[5,{'X':{'x':6.0}}]]}}]]}}",
+  EXPECT_EQ("{'I':{'z':[[1,{'I':{'z':[[2,{'X':{'i':0,'x':3.0}}]]}}],[4,{'I':{'z':[[5,{'X':{'i':1,'x':6.0}}]]}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
@@ -116,7 +116,7 @@ TEST(OptimizationVars, MultiDimensionalIntString) {
   VarsContext context;
   c[1]["foo"] = 2;
   c[3]["bar"] = 4;
-  EXPECT_EQ("{'I':{'z':[[1,{'S':{'z':{'foo':{'X':{'x':2.0}}}}}],[3,{'S':{'z':{'bar':{'X':{'x':4.0}}}}}]]}}",
+  EXPECT_EQ("{'I':{'z':[[1,{'S':{'z':{'foo':{'X':{'i':0,'x':2.0}}}}}],[3,{'S':{'z':{'bar':{'X':{'i':1,'x':4.0}}}}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
@@ -125,7 +125,7 @@ TEST(OptimizationVars, MultiDimensionalStringInt) {
   VarsContext context;
   c["foo"][1] = 2;
   c["bar"][3] = 4;
-  EXPECT_EQ("{'S':{'z':{'bar':{'I':{'z':[[3,{'X':{'x':4.0}}]]}},'foo':{'I':{'z':[[1,{'X':{'x':2.0}}]]}}}}}",
+  EXPECT_EQ("{'S':{'z':{'bar':{'I':{'z':[[3,{'X':{'i':1,'x':4.0}}]]}},'foo':{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}]]}}}}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 

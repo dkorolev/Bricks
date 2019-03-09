@@ -46,8 +46,10 @@ struct VarsManagementException final : current::Exception {
 
 class VarsContextInterface {
  public:
+  ~VarsContextInterface() = default;
   virtual bool IsLocked() const = 0;
   virtual void Lock() = 0;
+  virtual uint32_t AllocateVar() = 0;
 };
 
 class VarsContext;
@@ -85,7 +87,7 @@ class VarsManager final {
     active_context_ = nullptr;
     active_context_interface_ = nullptr;
   }
-  VarsContextInterface const& ActiveViaInterface() { return *active_context_interface_; }
+  VarsContextInterface& ActiveViaInterface() { return *active_context_interface_; }
 };
 
 namespace json {
@@ -99,8 +101,9 @@ CURRENT_FORWARD_DECLARE_STRUCT(X);  // "Value".
 CURRENT_VARIANT(Node, U, V, I, S, X);
 CURRENT_STRUCT(U){};
 CURRENT_STRUCT(X) {
+  CURRENT_FIELD(i, uint32_t);
   CURRENT_FIELD(x, double);
-  CURRENT_CONSTRUCTOR(X)(double x = 0.0) : x(x) {}
+  CURRENT_CONSTRUCTOR(X)(double x, uint32_t i) : i(i), x(x) {}
 };
 CURRENT_STRUCT(V) { CURRENT_FIELD(z, std::vector<Node>); };
 CURRENT_STRUCT(I) { CURRENT_FIELD(z, (std::map<uint32_t, Node>)); };
@@ -115,6 +118,7 @@ struct VarNode {
   std::map<size_t, VarNode> children_int_map;          // `type == IntMap`.
   std::map<std::string, VarNode> children_string_map;  // `type == StringMap`.
   double value;                                        // `type == Value`.
+  size_t var_index;                                    // `type == Value`.
 
   void DenseDoubleVector(size_t dim) {
     if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
@@ -189,6 +193,7 @@ struct VarNode {
     }
     type = Type::Value;
     value = x;
+    var_index = VarsManager::TLS().ActiveViaInterface().AllocateVar();
   }
 
   json::Node DoDump() const {
@@ -212,7 +217,7 @@ struct VarNode {
       }
       return sparse_by_string;
     } else if (type == Type::Value) {
-      return json::X(value);
+      return json::X(value, static_cast<uint32_t>(var_index));
     } else if (type == Type::Unset) {
       return json::U();
     } else {
@@ -225,6 +230,7 @@ class VarsContext final : public VarsContextInterface {
  private:
   VarNode root_;
   bool locked_ = false;
+  size_t vars_allocated_ = 0;
 
  public:
   VarsContext() { VarsManager::TLS().SetActive(this, this); }
@@ -240,6 +246,14 @@ class VarsContext final : public VarsContextInterface {
   void Lock() override {
     VarsManager::TLS().ConfirmActive(this, this);
     locked_ = true;
+  }
+  uint32_t AllocateVar() override {
+    VarsManager::TLS().ConfirmActive(this, this);
+    if (locked_) {
+      CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after it's `Lock()`-ed."));
+    } else {
+      return vars_allocated_++;
+    }
   }
 };
 
