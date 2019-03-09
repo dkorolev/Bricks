@@ -62,6 +62,10 @@ struct VarIsNotLeafException final : current::Exception {};
 // When the value is attempted to be re-assigned. I.e.: `c["foo"] = 1; c["foo"] = 2;`.
 struct VarNodeReassignmentAttemptException final : current::Exception {};
 
+// When the variables tree is attempted to be changed after being `.Finalize()`-s.
+// I.e., `c["foo"] = 1.0; vars_context.Finalize(); c["bar"] = 2.0;`.
+struct VarsTreeFinalizedException final : current::Exception {};
+
 class VarsContextInterface {
  public:
   ~VarsContextInterface() = default;
@@ -144,7 +148,7 @@ struct VarNode {
 
   void DenseDoubleVector(size_t dim) {
     if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
-      CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
+      CURRENT_THROW(VarsTreeFinalizedException());
     }
     if (!dim || dim > static_cast<size_t>(1e6)) {
       // NOTE(dkorolev): The `1M` size cutoff is somewhat arbitrary here, but I honestly don't believe
@@ -169,7 +173,7 @@ struct VarNode {
           return cit->second;
         }
       }
-      CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
+      CURRENT_THROW(VarsTreeFinalizedException());
     }
     if (type == Type::Vector) {
       if (i < children_vector.size()) {
@@ -195,7 +199,7 @@ struct VarNode {
           return cit->second;
         }
       }
-      CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
+      CURRENT_THROW(VarsTreeFinalizedException());
     }
     if (type == Type::Unset) {
       type = Type::StringMap;
@@ -208,7 +212,7 @@ struct VarNode {
 
   void operator=(double x) {
     if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
-      CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
+      CURRENT_THROW(VarsTreeFinalizedException());
     }
     if (type != Type::Unset) {
       if (type == Type::Value) {

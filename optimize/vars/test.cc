@@ -111,7 +111,7 @@ TEST(OptimizationVars, DenseVector) {
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
-TEST(OptimizationVars, InternalLeafIndexesDeathTest) {
+TEST(OptimizationVars, InternalLeafIndexes) {
   using namespace current::expression;
   VarsContext context;
   c["foo"][1] = 2;
@@ -125,7 +125,7 @@ TEST(OptimizationVars, InternalLeafIndexesDeathTest) {
   ASSERT_THROW(c[0].InternalLeafIndex(), VarNodeTypeMismatchException);
 }
 
-TEST(OptimizationVars, LockingDownDeathTest) {
+TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
   using namespace current::expression;
   VarsContext context;
   c["dense"].DenseDoubleVector(2);
@@ -136,10 +136,10 @@ TEST(OptimizationVars, LockingDownDeathTest) {
   c["dense"][1];
   c["sparse"][42];
   c["strings"]["foo"];
-  ASSERT_THROW(c["dense"][2], VarsManagementException);
-  ASSERT_THROW(c["sparse"][100], VarsManagementException);
-  ASSERT_THROW(c["strings"]["bar"], VarsManagementException);
-  ASSERT_THROW(c["foo"], VarsManagementException);
+  ASSERT_THROW(c["dense"][2], VarsTreeFinalizedException);
+  ASSERT_THROW(c["sparse"][100], VarsTreeFinalizedException);
+  ASSERT_THROW(c["strings"]["bar"], VarsTreeFinalizedException);
+  ASSERT_THROW(c["foo"], VarsTreeFinalizedException);
 }
 
 TEST(OptimizationVars, MultiDimensionalIntInt) {
@@ -190,21 +190,21 @@ TEST(OptimizationVars, MultiDimensionalStringInt) {
       SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
-TEST(OptimizationVars, DenseVectorDimensionsDeathTest) {
+TEST(OptimizationVars, DenseVectorDimensions) {
   using namespace current::expression;
   VarsContext context;
   ASSERT_THROW(c.DenseDoubleVector(0), VarsManagementException);
   ASSERT_THROW(c.DenseDoubleVector(static_cast<size_t>(1e6) + 1), VarsManagementException);
 }
 
-TEST(OptimizationVars, NeedContextDeathTest) {
+TEST(OptimizationVars, NeedContext) {
   using namespace current::expression;
   ASSERT_THROW(c["should fail"], VarsManagementException);
   ASSERT_THROW(c[42], VarsManagementException);
   ASSERT_THROW(c.DenseDoubleVector(1), VarsManagementException);
 }
 
-TEST(OptimizationVars, NoNestedContextsAllowedDeathTest) {
+TEST(OptimizationVars, NoNestedContextsAllowed) {
   using namespace current::expression;
   VarsContext context;
   ASSERT_THROW(VarsContext illegal_inner_context, VarsManagementException);
