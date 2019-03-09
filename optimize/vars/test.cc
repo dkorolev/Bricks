@@ -22,8 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-// TODO(dkorolev): Locking and immutability.
-// TODO(dkorolev): Index enumeration.
 // TODO(dkorolev): Two separate "vars" universes, for the variables and for the constants.
 
 #include "vars.h"
@@ -48,14 +46,27 @@ TEST(OptimizationVars, SparseByInt) {
   EXPECT_EQ(0u, c[1].InternalLeafIndex());
   EXPECT_EQ(1u, c[100].InternalLeafIndex());
   EXPECT_EQ(2u, c[42].InternalLeafIndex());
-  // The indexes should be sorted. -- D.K.
-  EXPECT_EQ("{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}],[42,{'X':{'i':2,'x':0.0}}],[100,{'X':{'i':1,'x':101.0}}]]}}",
+  // The elements in the JSON are ordered, and the `q` index is in the order of introduction of the leaves in this tree.
+  // Here and in all the tests below.
+  EXPECT_EQ("{'I':{'z':[[1,{'X':{'q':0,'x':2.0}}],[42,{'X':{'q':2,'x':0.0}}],[100,{'X':{'q':1,'x':101.0}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
   ASSERT_THROW(c.DenseDoubleVector(100), VarNodeTypeMismatchException);
   ASSERT_THROW(c["foo"], VarNodeTypeMismatchException);
   ASSERT_THROW(c[1][2], VarNodeTypeMismatchException);
   ASSERT_THROW(c[1]["blah"], VarNodeTypeMismatchException);
   ASSERT_THROW(c[1].DenseDoubleVector(100), VarNodeTypeMismatchException);
+  // After the call to `Finalize()`, the `i` index is stamped, it is lexicographical, following the order in the JSON.
+  // Here and in all the tests below.
+  context.Finalize();
+  context.Finalize();  // No harm to calling `Finalize()` more than once.
+  context.Finalize();  // No harm to calling `Finalize()` more than once.
+  EXPECT_EQ(
+      "{'I':{'z':["
+      "[1,{'X':{'q':0,'i':0,'x':2.0}}],"
+      "[42,{'X':{'q':2,'i':1,'x':0.0}}],"
+      "[100,{'X':{'q':1,'i':2,'x':101.0}}]"
+      "]}}",
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
 TEST(OptimizationVars, SparseByString) {
@@ -64,14 +75,21 @@ TEST(OptimizationVars, SparseByString) {
   c["foo"] = 1;
   c["bar"] = 2;
   c["baz"] = 3;
-  // The string "indexes" should be sorted. -- D.K.
-  EXPECT_EQ("{'S':{'z':{'bar':{'X':{'i':1,'x':2.0}},'baz':{'X':{'i':2,'x':3.0}},'foo':{'X':{'i':0,'x':1.0}}}}}",
+  EXPECT_EQ("{'S':{'z':{'bar':{'X':{'q':1,'x':2.0}},'baz':{'X':{'q':2,'x':3.0}},'foo':{'X':{'q':0,'x':1.0}}}}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
   ASSERT_THROW(c.DenseDoubleVector(100), VarNodeTypeMismatchException);
   ASSERT_THROW(c[42], VarNodeTypeMismatchException);
   ASSERT_THROW(c["foo"][2], VarNodeTypeMismatchException);
   ASSERT_THROW(c["foo"]["blah"], VarNodeTypeMismatchException);
   ASSERT_THROW(c["foo"].DenseDoubleVector(100), VarNodeTypeMismatchException);
+  context.Finalize();
+  EXPECT_EQ(
+      "{'S':{'z':{"
+      "'bar':{'X':{'q':1,'i':0,'x':2.0}},"
+      "'baz':{'X':{'q':2,'i':1,'x':3.0}},"
+      "'foo':{'X':{'q':0,'i':2,'x':1.0}}"
+      "}}}",
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
 TEST(OptimizationVars, DenseVector) {
@@ -80,7 +98,7 @@ TEST(OptimizationVars, DenseVector) {
   c.DenseDoubleVector(5);
   c[2] = 2;
   c[4] = 4;
-  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'i':0,'x':2.0}},{'U':{}},{'X':{'i':1,'x':4.0}}]}}",
+  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'q':0,'x':2.0}},{'U':{}},{'X':{'q':1,'x':4.0}}]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
   ASSERT_THROW(c[42], VarsManagementException);
   ASSERT_THROW(c["foo"], VarNodeTypeMismatchException);
@@ -88,6 +106,9 @@ TEST(OptimizationVars, DenseVector) {
   ASSERT_THROW(c.DenseDoubleVector(100), VarNodeTypeMismatchException);
   c[2] = 2;  // Same value, a valid no-op.
   ASSERT_THROW(c[2] = 3, VarNodeReassignmentAttemptException);
+  context.Finalize();
+  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'q':0,'i':0,'x':2.0}},{'U':{}},{'X':{'q':1,'i':1,'x':4.0}}]}}",
+            SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
 TEST(OptimizationVars, InternalLeafIndexesDeathTest) {
@@ -110,7 +131,7 @@ TEST(OptimizationVars, LockingDownDeathTest) {
   c["dense"].DenseDoubleVector(2);
   c["sparse"][42] = 42;
   c["strings"]["foo"] = 1;
-  c.Lock();
+  c.Finalize();
   c["dense"][0];
   c["dense"][1];
   c["sparse"][42];
@@ -126,8 +147,15 @@ TEST(OptimizationVars, MultiDimensionalIntInt) {
   VarsContext context;
   c[1][2] = 3;
   c[4][5] = 6;
-  EXPECT_EQ("{'I':{'z':[[1,{'I':{'z':[[2,{'X':{'i':0,'x':3.0}}]]}}],[4,{'I':{'z':[[5,{'X':{'i':1,'x':6.0}}]]}}]]}}",
+  EXPECT_EQ("{'I':{'z':[[1,{'I':{'z':[[2,{'X':{'q':0,'x':3.0}}]]}}],[4,{'I':{'z':[[5,{'X':{'q':1,'x':6.0}}]]}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
+  context.Finalize();
+  EXPECT_EQ(
+      "{'I':{'z':["
+      "[1,{'I':{'z':[[2,{'X':{'q':0,'i':0,'x':3.0}}]]}}],"
+      "[4,{'I':{'z':[[5,{'X':{'q':1,'i':1,'x':6.0}}]]}}]"
+      "]}}",
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
 TEST(OptimizationVars, MultiDimensionalIntString) {
@@ -135,8 +163,15 @@ TEST(OptimizationVars, MultiDimensionalIntString) {
   VarsContext context;
   c[1]["foo"] = 2;
   c[3]["bar"] = 4;
-  EXPECT_EQ("{'I':{'z':[[1,{'S':{'z':{'foo':{'X':{'i':0,'x':2.0}}}}}],[3,{'S':{'z':{'bar':{'X':{'i':1,'x':4.0}}}}}]]}}",
+  EXPECT_EQ("{'I':{'z':[[1,{'S':{'z':{'foo':{'X':{'q':0,'x':2.0}}}}}],[3,{'S':{'z':{'bar':{'X':{'q':1,'x':4.0}}}}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
+  context.Finalize();
+  EXPECT_EQ(
+      "{'I':{'z':["
+      "[1,{'S':{'z':{'foo':{'X':{'q':0,'i':0,'x':2.0}}}}}],"
+      "[3,{'S':{'z':{'bar':{'X':{'q':1,'i':1,'x':4.0}}}}}]"
+      "]}}",
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
 TEST(OptimizationVars, MultiDimensionalStringInt) {
@@ -144,8 +179,15 @@ TEST(OptimizationVars, MultiDimensionalStringInt) {
   VarsContext context;
   c["foo"][1] = 2;
   c["bar"][3] = 4;
-  EXPECT_EQ("{'S':{'z':{'bar':{'I':{'z':[[3,{'X':{'i':1,'x':4.0}}]]}},'foo':{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}]]}}}}}",
+  EXPECT_EQ("{'S':{'z':{'bar':{'I':{'z':[[3,{'X':{'q':1,'x':4.0}}]]}},'foo':{'I':{'z':[[1,{'X':{'q':0,'x':2.0}}]]}}}}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
+  context.Finalize();
+  EXPECT_EQ(
+      "{'S':{'z':{"
+      "'bar':{'I':{'z':[[3,{'X':{'q':1,'i':0,'x':4.0}}]]}},"
+      "'foo':{'I':{'z':[[1,{'X':{'q':0,'i':1,'x':2.0}}]]}}"
+      "}}}",
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
 }
 
 TEST(OptimizationVars, DenseVectorDimensionsDeathTest) {

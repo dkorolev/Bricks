@@ -65,8 +65,8 @@ struct VarNodeReassignmentAttemptException final : current::Exception {};
 class VarsContextInterface {
  public:
   ~VarsContextInterface() = default;
-  virtual bool IsLocked() const = 0;
-  virtual void Lock() = 0;
+  virtual bool IsFinalized() const = 0;
+  virtual void Finalize() = 0;
   virtual uint32_t AllocateVar() = 0;
 };
 
@@ -119,9 +119,12 @@ CURRENT_FORWARD_DECLARE_STRUCT(X);  // "Value".
 CURRENT_VARIANT(Node, U, V, I, S, X);
 CURRENT_STRUCT(U){};
 CURRENT_STRUCT(X) {
-  CURRENT_FIELD(i, uint32_t);
+  CURRENT_FIELD(q, uint32_t);            // The internal index, in the order of defining the variables.
+  CURRENT_FIELD(i, Optional<uint32_t>);  // The in-dense-vector, post-`Finalize()` index, in the DFS order.
   CURRENT_FIELD(x, double);
-  CURRENT_CONSTRUCTOR(X)(double x, uint32_t i) : i(i), x(x) {}
+  CURRENT_CONSTRUCTOR(X)
+  (double x, uint32_t q, uint32_t optional_i = static_cast<uint32_t>(-1))
+      : q(q), i(optional_i == static_cast<uint32_t>(-1) ? nullptr : Optional<uint32_t>(optional_i)), x(x) {}
 };
 CURRENT_STRUCT(V) { CURRENT_FIELD(z, std::vector<Node>); };
 CURRENT_STRUCT(I) { CURRENT_FIELD(z, (std::map<uint32_t, Node>)); };
@@ -132,14 +135,15 @@ struct VarNode {
   enum class Type { Unset, Vector, IntMap, StringMap, Value };
 
   Type type = Type::Unset;
-  std::vector<VarNode> children_vector;                // `type == Vector`.
-  std::map<size_t, VarNode> children_int_map;          // `type == IntMap`.
-  std::map<std::string, VarNode> children_string_map;  // `type == StringMap`.
-  double value;                                        // `type == Value`.
-  size_t internal_leaf_index;                          // `type == Value`.
+  std::vector<VarNode> children_vector;                  // `type == Vector`.
+  std::map<size_t, VarNode> children_int_map;            // `type == IntMap`.
+  std::map<std::string, VarNode> children_string_map;    // `type == StringMap`.
+  double value;                                          // `type == Value`.
+  size_t internal_leaf_index;                            // `type == Value`.
+  uint32_t finalized_index = static_cast<uint32_t>(-1);  // `type == Value`.
 
   void DenseDoubleVector(size_t dim) {
-    if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
+    if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
       CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
     }
     if (!dim || dim > static_cast<size_t>(1e6)) {
@@ -156,7 +160,7 @@ struct VarNode {
   }
 
   VarNode& operator[](size_t i) {
-    if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
+    if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
       if (type == Type::Vector && i < children_vector.size()) {
         return children_vector[i];
       } else if (type == Type::IntMap) {
@@ -184,7 +188,7 @@ struct VarNode {
   }
 
   VarNode& operator[](std::string const& s) {
-    if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
+    if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
       if (type == Type::StringMap) {
         auto const cit = children_string_map.find(s);
         if (cit != children_string_map.end()) {
@@ -203,7 +207,7 @@ struct VarNode {
   }
 
   void operator=(double x) {
-    if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
+    if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
       CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
     }
     if (type != Type::Unset) {
@@ -229,6 +233,27 @@ struct VarNode {
     return internal_leaf_index;
   }
 
+  void DFSToStampFinalizedIndexes(uint32_t& next_finalized_index) {
+    if (type == Type::Vector) {
+      for (VarNode& c : children_vector) {
+        c.DFSToStampFinalizedIndexes(next_finalized_index);
+      }
+    } else if (type == Type::IntMap) {
+      for (auto& e : children_int_map) {
+        e.second.DFSToStampFinalizedIndexes(next_finalized_index);
+      }
+    } else if (type == Type::StringMap) {
+      for (auto& e : children_string_map) {
+        e.second.DFSToStampFinalizedIndexes(next_finalized_index);
+      }
+    } else if (type == Type::Value) {
+      finalized_index = next_finalized_index;
+      ++next_finalized_index;
+    } else if (type != Type::Unset) {
+      CURRENT_THROW(VarsManagementException("Attempted to `DFSToStampFinalizedIndexes()` on an invalid var node."));
+    }
+  }
+
   json::Node DoDump() const {
     if (type == Type::Vector) {
       json::V dense;
@@ -250,7 +275,7 @@ struct VarNode {
       }
       return sparse_by_string;
     } else if (type == Type::Value) {
-      return json::X(value, static_cast<uint32_t>(internal_leaf_index));
+      return json::X(value, static_cast<uint32_t>(internal_leaf_index), finalized_index);
     } else if (type == Type::Unset) {
       return json::U();
     } else {
@@ -262,7 +287,7 @@ struct VarNode {
 class VarsContext final : public VarsContextInterface {
  private:
   VarNode root_;
-  bool locked_ = false;
+  bool finalized_ = false;
   size_t leaves_allocated_ = 0;
 
  public:
@@ -272,18 +297,25 @@ class VarsContext final : public VarsContextInterface {
     VarsManager::TLS().ConfirmActive(this, this);
     return root_;
   }
-  bool IsLocked() const override {
+  bool IsFinalized() const override {
     VarsManager::TLS().ConfirmActive(this, this);
-    return locked_;
+    return finalized_;
   }
-  void Lock() override {
+  void Finalize() override {
     VarsManager::TLS().ConfirmActive(this, this);
-    locked_ = true;
+    if (!finalized_) {
+      finalized_ = true;
+      uint32_t finalized_leaf_next_index = 0;
+      root_.DFSToStampFinalizedIndexes(finalized_leaf_next_index);
+      if (static_cast<size_t>(finalized_leaf_next_index) != leaves_allocated_) {
+        CURRENT_THROW(VarsManagementException("Internal error: leaf count mismatch."));
+      }
+    }
   }
   uint32_t AllocateVar() override {
     VarsManager::TLS().ConfirmActive(this, this);
-    if (locked_) {
-      CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after it's `Lock()`-ed."));
+    if (finalized_) {
+      CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after it's `Finalize()`-ed."));
     } else {
       return leaves_allocated_++;
     }
@@ -294,7 +326,7 @@ struct VarsAccessor final {
   void DenseDoubleVector(size_t dim) { VarsManager::TLS().Active().RootNode().DenseDoubleVector(dim); }
   VarNode& operator[](size_t i) { return VarsManager::TLS().Active().RootNode()[i]; }
   VarNode& operator[](std::string const& s) { return VarsManager::TLS().Active().RootNode()[s]; }
-  void Lock() const { return VarsManager::TLS().Active().Lock(); }
+  void Finalize() const { return VarsManager::TLS().Active().Finalize(); }
   json::Node Dump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
 };
 
