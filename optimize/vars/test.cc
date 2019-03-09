@@ -45,6 +45,9 @@ TEST(OptimizationVars, SparseByInt) {
   c[1] = 2;
   c[100] = 101;
   c[42] = 0;
+  EXPECT_EQ(0u, c[1].InternalLeafIndex());
+  EXPECT_EQ(1u, c[100].InternalLeafIndex());
+  EXPECT_EQ(2u, c[42].InternalLeafIndex());
   // The indexes should be sorted. -- D.K.
   EXPECT_EQ("{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}],[42,{'X':{'i':2,'x':0.0}}],[100,{'X':{'i':1,'x':101.0}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
@@ -83,6 +86,17 @@ TEST(OptimizationVars, DenseVector) {
   ASSERT_THROW(c["foo"], current::expression::VarsManagementException);
   c.DenseDoubleVector(5);  // Same size, a valid no-op.
   ASSERT_THROW(c.DenseDoubleVector(100), current::expression::VarsManagementException);
+}
+
+TEST(OptimizationVars, InternalLeafIndexesDeathTest) {
+  using namespace current::expression;
+  VarsContext context;
+  c["foo"][1] = 2;
+  EXPECT_EQ(0u, c["foo"][1].InternalLeafIndex());
+  ASSERT_THROW(c[0].InternalLeafIndex(), current::expression::VarsManagementException);
+  ASSERT_THROW(c["foo"].InternalLeafIndex(), current::expression::VarsManagementException);
+  ASSERT_THROW(c["foo"]["bar"].InternalLeafIndex(), current::expression::VarsManagementException);
+  ASSERT_THROW(c["foo"][0].InternalLeafIndex(), current::expression::VarsManagementException);
 }
 
 TEST(OptimizationVars, LockingDownDeathTest) {

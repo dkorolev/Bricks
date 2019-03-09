@@ -52,7 +52,7 @@ class VarsContextInterface {
   virtual uint32_t AllocateVar() = 0;
 };
 
-class VarsContext;
+class VarsContext;  // : public VarsContextInterface
 
 class VarsManager final {
  private:
@@ -118,7 +118,7 @@ struct VarNode {
   std::map<size_t, VarNode> children_int_map;          // `type == IntMap`.
   std::map<std::string, VarNode> children_string_map;  // `type == StringMap`.
   double value;                                        // `type == Value`.
-  size_t var_index;                                    // `type == Value`.
+  size_t internal_leaf_index;                          // `type == Value`.
 
   void DenseDoubleVector(size_t dim) {
     if (VarsManager::TLS().ActiveViaInterface().IsLocked()) {
@@ -193,7 +193,14 @@ struct VarNode {
     }
     type = Type::Value;
     value = x;
-    var_index = VarsManager::TLS().ActiveViaInterface().AllocateVar();
+    internal_leaf_index = VarsManager::TLS().ActiveViaInterface().AllocateVar();
+  }
+
+  size_t InternalLeafIndex() const {
+    if (type != Type::Value) {
+      CURRENT_THROW(VarsManagementException("Attempted to get an internal var index for a non-leaf."));
+    }
+    return internal_leaf_index;
   }
 
   json::Node DoDump() const {
@@ -217,7 +224,7 @@ struct VarNode {
       }
       return sparse_by_string;
     } else if (type == Type::Value) {
-      return json::X(value, static_cast<uint32_t>(var_index));
+      return json::X(value, static_cast<uint32_t>(internal_leaf_index));
     } else if (type == Type::Unset) {
       return json::U();
     } else {
@@ -230,7 +237,7 @@ class VarsContext final : public VarsContextInterface {
  private:
   VarNode root_;
   bool locked_ = false;
-  size_t vars_allocated_ = 0;
+  size_t leaves_allocated_ = 0;
 
  public:
   VarsContext() { VarsManager::TLS().SetActive(this, this); }
@@ -252,7 +259,7 @@ class VarsContext final : public VarsContextInterface {
     if (locked_) {
       CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after it's `Lock()`-ed."));
     } else {
-      return vars_allocated_++;
+      return leaves_allocated_++;
     }
   }
 };
