@@ -51,11 +51,11 @@ TEST(OptimizationVars, SparseByInt) {
   // The indexes should be sorted. -- D.K.
   EXPECT_EQ("{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}],[42,{'X':{'i':2,'x':0.0}}],[100,{'X':{'i':1,'x':101.0}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
-  ASSERT_THROW(c.DenseDoubleVector(100), current::expression::VarsManagementException);
-  ASSERT_THROW(c["foo"], current::expression::VarsManagementException);
-  ASSERT_THROW(c[1][2], current::expression::VarsManagementException);
-  ASSERT_THROW(c[1]["blah"], current::expression::VarsManagementException);
-  ASSERT_THROW(c[1].DenseDoubleVector(100), current::expression::VarsManagementException);
+  ASSERT_THROW(c.DenseDoubleVector(100), VarNodeTypeMismatchException);
+  ASSERT_THROW(c["foo"], VarNodeTypeMismatchException);
+  ASSERT_THROW(c[1][2], VarNodeTypeMismatchException);
+  ASSERT_THROW(c[1]["blah"], VarNodeTypeMismatchException);
+  ASSERT_THROW(c[1].DenseDoubleVector(100), VarNodeTypeMismatchException);
 }
 
 TEST(OptimizationVars, SparseByString) {
@@ -67,11 +67,11 @@ TEST(OptimizationVars, SparseByString) {
   // The string "indexes" should be sorted. -- D.K.
   EXPECT_EQ("{'S':{'z':{'bar':{'X':{'i':1,'x':2.0}},'baz':{'X':{'i':2,'x':3.0}},'foo':{'X':{'i':0,'x':1.0}}}}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
-  ASSERT_THROW(c.DenseDoubleVector(100), current::expression::VarsManagementException);
-  ASSERT_THROW(c[42], current::expression::VarsManagementException);
-  ASSERT_THROW(c["foo"][2], current::expression::VarsManagementException);
-  ASSERT_THROW(c["foo"]["blah"], current::expression::VarsManagementException);
-  ASSERT_THROW(c["foo"].DenseDoubleVector(100), current::expression::VarsManagementException);
+  ASSERT_THROW(c.DenseDoubleVector(100), VarNodeTypeMismatchException);
+  ASSERT_THROW(c[42], VarNodeTypeMismatchException);
+  ASSERT_THROW(c["foo"][2], VarNodeTypeMismatchException);
+  ASSERT_THROW(c["foo"]["blah"], VarNodeTypeMismatchException);
+  ASSERT_THROW(c["foo"].DenseDoubleVector(100), VarNodeTypeMismatchException);
 }
 
 TEST(OptimizationVars, DenseVector) {
@@ -82,21 +82,26 @@ TEST(OptimizationVars, DenseVector) {
   c[4] = 4;
   EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'i':0,'x':2.0}},{'U':{}},{'X':{'i':1,'x':4.0}}]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(c.Dump())));
-  ASSERT_THROW(c[42], current::expression::VarsManagementException);
-  ASSERT_THROW(c["foo"], current::expression::VarsManagementException);
+  ASSERT_THROW(c[42], VarsManagementException);
+  ASSERT_THROW(c["foo"], VarNodeTypeMismatchException);
   c.DenseDoubleVector(5);  // Same size, a valid no-op.
-  ASSERT_THROW(c.DenseDoubleVector(100), current::expression::VarsManagementException);
+  ASSERT_THROW(c.DenseDoubleVector(100), VarNodeTypeMismatchException);
+  c[2] = 2;  // Same value, a valid no-op.
+  ASSERT_THROW(c[2] = 3, VarNodeReassignmentAttemptException);
 }
 
 TEST(OptimizationVars, InternalLeafIndexesDeathTest) {
   using namespace current::expression;
   VarsContext context;
   c["foo"][1] = 2;
+  // Should keep track of allocated internal leaf indexes.
   EXPECT_EQ(0u, c["foo"][1].InternalLeafIndex());
-  ASSERT_THROW(c[0].InternalLeafIndex(), current::expression::VarsManagementException);
-  ASSERT_THROW(c["foo"].InternalLeafIndex(), current::expression::VarsManagementException);
-  ASSERT_THROW(c["foo"]["bar"].InternalLeafIndex(), current::expression::VarsManagementException);
-  ASSERT_THROW(c["foo"][0].InternalLeafIndex(), current::expression::VarsManagementException);
+  // These are valid "var paths", but with no leaves allocated (they can still be nodes).
+  ASSERT_THROW(c["foo"].InternalLeafIndex(), VarIsNotLeafException);
+  ASSERT_THROW(c["foo"][0].InternalLeafIndex(), VarIsNotLeafException);
+  // And for the invalid paths the other exception type is thrown.
+  ASSERT_THROW(c["foo"]["bar"].InternalLeafIndex(), VarNodeTypeMismatchException);
+  ASSERT_THROW(c[0].InternalLeafIndex(), VarNodeTypeMismatchException);
 }
 
 TEST(OptimizationVars, LockingDownDeathTest) {
@@ -110,10 +115,10 @@ TEST(OptimizationVars, LockingDownDeathTest) {
   c["dense"][1];
   c["sparse"][42];
   c["strings"]["foo"];
-  ASSERT_THROW(c["dense"][2], current::expression::VarsManagementException);
-  ASSERT_THROW(c["sparse"][100], current::expression::VarsManagementException);
-  ASSERT_THROW(c["strings"]["bar"], current::expression::VarsManagementException);
-  ASSERT_THROW(c["foo"], current::expression::VarsManagementException);
+  ASSERT_THROW(c["dense"][2], VarsManagementException);
+  ASSERT_THROW(c["sparse"][100], VarsManagementException);
+  ASSERT_THROW(c["strings"]["bar"], VarsManagementException);
+  ASSERT_THROW(c["foo"], VarsManagementException);
 }
 
 TEST(OptimizationVars, MultiDimensionalIntInt) {

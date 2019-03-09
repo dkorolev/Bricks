@@ -44,6 +44,24 @@ struct VarsManagementException final : current::Exception {
   using Exception::Exception;
 };
 
+// When the "weakly typed" tree of possibly multidimensional var nodes is used in the way other than it was initialized.
+// I.e.:
+//   c["foo"]["bar"] = 42;
+//   c["foo"][0] throws.
+//   c["foo"]["bar"]["baz"] throws.
+//   c[42] throws.
+struct VarNodeTypeMismatchException final : current::Exception {};
+
+// When the "internal leaf allocation index" is requested for the var path that is not a leaf.
+// I.e.:
+//   c["test"]["passed"] = 42;
+//   c["whatever"] = 0;
+//   c["test"] + c["whatever"] throws, because `["test"]` is a node, not a leaf, in the vars tree of `c[]`.
+struct VarIsNotLeafException final : current::Exception {};
+
+// When the value is attempted to be re-assigned. I.e.: `c["foo"] = 1; c["foo"] = 2;`.
+struct VarNodeReassignmentAttemptException final : current::Exception {};
+
 class VarsContextInterface {
  public:
   ~VarsContextInterface() = default;
@@ -76,7 +94,7 @@ class VarsManager final {
   }
   void ConfirmActive(VarsContext const* ptr1, VarsContextInterface const* ptr2) const {
     if (!(active_context_ == ptr1 && active_context_interface_ == ptr2)) {
-      CURRENT_THROW(VarsManagementException("Attempted to create nested context for variables."));
+      CURRENT_THROW(VarsManagementException("Mismatch of active `current::expression::VarsContext`."));
     }
   }
   void ClearActive(VarsContext const* ptr1, VarsContextInterface const* ptr2) {
@@ -133,7 +151,7 @@ struct VarNode {
       type = Type::Vector;
       children_vector.resize(dim);
     } else if (!(type == Type::Vector && children_vector.size() == dim)) {
-      CURRENT_THROW(VarsManagementException("Attempted to create a dense vector in a node that can not be one."));
+      CURRENT_THROW(VarNodeTypeMismatchException());
     }
   }
 
@@ -160,7 +178,7 @@ struct VarNode {
       type = Type::IntMap;
     }
     if (type != Type::IntMap) {
-      CURRENT_THROW(VarsManagementException("Attempted to access non-dense and non-int-map variables node by index."));
+      CURRENT_THROW(VarNodeTypeMismatchException());
     }
     return children_int_map[i];
   }
@@ -179,7 +197,7 @@ struct VarNode {
       type = Type::StringMap;
     }
     if (type != Type::StringMap) {
-      CURRENT_THROW(VarsManagementException("Attempted to access non-string-map variables node by string."));
+      CURRENT_THROW(VarNodeTypeMismatchException());
     }
     return children_string_map[s];
   }
@@ -189,7 +207,15 @@ struct VarNode {
       CURRENT_THROW(VarsManagementException("Attempted to change the variables setup in a locked context."));
     }
     if (type != Type::Unset) {
-      CURRENT_THROW(VarsManagementException("Attempted to assign a value to an already assigned node."));
+      if (type == Type::Value) {
+        if (value == x) {
+          return;  // A valid no-op. -- D.K.
+        } else {
+          CURRENT_THROW(VarNodeReassignmentAttemptException());
+        }
+      } else {
+        CURRENT_THROW(VarNodeTypeMismatchException());
+      }
     }
     type = Type::Value;
     value = x;
@@ -198,7 +224,7 @@ struct VarNode {
 
   size_t InternalLeafIndex() const {
     if (type != Type::Value) {
-      CURRENT_THROW(VarsManagementException("Attempted to get an internal var index for a non-leaf."));
+      CURRENT_THROW(VarIsNotLeafException());
     }
     return internal_leaf_index;
   }
