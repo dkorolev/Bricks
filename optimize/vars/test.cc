@@ -22,9 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-// TODO(dkorolev): Support constants.
 // TODO(dkorolev): Export the frozen context.
 // TODO(dkorolev): Re-create the frozen context, and access the dense vector via it.
+// TODO(dkorolev): Once the expression builder is here, test uninitialized variables.
+// TODO(dkorolev): Possibly refactor freeze/unfreeze to be scope-based, when introducing JIT.
 
 #include "vars.h"
 
@@ -225,6 +226,33 @@ TEST(OptimizationVars, MultiDimensionalStringInt) {
       "{'S':{'z':{"
       "'bar':{'I':{'z':[[3,{'X':{'q':1,'i':0,'x':4.0}}]]}},"
       "'foo':{'I':{'z':[[1,{'X':{'q':0,'i':1,'x':2.0}}]]}}"
+      "}}}",
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.Dump())));
+}
+
+TEST(OptimizationVars, Constants) {
+  using namespace current::expression;
+  VarsContext context;
+  x["one"] = 1;
+  x["two"] = 2;
+  x["three"] = 3;
+  EXPECT_EQ(
+      "{'S':{'z':{"
+      "'one':{'X':{'q':0,'x':1.0}},"
+      "'three':{'X':{'q':2,'x':3.0}},"
+      "'two':{'X':{'q':1,'x':2.0}}"
+      "}}}",
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.Dump())));
+  x["two"].SetConstant();
+  x["three"].SetConstant(3.0);
+  x["four"].SetConstant(4);
+  ASSERT_THROW(x["one"].SetConstant(42), VarNodeReassignmentAttemptException);
+  EXPECT_EQ(
+      "{'S':{'z':{"
+      "'four':{'X':{'q':3,'x':4.0,'c':true}},"
+      "'one':{'X':{'q':0,'x':1.0}},"
+      "'three':{'X':{'q':2,'x':3.0,'c':true}},"
+      "'two':{'X':{'q':1,'x':2.0,'c':true}}"
       "}}}",
       SingleQuoted(JSON<JSONFormat::Minimalistic>(x.Dump())));
 }

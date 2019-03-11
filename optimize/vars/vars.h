@@ -130,10 +130,14 @@ CURRENT_STRUCT(U){};
 CURRENT_STRUCT(X) {
   CURRENT_FIELD(q, uint32_t);            // The internal index, in the order of defining the variables.
   CURRENT_FIELD(i, Optional<uint32_t>);  // The in-dense-vector, post-`Freeze()` index, in the DFS order. For JIT.
-  CURRENT_FIELD(x, double);
+  CURRENT_FIELD(x, Optional<double>);    // The value, of a starting point, or of a constant.
+  CURRENT_FIELD(c, Optional<bool>);      // Set to `true` if this "variable" is a constant, `null` otherwise.
   CURRENT_CONSTRUCTOR(X)
-  (double x, uint32_t q, uint32_t optional_i = static_cast<uint32_t>(-1))
-      : q(q), i(optional_i == static_cast<uint32_t>(-1) ? nullptr : Optional<uint32_t>(optional_i)), x(x) {}
+  (Optional<double> x, bool is_constant, uint32_t q, uint32_t optional_i = static_cast<uint32_t>(-1))
+      : q(q),
+        i(optional_i == static_cast<uint32_t>(-1) ? nullptr : Optional<uint32_t>(optional_i)),
+        x(x),
+        c(is_constant ? Optional<bool>(true) : nullptr) {}
 };
 CURRENT_STRUCT(V) { CURRENT_FIELD(z, std::vector<Node>); };
 CURRENT_STRUCT(I) { CURRENT_FIELD(z, (std::map<uint32_t, Node>)); };
@@ -146,7 +150,8 @@ struct VarNode {
   std::vector<VarNode> children_vector;                  // `type == Vector`.
   std::map<size_t, VarNode> children_int_map;            // `type == IntMap`.
   std::map<std::string, VarNode> children_string_map;    // `type == StringMap`.
-  double value;                                          // `type == Value`.
+  Optional<double> value;                                // `type == Value`, unset if introduced w/o assignment.
+  bool is_constant = false;                              // `type == Value`.
   size_t internal_leaf_index;                            // `type == Value`.
   uint32_t finalized_index = static_cast<uint32_t>(-1);  // `type == Value`.
 
@@ -234,6 +239,21 @@ struct VarNode {
     internal_leaf_index = VarsManager::TLS().ActiveViaInterface().AllocateVar();
   }
 
+  void SetConstant() {
+    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
+      CURRENT_THROW(VarsFrozenException());
+    }
+    if (type != VarNodeType::Value) {
+      CURRENT_THROW(VarNodeTypeMismatchException());
+    }
+    is_constant = true;
+  }
+
+  void SetConstant(double x) {
+    operator=(x);
+    SetConstant();
+  }
+
   size_t InternalLeafIndex() const {
     if (type != VarNodeType::Value) {
       CURRENT_THROW(VarIsNotLeafException());
@@ -283,7 +303,7 @@ struct VarNode {
       }
       return sparse_by_string;
     } else if (type == VarNodeType::Value) {
-      return json::X(value, static_cast<uint32_t>(internal_leaf_index), finalized_index);
+      return json::X(value, is_constant, static_cast<uint32_t>(internal_leaf_index), finalized_index);
     } else if (type == VarNodeType::Unset) {
       return json::U();
     } else {
