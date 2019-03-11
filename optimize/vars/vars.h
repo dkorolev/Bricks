@@ -70,11 +70,54 @@ struct VarsFrozenException final : OptimizeException {};
 struct VarsAlreadyFrozenException final : OptimizeException {};
 struct VarsNotFrozenException final : OptimizeException {};
 
+namespace json {
+// Short names to save on space in these JSONs.
+// They are not really meant for human eyes consumption, just for checkpointing and for the unit tests. -- D.K.
+CURRENT_FORWARD_DECLARE_STRUCT(U);  // "Unset".
+CURRENT_FORWARD_DECLARE_STRUCT(V);  // "Vector".
+CURRENT_FORWARD_DECLARE_STRUCT(I);  // "IntMap".
+CURRENT_FORWARD_DECLARE_STRUCT(S);  // "StringMap".
+CURRENT_FORWARD_DECLARE_STRUCT(X);  // "Value".
+CURRENT_VARIANT(Node, U, V, I, S, X);
+CURRENT_STRUCT(U){};
+CURRENT_STRUCT(X) {
+  CURRENT_FIELD(q, uint32_t);            // The internal index, in the order of defining the variables.
+  CURRENT_FIELD(i, Optional<uint32_t>);  // The in-dense-vector, post-`Freeze()` index, in the DFS order. For JIT.
+  CURRENT_FIELD(x, Optional<double>);    // The value, of a starting point, or of a constant.
+  CURRENT_FIELD(c, Optional<bool>);      // Set to `true` if this "variable" is a constant, `null` otherwise.
+  CURRENT_CONSTRUCTOR(X)
+  (Optional<double> x, bool is_constant, uint32_t q, uint32_t optional_i = static_cast<uint32_t>(-1))
+      : q(q),
+        i(optional_i == static_cast<uint32_t>(-1) ? nullptr : Optional<uint32_t>(optional_i)),
+        x(x),
+        c(is_constant ? Optional<bool>(true) : nullptr) {}
+};
+CURRENT_STRUCT(V) { CURRENT_FIELD(z, std::vector<Node>); };
+CURRENT_STRUCT(I) { CURRENT_FIELD(z, (std::map<uint32_t, Node>)); };
+CURRENT_STRUCT(S) { CURRENT_FIELD(z, (std::map<std::string, Node>)); };
+}  // namespace current::expression::json
+
+// The information about the variables set, as well as their initial values and which are the constants.
+struct FrozenVariablesSet {
+  size_t const dim;
+  std::vector<double> const x0;
+  std::vector<std::string> const name;
+  std::vector<bool> const is_constant;
+  json::Node const root;
+  FrozenVariablesSet(
+      size_t dim, std::vector<double> x0, std::vector<std::string> name, std::vector<bool> is_constant, json::Node root)
+      : dim(dim),
+        x0(std::move(x0)),
+        name(std::move(name)),
+        is_constant(std::move(is_constant)),
+        root(std::move(root)) {}
+};
+
 class VarsContextInterface {
  public:
   ~VarsContextInterface() = default;
   virtual bool IsFrozen() const = 0;
-  virtual void Freeze() = 0;
+  virtual FrozenVariablesSet Freeze() = 0;
   virtual void Unfreeze() = 0;
   virtual uint32_t AllocateVar() = 0;
 };
@@ -116,33 +159,6 @@ class VarsManager final {
   }
   VarsContextInterface& ActiveViaInterface() { return *active_context_interface_; }
 };
-
-namespace json {
-// Short names to save on space in these JSONs.
-// They are not really meant for human eyes consumption, just for checkpointing and for the unit tests. -- D.K.
-CURRENT_FORWARD_DECLARE_STRUCT(U);  // "Unset".
-CURRENT_FORWARD_DECLARE_STRUCT(V);  // "Vector".
-CURRENT_FORWARD_DECLARE_STRUCT(I);  // "IntMap".
-CURRENT_FORWARD_DECLARE_STRUCT(S);  // "StringMap".
-CURRENT_FORWARD_DECLARE_STRUCT(X);  // "Value".
-CURRENT_VARIANT(Node, U, V, I, S, X);
-CURRENT_STRUCT(U){};
-CURRENT_STRUCT(X) {
-  CURRENT_FIELD(q, uint32_t);            // The internal index, in the order of defining the variables.
-  CURRENT_FIELD(i, Optional<uint32_t>);  // The in-dense-vector, post-`Freeze()` index, in the DFS order. For JIT.
-  CURRENT_FIELD(x, Optional<double>);    // The value, of a starting point, or of a constant.
-  CURRENT_FIELD(c, Optional<bool>);      // Set to `true` if this "variable" is a constant, `null` otherwise.
-  CURRENT_CONSTRUCTOR(X)
-  (Optional<double> x, bool is_constant, uint32_t q, uint32_t optional_i = static_cast<uint32_t>(-1))
-      : q(q),
-        i(optional_i == static_cast<uint32_t>(-1) ? nullptr : Optional<uint32_t>(optional_i)),
-        x(x),
-        c(is_constant ? Optional<bool>(true) : nullptr) {}
-};
-CURRENT_STRUCT(V) { CURRENT_FIELD(z, std::vector<Node>); };
-CURRENT_STRUCT(I) { CURRENT_FIELD(z, (std::map<uint32_t, Node>)); };
-CURRENT_STRUCT(S) { CURRENT_FIELD(z, (std::map<std::string, Node>)); };
-}  // namespace current::expression::json
 
 enum class VarNodeType { Unset, Vector, IntMap, StringMap, Value };
 struct VarNode {
@@ -261,22 +277,39 @@ struct VarNode {
     return internal_leaf_index;
   }
 
-  void DSFStampDenseIndexesForJIT(uint32_t& next_finalized_index) {
+  struct FrozenVariablesSetBeingPopulated {
+    std::vector<double> x0;
+    std::vector<std::string> name;
+    std::vector<bool> is_constant;
+    std::string name_so_far = "x";  // Will keep adding the removing scoped `[%d]` or `["%s]` here.
+  };
+  void DSFStampDenseIndexesForJIT(FrozenVariablesSetBeingPopulated& state) {
     if (type == VarNodeType::Vector) {
-      for (VarNode& c : children_vector) {
-        c.DSFStampDenseIndexesForJIT(next_finalized_index);
+      size_t const name_so_far_length = state.name_so_far.length();
+      for (size_t i = 0; i < children_vector.size(); ++i) {
+        state.name_so_far += "[" + JSON(i) + "]";
+        children_vector[i].DSFStampDenseIndexesForJIT(state);
+        state.name_so_far.resize(name_so_far_length);
       }
     } else if (type == VarNodeType::IntMap) {
+      size_t const name_so_far_length = state.name_so_far.length();
       for (auto& e : children_int_map) {
-        e.second.DSFStampDenseIndexesForJIT(next_finalized_index);
+        state.name_so_far += "[" + JSON(e.first) + "]";
+        e.second.DSFStampDenseIndexesForJIT(state);
+        state.name_so_far.resize(name_so_far_length);
       }
     } else if (type == VarNodeType::StringMap) {
+      size_t const name_so_far_length = state.name_so_far.length();
       for (auto& e : children_string_map) {
-        e.second.DSFStampDenseIndexesForJIT(next_finalized_index);
+        state.name_so_far += "[" + JSON(e.first) + "]";
+        e.second.DSFStampDenseIndexesForJIT(state);
+        state.name_so_far.resize(name_so_far_length);
       }
     } else if (type == VarNodeType::Value) {
-      finalized_index = next_finalized_index;
-      ++next_finalized_index;
+      finalized_index = state.x0.size();
+      state.x0.push_back(Exists(value) ? Value(value) : 0.0);  // TODO(dkorolev): Collect `uninitialized` as well?
+      state.name.push_back(state.name_so_far);
+      state.is_constant.push_back(is_constant);
     } else if (type != VarNodeType::Unset) {
       CURRENT_THROW(VarsManagementException("Attempted to `DSFStampDenseIndexesForJIT()` on an invalid var node."));
     }
@@ -315,7 +348,7 @@ struct VarNode {
 class VarsContext final : public VarsContextInterface {
  private:
   VarNode root_;
-  bool finalized_ = false;
+  bool frozen_ = false;
   size_t leaves_allocated_ = 0;
 
  public:
@@ -327,32 +360,34 @@ class VarsContext final : public VarsContextInterface {
   }
   bool IsFrozen() const override {
     VarsManager::TLS().ConfirmActive(this, this);
-    return finalized_;
+    return frozen_;
   }
-  void Freeze() override {
+  FrozenVariablesSet Freeze() override {
     VarsManager::TLS().ConfirmActive(this, this);
-    if (finalized_) {
+    if (frozen_) {
       CURRENT_THROW(VarsAlreadyFrozenException());
     } else {
-      finalized_ = true;
-      uint32_t finalized_leaf_next_index = 0;
-      root_.DSFStampDenseIndexesForJIT(finalized_leaf_next_index);
-      if (static_cast<size_t>(finalized_leaf_next_index) != leaves_allocated_) {
-        CURRENT_THROW(VarsManagementException("Internal error: leaf count mismatch during `Freeze()`."));
+      frozen_ = true;
+      VarNode::FrozenVariablesSetBeingPopulated state;
+      root_.DSFStampDenseIndexesForJIT(state);
+      if (state.x0.size() != leaves_allocated_ || state.name.size() != leaves_allocated_ ||
+          state.is_constant.size() != leaves_allocated_ || state.name_so_far != "x") {
+        CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `Freeze()`."));
       }
+      return FrozenVariablesSet(leaves_allocated_, state.x0, state.name, state.is_constant, root_.DoDump());
     }
   }
   void Unfreeze() override {
     VarsManager::TLS().ConfirmActive(this, this);
-    if (!finalized_) {
+    if (!frozen_) {
       CURRENT_THROW(VarsNotFrozenException());
     } else {
-      finalized_ = false;
+      frozen_ = false;
     }
   }
   uint32_t AllocateVar() override {
     VarsManager::TLS().ConfirmActive(this, this);
-    if (finalized_) {
+    if (frozen_) {
       CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after the vars context is frozen."));
     } else {
       return leaves_allocated_++;
@@ -364,8 +399,8 @@ struct VarsAccessor final {
   void DenseDoubleVector(size_t dim) { VarsManager::TLS().Active().RootNode().DenseDoubleVector(dim); }
   VarNode& operator[](size_t i) { return VarsManager::TLS().Active().RootNode()[i]; }
   VarNode& operator[](std::string const& s) { return VarsManager::TLS().Active().RootNode()[s]; }
-  void Freeze() const { return VarsManager::TLS().Active().Freeze(); }
-  void Unfreeze() const { return VarsManager::TLS().Active().Unfreeze(); }
+  FrozenVariablesSet Freeze() const { return VarsManager::TLS().Active().Freeze(); }
+  void Unfreeze() const { VarsManager::TLS().Active().Unfreeze(); }
   json::Node Dump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
 };
 
