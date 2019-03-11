@@ -62,15 +62,20 @@ struct VarIsNotLeafException final : OptimizeException {};
 // When the value is attempted to be re-assigned. I.e.: `c["foo"] = 1; c["foo"] = 2;`.
 struct VarNodeReassignmentAttemptException final : OptimizeException {};
 
-// When the variables tree is attempted to be changed after being `.Finalize()`-s.
-// I.e., `c["foo"] = 1.0; vars_context.Finalize(); c["bar"] = 2.0;`.
-struct VarsTreeFinalizedException final : OptimizeException {};
+// When the variables tree is attempted to be changed after being frozen via `.Freeze()`.
+// I.e., `c["foo"] = 1.0; vars_context.Freeze(); c["bar"] = 2.0;`.
+struct VarsFrozenException final : OptimizeException {};
+
+// To make sure `Freeze()` is only called on the unfrozen vars tree, and `Unfreeze()` is only called on the frozen one.
+struct VarsAlreadyFrozenException final : OptimizeException {};
+struct VarsNotFrozenException final : OptimizeException {};
 
 class VarsContextInterface {
  public:
   ~VarsContextInterface() = default;
-  virtual bool IsFinalized() const = 0;
-  virtual void Finalize() = 0;
+  virtual bool IsFrozen() const = 0;
+  virtual void Freeze() = 0;
+  virtual void Unfreeze() = 0;
   virtual uint32_t AllocateVar() = 0;
 };
 
@@ -124,7 +129,7 @@ CURRENT_VARIANT(Node, U, V, I, S, X);
 CURRENT_STRUCT(U){};
 CURRENT_STRUCT(X) {
   CURRENT_FIELD(q, uint32_t);            // The internal index, in the order of defining the variables.
-  CURRENT_FIELD(i, Optional<uint32_t>);  // The in-dense-vector, post-`Finalize()` index, in the DFS order.
+  CURRENT_FIELD(i, Optional<uint32_t>);  // The in-dense-vector, post-`Freeze()` index, in the DFS order. For JIT.
   CURRENT_FIELD(x, double);
   CURRENT_CONSTRUCTOR(X)
   (double x, uint32_t q, uint32_t optional_i = static_cast<uint32_t>(-1))
@@ -146,8 +151,8 @@ struct VarNode {
   uint32_t finalized_index = static_cast<uint32_t>(-1);  // `type == Value`.
 
   void DenseDoubleVector(size_t dim) {
-    if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
-      CURRENT_THROW(VarsTreeFinalizedException());
+    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
+      CURRENT_THROW(VarsFrozenException());
     }
     if (!dim || dim > static_cast<size_t>(1e6)) {
       // NOTE(dkorolev): The `1M` size cutoff is somewhat arbitrary here, but I honestly don't believe
@@ -163,7 +168,7 @@ struct VarNode {
   }
 
   VarNode& operator[](size_t i) {
-    if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
+    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
       if (type == VarNodeType::Vector && i < children_vector.size()) {
         return children_vector[i];
       } else if (type == VarNodeType::IntMap) {
@@ -172,7 +177,7 @@ struct VarNode {
           return cit->second;
         }
       }
-      CURRENT_THROW(VarsTreeFinalizedException());
+      CURRENT_THROW(VarsFrozenException());
     }
     if (type == VarNodeType::Vector) {
       if (i < children_vector.size()) {
@@ -191,14 +196,14 @@ struct VarNode {
   }
 
   VarNode& operator[](std::string const& s) {
-    if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
+    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
       if (type == VarNodeType::StringMap) {
         auto const cit = children_string_map.find(s);
         if (cit != children_string_map.end()) {
           return cit->second;
         }
       }
-      CURRENT_THROW(VarsTreeFinalizedException());
+      CURRENT_THROW(VarsFrozenException());
     }
     if (type == VarNodeType::Unset) {
       type = VarNodeType::StringMap;
@@ -210,8 +215,8 @@ struct VarNode {
   }
 
   void operator=(double x) {
-    if (VarsManager::TLS().ActiveViaInterface().IsFinalized()) {
-      CURRENT_THROW(VarsTreeFinalizedException());
+    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
+      CURRENT_THROW(VarsFrozenException());
     }
     if (type != VarNodeType::Unset) {
       if (type == VarNodeType::Value) {
@@ -236,24 +241,24 @@ struct VarNode {
     return internal_leaf_index;
   }
 
-  void DFSToStampFinalizedIndexes(uint32_t& next_finalized_index) {
+  void DSFStampDenseIndexesForJIT(uint32_t& next_finalized_index) {
     if (type == VarNodeType::Vector) {
       for (VarNode& c : children_vector) {
-        c.DFSToStampFinalizedIndexes(next_finalized_index);
+        c.DSFStampDenseIndexesForJIT(next_finalized_index);
       }
     } else if (type == VarNodeType::IntMap) {
       for (auto& e : children_int_map) {
-        e.second.DFSToStampFinalizedIndexes(next_finalized_index);
+        e.second.DSFStampDenseIndexesForJIT(next_finalized_index);
       }
     } else if (type == VarNodeType::StringMap) {
       for (auto& e : children_string_map) {
-        e.second.DFSToStampFinalizedIndexes(next_finalized_index);
+        e.second.DSFStampDenseIndexesForJIT(next_finalized_index);
       }
     } else if (type == VarNodeType::Value) {
       finalized_index = next_finalized_index;
       ++next_finalized_index;
     } else if (type != VarNodeType::Unset) {
-      CURRENT_THROW(VarsManagementException("Attempted to `DFSToStampFinalizedIndexes()` on an invalid var node."));
+      CURRENT_THROW(VarsManagementException("Attempted to `DSFStampDenseIndexesForJIT()` on an invalid var node."));
     }
   }
 
@@ -300,25 +305,35 @@ class VarsContext final : public VarsContextInterface {
     VarsManager::TLS().ConfirmActive(this, this);
     return root_;
   }
-  bool IsFinalized() const override {
+  bool IsFrozen() const override {
     VarsManager::TLS().ConfirmActive(this, this);
     return finalized_;
   }
-  void Finalize() override {
+  void Freeze() override {
     VarsManager::TLS().ConfirmActive(this, this);
-    if (!finalized_) {
+    if (finalized_) {
+      CURRENT_THROW(VarsAlreadyFrozenException());
+    } else {
       finalized_ = true;
       uint32_t finalized_leaf_next_index = 0;
-      root_.DFSToStampFinalizedIndexes(finalized_leaf_next_index);
+      root_.DSFStampDenseIndexesForJIT(finalized_leaf_next_index);
       if (static_cast<size_t>(finalized_leaf_next_index) != leaves_allocated_) {
-        CURRENT_THROW(VarsManagementException("Internal error: leaf count mismatch."));
+        CURRENT_THROW(VarsManagementException("Internal error: leaf count mismatch during `Freeze()`."));
       }
+    }
+  }
+  void Unfreeze() override {
+    VarsManager::TLS().ConfirmActive(this, this);
+    if (!finalized_) {
+      CURRENT_THROW(VarsNotFrozenException());
+    } else {
+      finalized_ = false;
     }
   }
   uint32_t AllocateVar() override {
     VarsManager::TLS().ConfirmActive(this, this);
     if (finalized_) {
-      CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after the vars context is `Finalize()`-ed."));
+      CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after the vars context is frozen."));
     } else {
       return leaves_allocated_++;
     }
@@ -329,7 +344,8 @@ struct VarsAccessor final {
   void DenseDoubleVector(size_t dim) { VarsManager::TLS().Active().RootNode().DenseDoubleVector(dim); }
   VarNode& operator[](size_t i) { return VarsManager::TLS().Active().RootNode()[i]; }
   VarNode& operator[](std::string const& s) { return VarsManager::TLS().Active().RootNode()[s]; }
-  void Finalize() const { return VarsManager::TLS().Active().Finalize(); }
+  void Freeze() const { return VarsManager::TLS().Active().Freeze(); }
+  void Unfreeze() const { return VarsManager::TLS().Active().Unfreeze(); }
   json::Node Dump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
 };
 
