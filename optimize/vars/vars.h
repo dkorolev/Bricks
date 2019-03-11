@@ -333,8 +333,7 @@ struct VarsAccessor final {
   json::Node Dump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
 };
 
-static struct VarsAccessor c;  // `c` for Constants.
-// TODO(dkorolev): `x` for Variables, and `s` for Starting point.
+static struct VarsAccessor x;  // Let the user who is `using namespace current::expression` access vars directly.
 
 }  // namespace current::expression
 }  // namespace current
