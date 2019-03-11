@@ -70,6 +70,12 @@ struct VarsFrozenException final : OptimizeException {};
 struct VarsAlreadyFrozenException final : OptimizeException {};
 struct VarsNotFrozenException final : OptimizeException {};
 
+// For flattened vars vector access, see the unit tests for more details.
+struct VarsMapperException : OptimizeException {};
+struct VarsMapperWrongVarException : VarsMapperException {};
+struct VarsMapperNodeNotVarException : VarsMapperException {};
+struct VarsMapperVarIsConstant : VarsMapperException {};
+
 namespace json {
 // Short names to save on space in these JSONs.
 // They are not really meant for human eyes consumption, just for checkpointing and for the unit tests. -- D.K.
@@ -98,13 +104,13 @@ CURRENT_STRUCT(S) { CURRENT_FIELD(z, (std::map<std::string, Node>)); };
 }  // namespace current::expression::json
 
 // The information about the variables set, as well as their initial values and which are the constants.
-struct FrozenVariablesSet {
+struct VarsMapperConfig final {
   size_t const dim;
   std::vector<double> const x0;
   std::vector<std::string> const name;
   std::vector<bool> const is_constant;
   json::Node const root;
-  FrozenVariablesSet(
+  VarsMapperConfig(
       size_t dim, std::vector<double> x0, std::vector<std::string> name, std::vector<bool> is_constant, json::Node root)
       : dim(dim),
         x0(std::move(x0)),
@@ -113,11 +119,104 @@ struct FrozenVariablesSet {
         root(std::move(root)) {}
 };
 
+class VarsMapper final {
+ private:
+  VarsMapperConfig const config_;
+  std::vector<double> value_;
+
+  class AccessorNode final {
+   private:
+    std::vector<double>& value_;
+    json::Node const& node_;
+
+   public:
+    AccessorNode(std::vector<double>& value, json::Node const& node) : value_(value), node_(node) {}
+
+    AccessorNode operator[](size_t i) const {
+      if (Exists<json::V>(node_)) {
+        auto const& v = Value<json::V>(node_);
+        if (i < v.z.size()) {
+          return AccessorNode(value_, v.z[i]);
+        }
+      } else if (Exists<json::I>(node_)) {
+        auto const& v = Value<json::I>(node_);
+        auto const cit = v.z.find(i);
+        if (cit != v.z.end()) {
+          return AccessorNode(value_, cit->second);
+        }
+      }
+      CURRENT_THROW(VarsMapperWrongVarException());
+    }
+
+    AccessorNode operator[](std::string const& s) const {
+      if (Exists<json::S>(node_)) {
+        auto const& v = Value<json::S>(node_);
+        auto const cit = v.z.find(s);
+        if (cit != v.z.end()) {
+          return AccessorNode(value_, cit->second);
+        }
+      }
+      CURRENT_THROW(VarsMapperWrongVarException());
+    }
+
+    AccessorNode operator[](char const* s) const {
+      if (Exists<json::S>(node_)) {
+        auto const& v = Value<json::S>(node_);
+        auto const cit = v.z.find(s);
+        if (cit != v.z.end()) {
+          return AccessorNode(value_, cit->second);
+        }
+      }
+      CURRENT_THROW(VarsMapperWrongVarException());
+    }
+
+    operator double() const {
+      if (Exists<json::X>(node_)) {
+        auto const& v = Value<json::X>(node_);
+        if (Exists(v.i)) {
+          return value_[Value(v.i)];
+        }
+      }
+      CURRENT_THROW(VarsMapperNodeNotVarException());
+    }
+
+    double& Ref(bool allow_modifying_constants = false) const {
+      if (Exists<json::X>(node_)) {
+        auto const& v = Value<json::X>(node_);
+        if (Exists(v.i)) {
+          if (!allow_modifying_constants && Exists(v.c) && Value(v.c)) {
+            CURRENT_THROW(VarsMapperVarIsConstant());
+          }
+          return value_[Value(v.i)];
+        }
+      }
+      CURRENT_THROW(VarsMapperNodeNotVarException());
+    }
+
+    operator double&() const { return Ref(); }
+
+    void operator=(double x) const { (operator double&()) = x; }
+
+    double& RefEvenForAConstant() const { return Ref(true); }
+
+    void SetConstantValue(double x) const { RefEvenForAConstant() = x; }
+  };
+
+  AccessorNode const root_;
+
+ public:
+  std::vector<double> const& x;  // `x` is a const reference `value_`, for easy read-only access to dense vars.
+  explicit VarsMapper(VarsMapperConfig config)
+      : config_(config), value_(config.x0), root_(value_, config_.root), x(value_) {}
+  AccessorNode operator[](size_t i) const { return root_[i]; }
+  AccessorNode operator[](std::string const& s) const { return root_[s]; }
+};
+
 class VarsContextInterface {
  public:
   ~VarsContextInterface() = default;
   virtual bool IsFrozen() const = 0;
-  virtual FrozenVariablesSet Freeze() = 0;
+  virtual VarsMapperConfig Freeze() = 0;
   virtual void Unfreeze() = 0;
   virtual uint32_t AllocateVar() = 0;
 };
@@ -362,7 +461,7 @@ class VarsContext final : public VarsContextInterface {
     VarsManager::TLS().ConfirmActive(this, this);
     return frozen_;
   }
-  FrozenVariablesSet Freeze() override {
+  VarsMapperConfig Freeze() override {
     VarsManager::TLS().ConfirmActive(this, this);
     if (frozen_) {
       CURRENT_THROW(VarsAlreadyFrozenException());
@@ -374,7 +473,7 @@ class VarsContext final : public VarsContextInterface {
           state.is_constant.size() != leaves_allocated_ || state.name_so_far != "x") {
         CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `Freeze()`."));
       }
-      return FrozenVariablesSet(leaves_allocated_, state.x0, state.name, state.is_constant, root_.DoDump());
+      return VarsMapperConfig(leaves_allocated_, state.x0, state.name, state.is_constant, root_.DoDump());
     }
   }
   void Unfreeze() override {
@@ -399,12 +498,13 @@ struct VarsAccessor final {
   void DenseDoubleVector(size_t dim) { VarsManager::TLS().Active().RootNode().DenseDoubleVector(dim); }
   VarNode& operator[](size_t i) { return VarsManager::TLS().Active().RootNode()[i]; }
   VarNode& operator[](std::string const& s) { return VarsManager::TLS().Active().RootNode()[s]; }
-  FrozenVariablesSet Freeze() const { return VarsManager::TLS().Active().Freeze(); }
+  VarsMapperConfig Freeze() const { return VarsManager::TLS().Active().Freeze(); }
   void Unfreeze() const { VarsManager::TLS().Active().Unfreeze(); }
   json::Node Dump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
 };
 
-static struct VarsAccessor x;  // Let the user who is `using namespace current::expression` access vars directly.
+// Let the user who is `using namespace current::expression` access the vars directly, without any syntactic sugar.
+static struct VarsAccessor x;
 
 }  // namespace current::expression
 }  // namespace current

@@ -22,7 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-// TODO(dkorolev): Export the frozen context.
 // TODO(dkorolev): Rename `Dump()` into something more internal.
 // TODO(dkorolev): Access to `x[]` from some `object.x[]`, w/o the thread-local singleton.
 // TODO(dkorolev): Re-create the frozen context, and access the dense vector via it.
@@ -271,17 +270,59 @@ TEST(OptimizationVars, DenseRepresentation) {
   x["y"][1][0] = 210;
   x["x"]["x2"].SetConstant();  // Make two of them constants for the test.
   x["y"][1][0].SetConstant();
-  FrozenVariablesSet const frozen = context.Freeze();
-  ASSERT_EQ(7u, frozen.name.size());
-  EXPECT_EQ("x['x']['x1']", SingleQuoted(frozen.name[0]));
-  EXPECT_EQ("x['x']['x2']", SingleQuoted(frozen.name[1]));
-  EXPECT_EQ("x['x']['x3']", SingleQuoted(frozen.name[2]));
-  EXPECT_EQ("x['y'][0][0]", SingleQuoted(frozen.name[3]));
-  EXPECT_EQ("x['y'][0][1]", SingleQuoted(frozen.name[4]));
-  EXPECT_EQ("x['y'][1][0]", SingleQuoted(frozen.name[5]));
-  EXPECT_EQ("x['y'][1][1]", SingleQuoted(frozen.name[6]));
-  EXPECT_EQ("[101.0,102.0,103.0,200.0,201.0,210.0,211.0]", SingleQuoted(JSON(frozen.x0)));
-  EXPECT_EQ("[false,true,false,false,false,true,false]", SingleQuoted(JSON(frozen.is_constant)));
+  VarsMapperConfig const config = context.Freeze();
+  ASSERT_EQ(7u, config.name.size());
+  EXPECT_EQ("x['x']['x1']", SingleQuoted(config.name[0]));
+  EXPECT_EQ("x['x']['x2']", SingleQuoted(config.name[1]));
+  EXPECT_EQ("x['x']['x3']", SingleQuoted(config.name[2]));
+  EXPECT_EQ("x['y'][0][0]", SingleQuoted(config.name[3]));
+  EXPECT_EQ("x['y'][0][1]", SingleQuoted(config.name[4]));
+  EXPECT_EQ("x['y'][1][0]", SingleQuoted(config.name[5]));
+  EXPECT_EQ("x['y'][1][1]", SingleQuoted(config.name[6]));
+  EXPECT_EQ("[101.0,102.0,103.0,200.0,201.0,210.0,211.0]", JSON(config.x0));
+  EXPECT_EQ("[false,true,false,false,false,true,false]", JSON(config.is_constant));
+
+  {
+    VarsMapper a(config);
+    VarsMapper b(config);  // To confirm no global or thread-local context is used by `VarsMapper`-s.
+
+    EXPECT_EQ(JSON(a.x), JSON(config.x0));
+    EXPECT_EQ(JSON(b.x), JSON(config.x0));
+
+    EXPECT_EQ(101, a.x[0]);
+    EXPECT_EQ(102, a.x[1]);
+    EXPECT_EQ(211, a.x[6]);
+    EXPECT_EQ(101, b.x[0]);
+    EXPECT_EQ(102, b.x[1]);
+    EXPECT_EQ(211, b.x[6]);
+
+    a["x"]["x1"] = 70101;
+    a["x"]["x2"].SetConstantValue(70102);
+    a["y"][1][1] = 70211;
+
+    b["x"]["x1"] = 80101;
+    b["y"][1][1].Ref() = 80211;
+    b["x"]["x2"].RefEvenForAConstant() = 80102;
+
+    EXPECT_EQ(70101, a.x[0]);
+    EXPECT_EQ(70102, a.x[1]);
+    EXPECT_EQ(70211, a.x[6]);
+
+    EXPECT_EQ(80101, b.x[0]);
+    EXPECT_EQ(80102, b.x[1]);
+    EXPECT_EQ(80211, b.x[6]);
+
+    ASSERT_THROW(a[42] = 0, VarsMapperWrongVarException);
+    ASSERT_THROW(a["z"] = 0, VarsMapperWrongVarException);
+    ASSERT_THROW(a["x"][42] = 0, VarsMapperWrongVarException);
+    ASSERT_THROW(a["x"]["x4"] = 0, VarsMapperWrongVarException);
+    ASSERT_THROW(a["x"]["x1"]["foo"] = 0, VarsMapperWrongVarException);
+
+    ASSERT_THROW(a["y"] = 0, VarsMapperNodeNotVarException);
+
+    ASSERT_THROW(a["x"]["x2"].Ref(), VarsMapperVarIsConstant);
+    ASSERT_THROW(a["x"]["x2"] = 0, VarsMapperVarIsConstant);
+  }
 }
 
 TEST(OptimizationVars, DenseVectorDimensions) {
