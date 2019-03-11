@@ -386,7 +386,7 @@ struct VarNode {
     if (type == VarNodeType::Vector) {
       size_t const name_so_far_length = state.name_so_far.length();
       for (size_t i = 0; i < children_vector.size(); ++i) {
-        state.name_so_far += "[" + JSON(i) + "]";
+        state.name_so_far += "[" + current::ToString(i) + "]";
         children_vector[i].DSFStampDenseIndexesForJIT(state);
         state.name_so_far.resize(name_so_far_length);
       }
