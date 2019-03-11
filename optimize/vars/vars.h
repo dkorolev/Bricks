@@ -393,7 +393,7 @@ struct VarNode {
     } else if (type == VarNodeType::IntMap) {
       size_t const name_so_far_length = state.name_so_far.length();
       for (auto& e : children_int_map) {
-        state.name_so_far += "[" + JSON(e.first) + "]";
+        state.name_so_far += "[" + current::ToString(e.first) + "]";
         e.second.DSFStampDenseIndexesForJIT(state);
         state.name_so_far.resize(name_so_far_length);
       }
