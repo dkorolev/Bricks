@@ -22,6 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
+// TODO(dkorolev): Support constants.
+// TODO(dkorolev): Export the frozen context.
+// TODO(dkorolev): Re-create the frozen context, and access the dense vector via it.
+
 #include "vars.h"
 
 #include "../../3rdparty/gtest/gtest-main.h"
