@@ -104,14 +104,20 @@ CURRENT_STRUCT(S) { CURRENT_FIELD(z, (std::map<std::string, Node>)); };
 
 // The information about the variables set, as well as their initial values and which are the constants.
 struct VarsMapperConfig final {
-  size_t const dim;
+  size_t const total_leaves;  // The number of variables, including the constant (`x[...].SetConstant(...)`) ones.
+  size_t const total_nodes;   // The number of expression nodes.
   std::vector<double> const x0;
   std::vector<std::string> const name;
   std::vector<bool> const is_constant;
   json::Node const root;
-  VarsMapperConfig(
-      size_t dim, std::vector<double> x0, std::vector<std::string> name, std::vector<bool> is_constant, json::Node root)
-      : dim(dim),
+  VarsMapperConfig(size_t total_leaves,
+                   size_t total_nodes,
+                   std::vector<double> x0,
+                   std::vector<std::string> name,
+                   std::vector<bool> is_constant,
+                   json::Node root)
+      : total_leaves(total_leaves),
+        total_nodes(total_nodes),
         x0(std::move(x0)),
         name(std::move(name)),
         is_constant(std::move(is_constant)),
@@ -473,7 +479,8 @@ class VarsContext final : public VarsContextInterface {
           state.is_constant.size() != leaves_allocated_ || state.name_so_far != "x") {
         CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `Freeze()`."));
       }
-      return VarsMapperConfig(leaves_allocated_, state.x0, state.name, state.is_constant, root_.DoDump());
+      return VarsMapperConfig(
+          leaves_allocated_, expression_nodes_.size(), state.x0, state.name, state.is_constant, root_.DoDump());
     }
   }
   void Unfreeze() override {
