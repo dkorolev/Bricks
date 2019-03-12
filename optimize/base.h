@@ -45,7 +45,8 @@ namespace expression {
 // TODO(dkorolev): Compactify the below, as this implementation is just the first TDD approximation.
 // It should help hack up the JIT, and perhaps the differentiation and optimization engines, but it's by no means final.
 
-// Expression nodes: small `index`-es map to the indexes in the thread-local singleton, `~index`-es map to variables.
+// Expression nodes: `index`-es map to the indexes in the thread-local singleton, `~index`-es map to variables,
+// and they are differentiated by whether the most significant bit is set.
 using expression_node_index_t = uint64_t;
 enum class ExpressionNodeIndex : expression_node_index_t { Invalid = static_cast<expression_node_index_t>(-1) };
 
@@ -54,8 +55,9 @@ enum class ExpressionNodeType { Uninitialized, ImmediateDouble, Plus, Exp };
 template <ExpressionNodeType>
 struct ExpressionNodeTypeSelector {};
 
-// The class that implements the expression is `ExpressionNodeImpl` defined in `base.h`, because the ultimate class
-// `ExpressionNode` is just a thin wrapper over `ExpressionNodeIndex`, and it is defined in `expression/expression.h`.
+// The class `ExpressionNodeImpl` is a thin wrapper of what is stored in the thread-local context. The actual
+// expression buliding, including managing the fields of this very class, is implemented in class `ExpressionNode`,
+// which is defined in `expression/expression.h` and tested in `expression/test.cc`.
 class ExpressionNodeImpl final {
  private:
   friend class ExpressionNode;     // To manage the below fields.

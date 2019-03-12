@@ -136,7 +136,7 @@ inline ExpressionNode exp(ExpressionNode const& argument) {
 
 inline ExpressionNode exp(VarNode const& argument) { return exp(ExpressionNode(argument)); }
 
-// When `using namespace current::expression` block, the user can use `value_t x = ...` instead of `auto x = ...`.
+// When `using namespace current::expression`, the user can use `value_t x = ...` instead of `auto x = ...`.
 using value_t = ExpressionNode;
 
 }  // namespace current::expression
