@@ -109,9 +109,11 @@ struct VarsMapperConfig final {
   std::vector<double> const x0;
   std::vector<std::string> const name;
   std::vector<bool> const is_constant;
+  std::vector<size_t> const dense_index;
   json::Node const root;
   VarsMapperConfig(size_t total_leaves,
                    size_t total_nodes,
+                   std::vector<size_t> dense_index,
                    std::vector<double> x0,
                    std::vector<std::string> name,
                    std::vector<bool> is_constant,
@@ -121,6 +123,7 @@ struct VarsMapperConfig final {
         x0(std::move(x0)),
         name(std::move(name)),
         is_constant(std::move(is_constant)),
+        dense_index(std::move(dense_index)),
         root(std::move(root)) {}
 };
 
@@ -385,7 +388,10 @@ struct VarNode {
     std::vector<double> x0;
     std::vector<std::string> name;
     std::vector<bool> is_constant;
+    std::vector<size_t> dense_index;
     std::string name_so_far = "x";  // Will keep adding the removing scoped `[%d]` or `["%s]` here.
+    explicit FrozenVariablesSetBeingPopulated(size_t leaves_allocated)
+        : dense_index(leaves_allocated, static_cast<size_t>(-1)) {}
   };
   void DSFStampDenseIndexesForJIT(FrozenVariablesSetBeingPopulated& state) {
     if (type == VarNodeType::Vector) {
@@ -411,6 +417,7 @@ struct VarNode {
       }
     } else if (type == VarNodeType::Value) {
       finalized_index = state.x0.size();
+      state.dense_index[internal_leaf_index] = state.x0.size();
       state.x0.push_back(Exists(value) ? Value(value) : 0.0);  // TODO(dkorolev): Collect `uninitialized` as well?
       state.name.push_back(state.name_so_far);
       state.is_constant.push_back(is_constant);
@@ -473,14 +480,19 @@ class VarsContext final : public VarsContextInterface {
       CURRENT_THROW(VarsAlreadyFrozenException());
     } else {
       frozen_ = true;
-      VarNode::FrozenVariablesSetBeingPopulated state;
+      VarNode::FrozenVariablesSetBeingPopulated state(leaves_allocated_);
       root_.DSFStampDenseIndexesForJIT(state);
       if (state.x0.size() != leaves_allocated_ || state.name.size() != leaves_allocated_ ||
           state.is_constant.size() != leaves_allocated_ || state.name_so_far != "x") {
         CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `Freeze()`."));
       }
-      return VarsMapperConfig(
-          leaves_allocated_, expression_nodes_.size(), state.x0, state.name, state.is_constant, root_.DoDump());
+      return VarsMapperConfig(leaves_allocated_,
+                              expression_nodes_.size(),
+                              state.dense_index,
+                              state.x0,
+                              state.name,
+                              state.is_constant,
+                              root_.DoDump());
     }
   }
   void Unfreeze() override {
