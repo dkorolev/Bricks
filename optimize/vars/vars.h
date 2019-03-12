@@ -515,7 +515,8 @@ class VarsContext final : public VarsContextInterface {
   expression_node_index_t EmplaceExpressionNode(ARGS&&... args) {
     VarsManager::TLS().ConfirmActive(this, this);
     if (frozen_) {
-      CURRENT_THROW(VarsManagementException("Attempted to `EmplaceExpressionNode()` after the vars context is frozen."));
+      CURRENT_THROW(
+          VarsManagementException("Attempted to `EmplaceExpressionNode()` after the vars context is frozen."));
     }
     expression_node_index_t const new_node_index = static_cast<expression_node_index_t>(expression_nodes_.size());
     expression_nodes_.emplace_back(std::forward<ARGS>(args)...);

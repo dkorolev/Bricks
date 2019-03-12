@@ -58,9 +58,13 @@ struct ExpressionNodeTypeSelector {};
 // The class `ExpressionNodeImpl` is a thin wrapper of what is stored in the thread-local context. The actual
 // expression buliding, including managing the fields of this very class, is implemented in class `ExpressionNode`,
 // which is defined in `expression/expression.h` and tested in `expression/test.cc`.
+namespace jit {
+class JITCodeGenerator;
+}  // namespace current::expression::jit
 class ExpressionNodeImpl final {
  private:
-  friend class ExpressionNode;     // To manage the below fields.
+  friend class ExpressionNode;         // To manage the below fields.
+  friend class jit::JITCodeGenerator;  // To use the below fields.
   ExpressionNodeType const type_;
   double const value_;             // For `type_ == ImmediateDouble`.
   ExpressionNodeIndex const lhs_;  // For `type_ == Plus` or `type_ == Exp`.
@@ -84,8 +88,7 @@ class ExpressionNodeImpl final {
                      ExpressionNodeIndex rhs)
       : type_(ExpressionNodeType::Plus), value_(0.0), lhs_(lhs), rhs_(rhs) {}
 
-  ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Exp>,
-                     ExpressionNodeIndex argument)
+  ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Exp>, ExpressionNodeIndex argument)
       : type_(ExpressionNodeType::Exp), value_(0.0), lhs_(argument), rhs_(ExpressionNodeIndex::Invalid) {}
 };
 
