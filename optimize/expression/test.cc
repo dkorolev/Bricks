@@ -154,3 +154,24 @@ TEST(OptimizationExpression, MustBeWithinContext) {
   ASSERT_THROW(v[1].DebugAsString(), VarsManagementException);
   ASSERT_THROW(v[2].DebugAsString(), VarsManagementException);
 }
+
+TEST(OptimizationExpression, FreezePreventsNodesCreation) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+  x[0] = 0.0;
+
+  // NOTE(dkorolev): Each of these assignments generates two expression nodes: one for the value, adn one for the `+`.
+  value_t const tmp1 = x[0] + 1.0;
+  value_t const tmp2 = x[0] + 2.0;
+  value_t const tmp3 = x[0] + 3.0;
+  EXPECT_EQ(1u, static_cast<size_t>(ExpressionNodeIndex(tmp1)));
+  EXPECT_EQ(3u, static_cast<size_t>(ExpressionNodeIndex(tmp2)));
+  EXPECT_EQ(5u, static_cast<size_t>(ExpressionNodeIndex(tmp3)));
+
+  VarsMapperConfig const config = vars_context.Freeze();
+  EXPECT_EQ(1u, config.total_leaves);  // Just one variable, `x[0]`.
+  EXPECT_EQ(6u, config.total_nodes);   // Three immediate value and three `+` nodes.
+
+  EXPECT_THROW(x[0] + 4.0, VarsManagementException);
+}
