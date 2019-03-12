@@ -448,6 +448,7 @@ class VarsContext final : public VarsContextInterface {
   VarNode root_;
   bool frozen_ = false;
   size_t leaves_allocated_ = 0;
+  std::vector<ExpressionNodeImpl> expression_nodes_;
 
  public:
   VarsContext() { VarsManager::TLS().SetActive(this, this); }
@@ -490,6 +491,15 @@ class VarsContext final : public VarsContextInterface {
     } else {
       return leaves_allocated_++;
     }
+  }
+  template <typename... ARGS>
+  expression_node_index_t EmplaceExpressionNode(ARGS&&... args) {
+    expression_node_index_t const new_node_index = static_cast<expression_node_index_t>(expression_nodes_.size());
+    expression_nodes_.emplace_back(std::forward<ARGS>(args)...);
+    return new_node_index;
+  }
+  ExpressionNodeImpl const& operator[](expression_node_index_t expression_node_index) const {
+    return expression_nodes_[expression_node_index];
   }
 };
 
