@@ -151,6 +151,21 @@ TEST(OptimizationExpression, OperationsWithAssignment) {
   }
 }
 
+TEST(OptimizationExpression, UnaryOperations) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+  x["a"] = 0.0;
+
+  EXPECT_EQ("x[@0]", value_t(x["a"]).DebugAsString());
+  EXPECT_EQ("x[@0]", (+value_t(x["a"])).DebugAsString());
+  EXPECT_EQ("x[@0]", (+x["a"]).DebugAsString());
+  EXPECT_EQ("x[@0]", (+(+x["a"])).DebugAsString());
+  EXPECT_EQ("(0.000000-x[@0])", (-value_t(x["a"])).DebugAsString());
+  EXPECT_EQ("(0.000000-x[@0])", (-x["a"]).DebugAsString());
+  EXPECT_EQ("(0.000000-(0.000000-x[@0]))", (-(-x["a"])).DebugAsString());
+}
+
 TEST(OptimizationExpression, SimpleVarsExponentiation) {
   using namespace current::expression;
 

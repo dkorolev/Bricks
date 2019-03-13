@@ -150,6 +150,11 @@ static_assert(sizeof(ExpressionNode) == 8u, "The `ExpressionNode` type is meant 
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 
+inline ExpressionNode operator+(ExpressionNode op) { return op; }
+inline ExpressionNode operator+(VarNode const& op) { return op; }
+inline ExpressionNode operator-(ExpressionNode op) { return (0.0 - op); }
+inline ExpressionNode operator-(VarNode const& op) { return (0.0 - op); }
+
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                              \
   inline ExpressionNode fn(ExpressionNode argument) {                                                     \
     return ExpressionNode::FromIndex(VarsManager::TLS().Active().EmplaceExpressionNode(                   \
