@@ -87,6 +87,22 @@ TEST(OptimizationExpression, NestedVarsAddition) {
   EXPECT_EQ("(x[@0]+(x[@1]+x[@2]))", (x["foo"] + (x["bar"] + x["baz"])).DebugAsString());
 }
 
+TEST(OptimizationExpression, OtherOperations) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  x["a"] = 0.0;
+  x["b"] = 0.0;
+  value_t const a(x["a"]);
+  value_t const b(x["b"]);
+
+  EXPECT_EQ("(x[@0]+x[@1])", (a + b).DebugAsString());
+  EXPECT_EQ("(x[@0]-x[@1])", (a - b).DebugAsString());
+  EXPECT_EQ("(x[@0]*x[@1])", (a * b).DebugAsString());
+  EXPECT_EQ("(x[@0]/x[@1])", (a / b).DebugAsString());
+}
+
 TEST(OptimizationExpression, SimpleVarsExponentiation) {
   using namespace current::expression;
 
