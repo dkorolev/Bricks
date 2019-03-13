@@ -59,12 +59,12 @@ struct ExpressionNodeTypeSelector {};
 // expression buliding, including managing the fields of this very class, is implemented in class `ExpressionNode`,
 // which is defined in `expression/expression.h` and tested in `expression/test.cc`.
 namespace jit {
-class JITCodeGenerator;
+class JITCompiler;
 }  // namespace current::expression::jit
 class ExpressionNodeImpl final {
  private:
-  friend class ExpressionNode;         // To manage the below fields.
-  friend class jit::JITCodeGenerator;  // To use the below fields.
+  friend class ExpressionNode;    // To manage the below fields.
+  friend class jit::JITCompiler;  // To use the below fields.
   ExpressionNodeType const type_;
   double const value_;             // For `type_ == ImmediateDouble`.
   ExpressionNodeIndex const lhs_;  // For `type_ == Plus` or `type_ == Exp`.
