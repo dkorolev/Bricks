@@ -85,6 +85,67 @@ TEST(OptimizationJIT, SmokeAddConstant) {
   EXPECT_EQ(-1.0, f(jit_call_context, input));
 }
 
+TEST(OptimizationJIT, SmokeFunctionReturningVector) {
+  using namespace current::expression;
+
+  VarsContext context;
+
+  x["a"] = 1.0;
+  x["b"] = 1.0;
+  std::vector<value_t> const values({x["a"] + x["b"], x["a"] - x["b"], x["a"] * x["b"], x["a"] / x["b"]});
+
+  jit::JITCallContext jit_call_context;
+
+  jit::FunctionReturningVector const g = jit::JITCompiler(jit_call_context).Compile(values);
+
+  {
+    VarsMapper input(jit_call_context.Config());
+    input["a"] = 10.0;
+    input["b"] = 5.0;
+    EXPECT_EQ("[15.0,5.0,50.0,2.0]", JSON(g(jit_call_context, input.x)));
+  }
+
+  EXPECT_EQ("[6.0,2.0,8.0,2.0]", JSON(g(jit_call_context, {4.0, 2.0})));
+}
+
+TEST(OptimizationJIT, FunctionReturningVectorHasUpperBoundOnDim) {
+  using namespace current::expression;
+
+  VarsContext context;
+
+  x["a"] = 0.0;
+  value_t const v = x["a"];
+
+  std::vector<value_t> const values_2({v + 1, v + 2});
+  std::vector<value_t> const values_3({v + 1, v + 2, v + 3});
+  std::vector<value_t> const values_4({v + 1, v + 2, v + 3, v + 4});
+  std::vector<value_t> const values_5({v + 1, v + 2, v + 3, v + 4, v + 5});
+  std::vector<value_t> const values_6({v + 1, v + 2, v + 3, v + 4, v + 5, v + 6});
+
+  {
+    // For one variable the default number of extra allocated nodes is five.
+    // Thus, `values_5` can successfully compile as a function returning a vector; `values_6` already can not.
+    jit::JITCallContext ctx;
+    EXPECT_EQ("[1.0,2.0]", JSON(jit::JITCompiler(ctx).Compile(values_2)(ctx, {0.0})));
+    EXPECT_EQ("[1.0,2.0,3.0]", JSON(jit::JITCompiler(ctx).Compile(values_3)(ctx, {0.0})));
+    EXPECT_EQ("[1.0,2.0,3.0,4.0]", JSON(jit::JITCompiler(ctx).Compile(values_4)(ctx, {0.0})));
+    EXPECT_EQ("[1.0,2.0,3.0,4.0,5.0]", JSON(jit::JITCompiler(ctx).Compile(values_5)(ctx, {0.0})));
+    ASSERT_THROW(jit::JITCompiler(ctx).Compile(values_6), jit::JITNotEnoughExtraNodesAllocatedInJITCallContext);
+  }
+
+  {
+    jit::JITCallContext ctx(6u);  // Explicitly providing `6` as the parameter makes `values_6` runnable.
+    EXPECT_EQ("[1.0,2.0,3.0,4.0,5.0]", JSON(jit::JITCompiler(ctx).Compile(values_5)(ctx, {0.0})));
+    EXPECT_EQ("[1.0,2.0,3.0,4.0,5.0,6.0]", JSON(jit::JITCompiler(ctx).Compile(values_6)(ctx, {0.0})));
+  }
+
+  {
+    jit::JITCallContext ctx(2u);  // Explicitly providing `2` makes `values_3` go out of bounds.
+    EXPECT_EQ("[1.0,2.0]", JSON(jit::JITCompiler(ctx).Compile(values_2)(ctx, {0.0})));
+    ASSERT_THROW(jit::JITCompiler(ctx).Compile(values_3), jit::JITNotEnoughExtraNodesAllocatedInJITCallContext);
+  }
+}
+
 TEST(OptimizationJIT, Exp) {
   using namespace current::expression;
 
