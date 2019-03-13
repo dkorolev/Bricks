@@ -171,22 +171,26 @@ class JITCompiler final {
 
         if (node.type_ == ExpressionNodeType::ImmediateDouble) {
           opcodes::load_immediate_to_memory_by_rbx_offset(code, index + context_.RAMOffset(), node.value_);
-        } else if (node.type_ == ExpressionNodeType::Plus) {
-          expression_node_index_t const lhs = static_cast<expression_node_index_t>(node.lhs_);
-          expression_node_index_t const rhs = static_cast<expression_node_index_t>(node.rhs_);
-          EnsureNodeComputed(code, lhs);
-          EnsureNodeComputed(code, rhs);
-          if (lhs < ~lhs) {
-            opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, lhs + context_.RAMOffset());
-          } else {
-            opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~lhs]);
-          }
-          if (rhs < ~rhs) {
-            opcodes::add_from_memory_by_rbx_offset_to_xmm0(code, rhs + context_.RAMOffset());
-          } else {
-            opcodes::add_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~rhs]);
-          }
-          opcodes::store_xmm0_to_memory_by_rbx_offset(code, index + context_.RAMOffset());
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, name, opcode_name)                                  \
+  }                                                                                               \
+  else if (node.type_ == ExpressionNodeType::name) {                                              \
+    expression_node_index_t const lhs = static_cast<expression_node_index_t>(node.lhs_);          \
+    expression_node_index_t const rhs = static_cast<expression_node_index_t>(node.rhs_);          \
+    EnsureNodeComputed(code, lhs);                                                                \
+    EnsureNodeComputed(code, rhs);                                                                \
+    if (lhs < ~lhs) {                                                                             \
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, lhs + context_.RAMOffset());          \
+    } else {                                                                                      \
+      opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~lhs]);          \
+    }                                                                                             \
+    if (rhs < ~rhs) {                                                                             \
+      opcodes::opcode_name##_from_memory_by_rbx_offset_to_xmm0(code, rhs + context_.RAMOffset()); \
+    } else {                                                                                      \
+      opcodes::opcode_name##_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~rhs]); \
+    }                                                                                             \
+    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index + context_.RAMOffset());
+#include "../math_operations.inl"
+#undef CURRENT_EXPRESSION_MATH_OPERATION
         } else if (node.type_ == ExpressionNodeType::Exp) {
           expression_node_index_t const argument = static_cast<expression_node_index_t>(node.lhs_);
           EnsureNodeComputed(code, argument);
