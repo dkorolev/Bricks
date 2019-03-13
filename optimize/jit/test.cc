@@ -72,10 +72,10 @@ TEST(OptimizationJIT, SmokeAddConstant) {
 
   // No need for `context.Freeze()`, it will happen automatically in the default constructor of `JITCallContext`.
   jit::JITCallContext jit_call_context;
-  jit::JITCompiler code_generator(jit_call_context);
-  jit::Function const f(code_generator.Compile(value));
 
-  VarsMapper input(code_generator.Config());
+  jit::Function const f = jit::JITCompiler(jit_call_context).Compile(value);
+
+  VarsMapper input(jit_call_context.Config());
   EXPECT_EQ(2.0, f(jit_call_context, input.x));
 
   input["b"] = 2.0;
