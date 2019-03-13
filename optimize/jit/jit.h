@@ -41,6 +41,8 @@ namespace current {
 namespace expression {
 namespace jit {
 
+static_assert(sizeof(double) == 8u, "The System V JIT is designed for 8-byte `double`-s.");
+
 struct JITFunctionCallContextMismatchException final : OptimizeException {
   using OptimizeException::OptimizeException;
 };
