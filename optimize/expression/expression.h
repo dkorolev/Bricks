@@ -91,8 +91,12 @@ class ExpressionNode final {
            ExpressionNode::FromIndex(node.rhs_).DebugAsString() + ')';
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
-      } else if (node.type_ == ExpressionNodeType::Exp) {
-        return "exp(" + ExpressionNode::FromIndex(node.lhs_).DebugAsString() + ')';
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                  \
+  }                                                           \
+  else if (node.type_ == ExpressionNodeType::Function_##fn) { \
+    return #fn "(" + ExpressionNode::FromIndex(node.lhs_).DebugAsString() + ')';
+#include "../math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
       } else {
         CURRENT_THROW(ExpressionNodeInternalError());
       }
@@ -129,12 +133,14 @@ class ExpressionNode final {
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 
-inline ExpressionNode exp(ExpressionNode const& argument) {
-  return ExpressionNode::FromIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
-      ExpressionNodeTypeSelector<ExpressionNodeType::Exp>(), ExpressionNodeIndex(argument)));
-}
-
-inline ExpressionNode exp(VarNode const& argument) { return exp(ExpressionNode(argument)); }
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                              \
+  inline ExpressionNode fn(ExpressionNode const& argument) {                                              \
+    return ExpressionNode::FromIndex(VarsManager::TLS().Active().EmplaceExpressionNode(                   \
+        ExpressionNodeTypeSelector<ExpressionNodeType::Function_##fn>(), ExpressionNodeIndex(argument))); \
+  }                                                                                                       \
+  inline ExpressionNode fn(VarNode const& argument) { return fn(ExpressionNode(argument)); }
+#include "../math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
 
 // When `using namespace current::expression`, the user can use `value_t x = ...` instead of `auto x = ...`.
 using value_t = ExpressionNode;

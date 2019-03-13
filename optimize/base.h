@@ -50,11 +50,24 @@ namespace expression {
 using expression_node_index_t = uint64_t;
 enum class ExpressionNodeIndex : expression_node_index_t { Invalid = static_cast<expression_node_index_t>(-1) };
 
-enum class ExpressionNodeType { Uninitialized, ImmediateDouble,
+enum class ExpressionNodeType {
+  Uninitialized,
+  ImmediateDouble,
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, name, opcode_name) name,
 #include "math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
-  Exp };
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn) Function_##fn,
+#include "math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
+  End
+};
+
+enum class ExpressionFunctionIndex {
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn) FunctionIndexOf_##fn,
+#include "math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
+  End
+};
 
 template <ExpressionNodeType>
 struct ExpressionNodeTypeSelector {};
@@ -71,7 +84,7 @@ class ExpressionNodeImpl final {
   friend class jit::JITCompiler;  // To use the below fields.
   ExpressionNodeType const type_;
   double const value_;             // For `type_ == ImmediateDouble`.
-  ExpressionNodeIndex const lhs_;  // For math operations or `type_ == Exp`.
+  ExpressionNodeIndex const lhs_;  // For math operations (left operand) or math functions (the argument).
   ExpressionNodeIndex const rhs_;  // For math operations.
 
  public:
@@ -87,16 +100,18 @@ class ExpressionNodeImpl final {
         lhs_(ExpressionNodeIndex::Invalid),
         rhs_(ExpressionNodeIndex::Invalid) {}
 
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, name, opcode_name) \
-  ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::name>, \
-                     ExpressionNodeIndex lhs, \
-                     ExpressionNodeIndex rhs) \
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, name, opcode_name)                                              \
+  ExpressionNodeImpl(                                                                                         \
+      ExpressionNodeTypeSelector<ExpressionNodeType::name>, ExpressionNodeIndex lhs, ExpressionNodeIndex rhs) \
       : type_(ExpressionNodeType::name), value_(0.0), lhs_(lhs), rhs_(rhs) {}
 #include "math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 
-  ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Exp>, ExpressionNodeIndex argument)
-      : type_(ExpressionNodeType::Exp), value_(0.0), lhs_(argument), rhs_(ExpressionNodeIndex::Invalid) {}
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                                      \
+  ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Function_##fn>, ExpressionNodeIndex argument) \
+      : type_(ExpressionNodeType::Function_##fn), value_(0.0), lhs_(argument), rhs_(ExpressionNodeIndex::Invalid) {}
+#include "math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
 };
 
 }  // namespace current::expression

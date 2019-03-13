@@ -128,6 +128,20 @@ TEST(OptimizationExpression, SimpleVarsExponentiation) {
             (exp(x["bar"] + 1.0 + x["baz"]) + 2.5 + exp(exp(x["blah"]))).DebugAsString());
 }
 
+TEST(OptimizationExpression, OtherFunctions) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  x["p"] = 0.0;
+  value_t const p(x["p"]);
+
+  EXPECT_EQ("exp(x[@0])", (exp(p)).DebugAsString());
+  EXPECT_EQ("log(x[@0])", (log(p)).DebugAsString());
+  EXPECT_EQ("sin(x[@0])", (sin(p)).DebugAsString());
+  EXPECT_EQ("cos(x[@0])", (cos(p)).DebugAsString());
+}
+
 TEST(OptimizationExpression, IndexesAreNonFinalizedIndexes) {
   using namespace current::expression;
 

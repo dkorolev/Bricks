@@ -55,7 +55,11 @@ struct JITInternalErrorException final : OptimizeException {
 
 struct JITCallContextFunctionPointers {
   std::vector<double (*)(double x)> fns;
-  JITCallContextFunctionPointers() { fns.push_back(std::exp); }
+  JITCallContextFunctionPointers() {
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn) fns.push_back(std::fn);
+#include "../math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
+  }
 };
 
 // It's best to refer to the two `Smoke*` tests in `test.cc`, but the gist is:
@@ -257,21 +261,27 @@ class JITCompiler final {
     opcodes::store_xmm0_to_memory_by_rbx_offset(code, index + context_.RAMOffset());
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
-        } else if (node.type_ == ExpressionNodeType::Exp) {
-          expression_node_index_t const argument = static_cast<expression_node_index_t>(node.lhs_);
-          EnsureNodeComputed(code, argument);
-          using namespace current::fncas::x64_native_jit;
-          if (argument < ~argument) {
-            opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, argument + context_.RAMOffset());
-          } else {
-            opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~argument]);
-          }
-          opcodes::push_rdi(code);
-          opcodes::push_rdx(code);
-          opcodes::call_function_from_rdx_pointers_array_by_index(code, static_cast<uint8_t>(0));
-          opcodes::pop_rdx(code);
-          opcodes::pop_rdi(code);
-          opcodes::store_xmm0_to_memory_by_rbx_offset(code, index + context_.RAMOffset());
+
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                  \
+  }                                                                                           \
+  else if (node.type_ == ExpressionNodeType::Function_##fn) {                                 \
+    expression_node_index_t const argument = static_cast<expression_node_index_t>(node.lhs_); \
+    EnsureNodeComputed(code, argument);                                                       \
+    using namespace current::fncas::x64_native_jit;                                           \
+    if (argument < ~argument) {                                                               \
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, argument + context_.RAMOffset()); \
+    } else {                                                                                  \
+      opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~argument]); \
+    }                                                                                         \
+    opcodes::push_rdi(code);                                                                  \
+    opcodes::push_rdx(code);                                                                  \
+    opcodes::call_function_from_rdx_pointers_array_by_index(                                  \
+        code, static_cast<uint8_t>(ExpressionFunctionIndex::FunctionIndexOf_##fn));           \
+    opcodes::pop_rdx(code);                                                                   \
+    opcodes::pop_rdi(code);                                                                   \
+    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index + context_.RAMOffset());
+#include "../math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
         } else {
           CURRENT_THROW(JITInternalErrorException());
         }

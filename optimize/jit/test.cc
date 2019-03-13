@@ -186,6 +186,28 @@ TEST(OptimizationJIT, Exp) {
   EXPECT_EQ(exp(-2.0), f(jit_call_context, input));
 }
 
+TEST(OptimizationJIT, OtherMathFunctions) {
+  using namespace current::expression;
+
+  VarsContext context;
+
+  x["p"] = 0.0;
+  value_t const p = x["p"];
+
+  std::vector<value_t> const magic({exp(p), log(p), sin(p), cos(p)});
+
+  jit::JITCallContext ctx(magic.size());
+  jit::FunctionReturningVector const f = jit::JITCompiler(ctx).Compile(magic);
+
+  EXPECT_EQ(exp(1.5), f(ctx, {1.5})[0]);
+  EXPECT_EQ(log(1.5), f(ctx, {1.5})[1]);
+  EXPECT_EQ(sin(1.5), f(ctx, {1.5})[2]);
+  EXPECT_EQ(cos(1.5), f(ctx, {1.5})[3]);
+
+  EXPECT_EQ(JSON(std::vector<double>({exp(1.0), log(1.0), sin(1.0), cos(1.0)})), JSON(f(ctx, {1.0})));
+  EXPECT_EQ(JSON(std::vector<double>({exp(2.5), log(2.5), sin(2.5), cos(2.5)})), JSON(f(ctx, {2.5})));
+}
+
 TEST(OptimizationJIT, NeedActiveVarsContext) {
   using namespace current::expression;
 
