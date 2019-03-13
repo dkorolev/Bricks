@@ -33,6 +33,8 @@ SOFTWARE.
 #include "../expression/expression.h"
 #include "../vars/vars.h"
 
+#include <cmath>
+
 #include "../../fncas/x64_native_jit/x64_native_jit.h"  // TODO(dkorolev): Move the X64 System V JIT code outside FnCAS.
 
 #ifdef FNCAS_X64_NATIVE_JIT_ENABLED
@@ -58,7 +60,7 @@ struct JITInternalErrorException final : OptimizeException {
 struct JITCallContextFunctionPointers {
   std::vector<double (*)(double x)> fns;
   JITCallContextFunctionPointers() {
-#define CURRENT_EXPRESSION_MATH_FUNCTION(fn) fns.push_back(std::fn);
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn) fns.push_back(functions::fn);
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
   }

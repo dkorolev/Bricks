@@ -26,6 +26,7 @@ SOFTWARE.
 #define OPTIMIZE_BASE_H
 
 #include "../bricks/exception.h"
+#include "../port.h"
 
 namespace current {
 
@@ -66,7 +67,7 @@ enum class ExpressionFunctionIndex {
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn) FunctionIndexOf_##fn,
 #include "math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
-  End
+  TotalFunctionsCount
 };
 
 template <ExpressionNodeType>

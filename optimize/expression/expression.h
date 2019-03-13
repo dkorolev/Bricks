@@ -28,6 +28,8 @@ SOFTWARE.
 #include "../base.h"
 #include "../vars/vars.h"
 
+#include <cmath>
+
 namespace current {
 namespace expression {
 
@@ -155,6 +157,39 @@ inline ExpressionNode operator+(VarNode const& op) { return op; }
 inline ExpressionNode operator-(ExpressionNode op) { return (0.0 - op); }
 inline ExpressionNode operator-(VarNode const& op) { return (0.0 - op); }
 
+namespace functions {
+using std::exp;
+using std::log;
+using std::sin;
+using std::cos;
+using std::tan;
+using std::sqrt;
+using std::asin;
+using std::acos;
+using std::atan;
+inline double sqr(double x) { return x * x; }
+inline double unit_step(double x) { return x >= 0 ? 1 : 0; }
+inline double ramp(double x) { return x > 0 ? x : 0; }
+inline double sigmoid(double x) {
+  // Designed to fight overflow and underflow. -- D.K.
+  if (x >= 25) {
+    return 1.0;
+  } else if (x <= -25) {
+    return 0.0;
+  } else {
+    return 1.0 / (1.0 + std::exp(-x));
+  }
+}
+inline double log_sigmoid(double x) {
+  // Designed to fight overflow and underflow. -- D.K.
+  if (x >= 25) {
+    return 0.0;
+  } else if (x <= -25) {
+    return x;
+  } else {
+    return -log(1.0 + exp(-x));
+  }
+}
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                              \
   inline ExpressionNode fn(ExpressionNode argument) {                                                     \
     return ExpressionNode::FromIndex(VarsManager::TLS().Active().EmplaceExpressionNode(                   \
@@ -163,9 +198,13 @@ inline ExpressionNode operator-(VarNode const& op) { return (0.0 - op); }
   inline ExpressionNode fn(VarNode const& argument) { return fn(ExpressionNode(argument)); }
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
+}  // namespace current::expression::functions
 
-// When `using namespace current::expression`, the user can use `value_t x = ...` instead of `auto x = ...`.
+// When `using namespace current::expression`:
+// 1) can use `value_t x = ...` instead of `auto x = ...`.
+// 2) can use math functions, such as `exp()` or `sqr()` or `sigmoid()`, w/o specifying the namespace.
 using value_t = ExpressionNode;
+using namespace current::expression::functions;
 
 }  // namespace current::expression
 }  // namespace current

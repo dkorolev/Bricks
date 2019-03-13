@@ -189,23 +189,61 @@ TEST(OptimizationJIT, Exp) {
 TEST(OptimizationJIT, OtherMathFunctions) {
   using namespace current::expression;
 
+  EXPECT_EQ(14u, static_cast<size_t>(ExpressionFunctionIndex::TotalFunctionsCount));
+
   VarsContext context;
 
   x["p"] = 0.0;
   value_t const p = x["p"];
 
-  std::vector<value_t> const magic({exp(p), log(p), sin(p), cos(p)});
+  // Functions list deliberately copy-pased here, for the test to double-check the set of them.
+  std::vector<value_t> const magic({exp(p),
+                                    log(p),
+                                    sin(p),
+                                    cos(p),
+                                    tan(p),
+                                    sqr(p),
+                                    sqrt(p),
+                                    asin(p),
+                                    acos(p),
+                                    atan(p),
+                                    unit_step(p),
+                                    ramp(p),
+                                    sigmoid(p),
+                                    log_sigmoid(p)});
+  EXPECT_EQ(static_cast<size_t>(ExpressionFunctionIndex::TotalFunctionsCount), magic.size());
 
   jit::JITCallContext ctx(magic.size());
   jit::FunctionReturningVector const f = jit::JITCompiler(ctx).Compile(magic);
 
+  // Test `1.5` as a random point that makes sense.
   EXPECT_EQ(exp(1.5), f(ctx, {1.5})[0]);
   EXPECT_EQ(log(1.5), f(ctx, {1.5})[1]);
   EXPECT_EQ(sin(1.5), f(ctx, {1.5})[2]);
   EXPECT_EQ(cos(1.5), f(ctx, {1.5})[3]);
+  EXPECT_EQ(tan(1.5), f(ctx, {1.5})[4]);
+  EXPECT_EQ(sqr(1.5), f(ctx, {1.5})[5]);
+  EXPECT_EQ(sqrt(1.5), f(ctx, {1.5})[6]);
+  EXPECT_EQ(asin(0.75), f(ctx, {0.75})[7]);
+  EXPECT_EQ(acos(0.75), f(ctx, {0.75})[8]);
+  EXPECT_EQ(atan(1.5), f(ctx, {1.5})[9]);
+  EXPECT_EQ(unit_step(1.5), f(ctx, {1.5})[10]);
+  EXPECT_EQ(ramp(1.5), f(ctx, {1.5})[11]);
+  EXPECT_EQ(sigmoid(1.5), f(ctx, {1.5})[12]);
+  EXPECT_EQ(log_sigmoid(1.5), f(ctx, {1.5})[13]);
 
-  EXPECT_EQ(JSON(std::vector<double>({exp(1.0), log(1.0), sin(1.0), cos(1.0)})), JSON(f(ctx, {1.0})));
-  EXPECT_EQ(JSON(std::vector<double>({exp(2.5), log(2.5), sin(2.5), cos(2.5)})), JSON(f(ctx, {2.5})));
+  // Make sure custom functions do what they should.
+  EXPECT_EQ(4, f(ctx, {2})[5]);  // sqr()
+
+  EXPECT_EQ(1.0, f(ctx, {+0.5})[10]);  // unit_step()
+  EXPECT_EQ(0.0, f(ctx, {-0.5})[10]);  // unit_step()
+
+  EXPECT_EQ(0.0, f(ctx, {-0.5})[11]);  // ramp()
+  EXPECT_EQ(0.5, f(ctx, {+0.5})[11]);  // ramp()
+  EXPECT_EQ(2.5, f(ctx, {+2.5})[11]);  // ramp()
+
+  EXPECT_EQ(1.0 / (1.0 + exp(-3.5)), f(ctx, {3.5})[12]);        // sigmoid()
+  EXPECT_EQ(log(1.0 / (1.0 + exp(+1.5))), f(ctx, {-1.5})[13]);  // log_sigmoid()
 }
 
 TEST(OptimizationJIT, NeedActiveVarsContext) {
