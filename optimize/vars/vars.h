@@ -69,11 +69,14 @@ struct VarsFrozenException final : OptimizeException {};
 struct VarsAlreadyFrozenException final : OptimizeException {};
 struct VarsNotFrozenException final : OptimizeException {};
 
+// An internal error when using internal means to access vars by their indexes.
+struct VarIndexOutOfBoundsException final : OptimizeException {};
+
 // For flattened vars vector access, see the unit tests for more details.
 struct VarsMapperException : OptimizeException {};
-struct VarsMapperWrongVarException : VarsMapperException {};
-struct VarsMapperNodeNotVarException : VarsMapperException {};
-struct VarsMapperVarIsConstant : VarsMapperException {};
+struct VarsMapperWrongVarException final : VarsMapperException {};
+struct VarsMapperNodeNotVarException final : VarsMapperException {};
+struct VarsMapperVarIsConstant final : VarsMapperException {};
 
 namespace json {
 // Short names to save on space in these JSONs.
@@ -226,7 +229,9 @@ class VarsContextInterface {
   virtual bool IsFrozen() const = 0;
   virtual VarsMapperConfig Freeze() = 0;
   virtual void Unfreeze() = 0;
-  virtual uint32_t AllocateVar() = 0;
+  virtual uint32_t AllocateVar(std::string var_name) = 0;
+  // TODO(dkorolev): Var finalized index stamping is something I'll need to refactor.
+  virtual void MarkVarAsConstant(size_t var_internal_index) = 0;
 };
 
 class VarsContext;  // : public VarsContextInterface
@@ -267,15 +272,39 @@ class VarsManager final {
   VarsContextInterface& ActiveViaInterface() { return *active_context_interface_; }
 };
 
+class StringOrInt {
+ private:
+  std::string s;
+  size_t i = static_cast<size_t>(-1);
+
+ public:
+  StringOrInt() = default;
+  StringOrInt(std::string s) : s(std::move(s)) {}
+  StringOrInt(size_t i) : i(i) {}
+
+  operator bool() const { return !s.empty() || i != static_cast<size_t>(-1); }
+
+  std::string AsString() const {
+    CURRENT_ASSERT(s.empty() == (i != static_cast<size_t>(-1)));
+    if (!s.empty()) {
+      return JSON(s);
+    } else {
+      return current::ToString(i);
+    }
+  }
+};
+
 enum class VarNodeType { Unset, Vector, IntMap, StringMap, Value };
 struct VarNode {
+  VarNode const* parent = nullptr;  // To reconstruct the "full name" of the var going up.
+  StringOrInt key;                  // The of this very var node, string or int.
   VarNodeType type = VarNodeType::Unset;
   std::vector<VarNode> children_vector;                  // `type == Vector`.
   std::map<size_t, VarNode> children_int_map;            // `type == IntMap`.
   std::map<std::string, VarNode> children_string_map;    // `type == StringMap`.
   Optional<double> value;                                // `type == Value`, unset if introduced w/o assignment.
   bool is_constant = false;                              // `type == Value`.
-  size_t internal_leaf_index;                            // `type == Value`.
+  size_t internal_var_index;                             // `type == Value`.
   uint32_t finalized_index = static_cast<uint32_t>(-1);  // `type == Value`.
 
   void DenseDoubleVector(size_t dim) {
@@ -290,6 +319,10 @@ struct VarNode {
     if (type == VarNodeType::Unset) {
       type = VarNodeType::Vector;
       children_vector.resize(dim);
+      for (size_t i = 0; i < dim; ++i) {
+        children_vector[i].parent = this;
+        children_vector[i].key = StringOrInt(i);
+      }
     } else if (!(type == VarNodeType::Vector && children_vector.size() == dim)) {
       CURRENT_THROW(VarNodeTypeMismatchException());
     }
@@ -320,7 +353,12 @@ struct VarNode {
     if (type != VarNodeType::IntMap) {
       CURRENT_THROW(VarNodeTypeMismatchException());
     }
-    return children_int_map[i];
+    VarNode& result = children_int_map[i];
+    if (!result.parent) {
+      result.parent = this;
+      result.key = StringOrInt(i);
+    }
+    return result;
   }
 
   VarNode& operator[](std::string const& s) {
@@ -339,7 +377,12 @@ struct VarNode {
     if (type != VarNodeType::StringMap) {
       CURRENT_THROW(VarNodeTypeMismatchException());
     }
-    return children_string_map[s];
+    VarNode& result = children_string_map[s];
+    if (!result.parent) {
+      result.parent = this;
+      result.key = StringOrInt(s);
+    }
+    return result;
   }
 
   void operator=(double x) {
@@ -359,7 +402,7 @@ struct VarNode {
     }
     type = VarNodeType::Value;
     value = x;
-    internal_leaf_index = VarsManager::TLS().ActiveViaInterface().AllocateVar();
+    internal_var_index = VarsManager::TLS().ActiveViaInterface().AllocateVar(FullVarName());
   }
 
   void SetConstant() {
@@ -370,6 +413,7 @@ struct VarNode {
       CURRENT_THROW(VarNodeTypeMismatchException());
     }
     is_constant = true;
+    VarsManager::TLS().ActiveViaInterface().MarkVarAsConstant(internal_var_index);
   }
 
   void SetConstant(double x) {
@@ -377,11 +421,33 @@ struct VarNode {
     SetConstant();
   }
 
-  size_t InternalLeafIndex() const {
+  std::string FullVarName() const {
+    std::vector<VarNode const*> path;
+    VarNode const* node = this;
+    do {
+      path.push_back(node);
+      node = node->parent;
+      CURRENT_ASSERT(node);  // The very root node has no key, so the `while` loop would terminate. But it exists.
+    } while (node->key);
+
+    std::ostringstream os;
+    os << 'x';
+    for (auto crit = path.rbegin(); crit != path.rend(); ++crit) {
+      os << '[' << (*crit)->key.AsString() << ']';
+    }
+
+    if (finalized_index != static_cast<uint32_t>(-1)) {
+      os << '{' << finalized_index << '}';
+    }
+
+    return os.str();
+  }
+
+  size_t InternalVarIndex() const {
     if (type != VarNodeType::Value) {
       CURRENT_THROW(VarIsNotLeafException());
     }
-    return internal_leaf_index;
+    return internal_var_index;
   }
 
   struct FrozenVariablesSetBeingPopulated {
@@ -389,37 +455,28 @@ struct VarNode {
     std::vector<std::string> name;
     std::vector<bool> is_constant;
     std::vector<size_t> dense_index;
-    std::string name_so_far = "x";  // Will keep adding the removing scoped `[%d]` or `["%s]` here.
+
     explicit FrozenVariablesSetBeingPopulated(size_t leaves_allocated)
         : dense_index(leaves_allocated, static_cast<size_t>(-1)) {}
   };
   void DSFStampDenseIndexesForJIT(FrozenVariablesSetBeingPopulated& state) {
     if (type == VarNodeType::Vector) {
-      size_t const name_so_far_length = state.name_so_far.length();
       for (size_t i = 0; i < children_vector.size(); ++i) {
-        state.name_so_far += "[" + current::ToString(i) + "]";
         children_vector[i].DSFStampDenseIndexesForJIT(state);
-        state.name_so_far.resize(name_so_far_length);
       }
     } else if (type == VarNodeType::IntMap) {
-      size_t const name_so_far_length = state.name_so_far.length();
       for (auto& e : children_int_map) {
-        state.name_so_far += "[" + current::ToString(e.first) + "]";
         e.second.DSFStampDenseIndexesForJIT(state);
-        state.name_so_far.resize(name_so_far_length);
       }
     } else if (type == VarNodeType::StringMap) {
-      size_t const name_so_far_length = state.name_so_far.length();
       for (auto& e : children_string_map) {
-        state.name_so_far += "[" + JSON(e.first) + "]";
         e.second.DSFStampDenseIndexesForJIT(state);
-        state.name_so_far.resize(name_so_far_length);
       }
     } else if (type == VarNodeType::Value) {
       finalized_index = state.x0.size();
-      state.dense_index[internal_leaf_index] = state.x0.size();
+      state.dense_index[internal_var_index] = state.x0.size();
       state.x0.push_back(Exists(value) ? Value(value) : 0.0);  // TODO(dkorolev): Collect `uninitialized` as well?
-      state.name.push_back(state.name_so_far);
+      state.name.push_back(FullVarName());
       state.is_constant.push_back(is_constant);
     } else if (type != VarNodeType::Unset) {
       CURRENT_THROW(VarsManagementException("Attempted to `DSFStampDenseIndexesForJIT()` on an invalid var node."));
@@ -447,11 +504,11 @@ struct VarNode {
       }
       return sparse_by_string;
     } else if (type == VarNodeType::Value) {
-      return json::X(value, is_constant, static_cast<uint32_t>(internal_leaf_index), finalized_index);
+      return json::X(value, is_constant, static_cast<uint32_t>(internal_var_index), finalized_index);
     } else if (type == VarNodeType::Unset) {
       return json::U();
     } else {
-      CURRENT_THROW(VarsManagementException("Attempted to Dump() an invalid var node."));
+      CURRENT_THROW(VarsManagementException("Attempted to `InternalDebugDump()` an invalid var node."));
     }
   }
 };
@@ -460,41 +517,55 @@ class VarsContext final : public VarsContextInterface {
  private:
   VarNode root_;
   bool frozen_ = false;
-  size_t leaves_allocated_ = 0;
+  std::vector<uint8_t> allocated_var_is_constant_;  // This is a small `vector<bool>` that is `push_back()`-into a lot.
+  std::vector<std::string> var_name_;               // `var index => name`, w/ or w/o dense index, whether it's stamped.
+  std::vector<size_t> dense_index_;                 // `var index => node index` mapping, or `static_cast<size_t>(-1)`.
+  std::vector<size_t> dense_reverse_index_;         // `node index => var index` mapping, always valid.
   std::vector<ExpressionNodeImpl> expression_nodes_;
 
  public:
   VarsContext() { VarsManager::TLS().SetActive(this, this); }
   ~VarsContext() { VarsManager::TLS().ClearActive(this, this); }
+
+  size_t NumberOfVars() const { return dense_index_.size(); }
+  size_t NumberOfNodes() const { return expression_nodes_.size(); }
+
+  std::string const& VarNameByOriginalIndex(size_t i) const { return var_name_[dense_reverse_index_[i]]; }
+
   VarNode& RootNode() {
     VarsManager::TLS().ConfirmActive(this, this);
     return root_;
   }
+
   bool IsFrozen() const override {
     VarsManager::TLS().ConfirmActive(this, this);
     return frozen_;
   }
+
   VarsMapperConfig Freeze() override {
     VarsManager::TLS().ConfirmActive(this, this);
     if (frozen_) {
       CURRENT_THROW(VarsAlreadyFrozenException());
     } else {
       frozen_ = true;
-      VarNode::FrozenVariablesSetBeingPopulated state(leaves_allocated_);
+      size_t const vars_count = allocated_var_is_constant_.size();
+      VarNode::FrozenVariablesSetBeingPopulated state(vars_count);
       root_.DSFStampDenseIndexesForJIT(state);
-      if (state.x0.size() != leaves_allocated_ || state.name.size() != leaves_allocated_ ||
-          state.is_constant.size() != leaves_allocated_ || state.name_so_far != "x") {
+      if (state.dense_index.size() != vars_count || state.x0.size() != vars_count || state.name.size() != vars_count ||
+          state.is_constant.size() != vars_count) {
         CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `Freeze()`."));
       }
-      return VarsMapperConfig(leaves_allocated_,
-                              expression_nodes_.size(),
-                              state.dense_index,
-                              state.x0,
-                              state.name,
-                              state.is_constant,
-                              root_.DoDump());
+      var_name_ = state.name;
+      dense_index_ = state.dense_index;
+      dense_reverse_index_.resize(vars_count);
+      for (size_t i = 0; i < vars_count; ++i) {
+        dense_reverse_index_[dense_index_[i]] = i;
+      }
+      return VarsMapperConfig(
+          vars_count, expression_nodes_.size(), dense_index_, state.x0, state.name, state.is_constant, root_.DoDump());
     }
   }
+
   void Unfreeze() override {
     VarsManager::TLS().ConfirmActive(this, this);
     if (!frozen_) {
@@ -503,14 +574,32 @@ class VarsContext final : public VarsContextInterface {
       frozen_ = false;
     }
   }
-  uint32_t AllocateVar() override {
+
+  uint32_t AllocateVar(std::string var_name) override {
     VarsManager::TLS().ConfirmActive(this, this);
     if (frozen_) {
       CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after the vars context is frozen."));
     } else {
-      return leaves_allocated_++;
+      uint32_t const newly_allocated_var_index = static_cast<uint32_t>(allocated_var_is_constant_.size());
+      allocated_var_is_constant_.push_back(false);
+      var_name_.push_back(std::move(var_name));
+      dense_index_.push_back(static_cast<size_t>(-1));
+      dense_reverse_index_.push_back(newly_allocated_var_index);
+      return newly_allocated_var_index;
     }
   }
+
+  void MarkVarAsConstant(size_t var_internal_index) override {
+    VarsManager::TLS().ConfirmActive(this, this);
+    if (frozen_) {
+      CURRENT_THROW(VarsManagementException("Attempted to `MarkVarAsConstant()` after the vars context is frozen."));
+    }
+    if (!(var_internal_index < allocated_var_is_constant_.size())) {
+      CURRENT_THROW(VarIndexOutOfBoundsException());
+    }
+    allocated_var_is_constant_[var_internal_index] = true;
+  }
+
   template <typename... ARGS>
   expression_node_index_t EmplaceExpressionNode(ARGS&&... args) {
     VarsManager::TLS().ConfirmActive(this, this);
@@ -522,6 +611,7 @@ class VarsContext final : public VarsContextInterface {
     expression_nodes_.emplace_back(std::forward<ARGS>(args)...);
     return new_node_index;
   }
+
   ExpressionNodeImpl const& operator[](expression_node_index_t expression_node_index) const {
     return expression_nodes_[expression_node_index];
   }
@@ -533,7 +623,7 @@ struct VarsAccessor final {
   VarNode& operator[](std::string const& s) { return VarsManager::TLS().Active().RootNode()[s]; }
   VarsMapperConfig Freeze() const { return VarsManager::TLS().Active().Freeze(); }
   void Unfreeze() const { VarsManager::TLS().Active().Unfreeze(); }
-  json::Node Dump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
+  json::Node InternalDebugDump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
 };
 
 // Let the user who is `using namespace current::expression` access the vars directly, without any syntactic sugar.

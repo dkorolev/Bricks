@@ -48,7 +48,7 @@ class ExpressionNode final {
   static expression_node_index_t IndexFromVarNodeOrThrow(VarNode const& var_node) {
     if (var_node.type == VarNodeType::Value) {
       // When the most significant bit is set, the node is just a reference to certain index in the input vector.
-      return ~static_cast<expression_node_index_t>(var_node.InternalLeafIndex());
+      return ~static_cast<expression_node_index_t>(var_node.InternalVarIndex());
     } else {
       CURRENT_THROW(ExpressionVarNodeBoxingException());
     }
@@ -73,11 +73,11 @@ class ExpressionNode final {
   operator ExpressionNodeIndex() const { return ExpressionNodeIndex(index_); }
 
   std::string DebugAsString() const {
+    VarsContext const& vars_context = VarsManager::TLS().Active();
     if (~index_ < index_) {
-      // A var. Use the `@` character in the debug output to make it harder to confuse it with the "real" "dense" index.
-      return "x[@" + current::ToString(~index_) + ']';
+      return vars_context.VarNameByOriginalIndex(~index_);
     } else {
-      ExpressionNodeImpl const& node = VarsManager::TLS().Active()[index_];
+      ExpressionNodeImpl const& node = vars_context[index_];
       if (node.type_ == ExpressionNodeType::Uninitialized) {
         return "<Uninitialized>";
       } else if (node.type_ == ExpressionNodeType::ImmediateDouble) {
