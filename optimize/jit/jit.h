@@ -287,7 +287,6 @@ class JITCompiler final {
   }
 
   VarsMapperConfig const& Config() const { return context_.Config(); }
-  JITCallContext const& JITCallContext() { return context_; }
 
   Function Compile(ExpressionNode const& node) {
     using namespace current::fncas::x64_native_jit;
