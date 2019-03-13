@@ -103,6 +103,54 @@ TEST(OptimizationExpression, OtherOperations) {
   EXPECT_EQ("(x[@0]/x[@1])", (a / b).DebugAsString());
 }
 
+TEST(OptimizationExpression, OperationsWithAssignment) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  x["a"] = 0.0;
+  value_t const a(x["a"]);
+
+  {
+    value_t add = a;
+    add += 1.0;
+    EXPECT_EQ("(x[@0]+1.000000)", add.DebugAsString());
+
+    value_t sub = a;
+    sub -= 2.0;
+    EXPECT_EQ("(x[@0]-2.000000)", sub.DebugAsString());
+
+    value_t mul = a;
+    mul *= 3.0;
+    EXPECT_EQ("(x[@0]*3.000000)", mul.DebugAsString());
+
+    value_t div = a;
+    div /= 4.0;
+    EXPECT_EQ("(x[@0]/4.000000)", div.DebugAsString());
+  }
+
+  x["b"] = 0.0;
+  value_t const b(x["b"]);
+
+  {
+    value_t add = a;
+    add += b;
+    EXPECT_EQ("(x[@0]+x[@1])", add.DebugAsString());
+
+    value_t sub = a;
+    sub -= b;
+    EXPECT_EQ("(x[@0]-x[@1])", sub.DebugAsString());
+
+    value_t mul = a;
+    mul *= b;
+    EXPECT_EQ("(x[@0]*x[@1])", mul.DebugAsString());
+
+    value_t div = a;
+    div /= b;
+    EXPECT_EQ("(x[@0]/x[@1])", div.DebugAsString());
+  }
+}
+
 TEST(OptimizationExpression, SimpleVarsExponentiation) {
   using namespace current::expression;
 

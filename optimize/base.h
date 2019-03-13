@@ -53,7 +53,7 @@ enum class ExpressionNodeIndex : expression_node_index_t { Invalid = static_cast
 enum class ExpressionNodeType {
   Uninitialized,
   ImmediateDouble,
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, name) Operation_##name,
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name) Operation_##name,
 #include "math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn) Function_##fn,
@@ -100,7 +100,7 @@ class ExpressionNodeImpl final {
         lhs_(ExpressionNodeIndex::Invalid),
         rhs_(ExpressionNodeIndex::Invalid) {}
 
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, name)                                    \
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                               \
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_##name>, \
                      ExpressionNodeIndex lhs,                                          \
                      ExpressionNodeIndex rhs)                                          \

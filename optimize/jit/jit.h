@@ -241,7 +241,7 @@ class JITCompiler final {
 
         if (node.type_ == ExpressionNodeType::ImmediateDouble) {
           opcodes::load_immediate_to_memory_by_rbx_offset(code, index + context_.RAMOffset(), node.value_);
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, name)                                        \
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                   \
   }                                                                                        \
   else if (node.type_ == ExpressionNodeType::Operation_##name) {                           \
     expression_node_index_t const lhs = static_cast<expression_node_index_t>(node.lhs_);   \
@@ -298,7 +298,7 @@ class JITCompiler final {
 
   VarsMapperConfig const& Config() const { return context_.Config(); }
 
-  Function Compile(ExpressionNode const& node) {
+  Function Compile(ExpressionNode node) {
     using namespace current::fncas::x64_native_jit;
 
     // TODO(dkorolev): Inplace code generation.
@@ -333,7 +333,7 @@ class JITCompiler final {
     opcodes::mov_rsi_rbx(code);
 
     for (size_t i = 0; i < nodes.size(); ++i) {
-      ExpressionNode const& node = nodes[i];
+      ExpressionNode node = nodes[i];
       expression_node_index_t const index = static_cast<expression_node_index_t>(ExpressionNodeIndex(node));
       if (index < ~index) {
         EnsureNodeComputed(code, static_cast<expression_node_index_t>(ExpressionNodeIndex(node)));
