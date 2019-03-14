@@ -86,7 +86,7 @@ class ExpressionNodeImpl final {
   friend class Differentiator;    // To use the below fields.
 
   ExpressionNodeType const type_;
-  double const value_;             // For `type_ == ImmediateDouble`.
+  double const value_;             // For `type_ == ImmediateDouble`. TODO(dkorolev): This will go away during refact.
   ExpressionNodeIndex const lhs_;  // For math operations (left operand) or math functions (the argument).
   ExpressionNodeIndex const rhs_;  // For math operations.
 

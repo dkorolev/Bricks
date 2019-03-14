@@ -242,7 +242,8 @@ TEST(OptimizationDifferentiate, RegressionTest2DFunctions) {
       double const y_value = x_y_values.second;                                                                      \
       double const true_f_x_y = eval_x_y(x_value, y_value);                                                          \
       double const jit_computed_f_x_y = compiled(ctx, {x_value, y_value})[0];                                        \
-      EXPECT_EQ(true_f_x_y, jit_computed_f_x_y) << "VALUE " << #function_of_x_and_y << " @ " << x_value;             \
+      EXPECT_EQ(true_f_x_y, jit_computed_f_x_y) << "VALUE " << #function_of_x_and_y << " @ (" << x_value << ", "     \
+                                                << y_value << ")";                                                   \
       double const approximated_df_dx =                                                                              \
           (eval_x_y(x_value + delta, y_value) - eval_x_y(x_value - delta, y_value)) / (delta * 2);                   \
       double const jit_computed_df_dx = compiled(ctx, {x_value, y_value})[1];                                        \
