@@ -375,8 +375,18 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   EXPECT_EQ(10.0, ff(ctx, p));
   EXPECT_EQ("[-2.0,-6.0]", JSON(fg(ctx, p)));
   EXPECT_EQ(40.0, fd1(ctx, p, 0.0));
-  EXPECT_EQ(80.0, fd2(ctx, p, 0.0));
+
+  EXPECT_EQ(80.0, fd2(ctx, p, 0.0));  // The 2nd derivative by lambda is a constant, as the function is quadratic.
+  EXPECT_EQ(80.0, fd2(ctx, p, -1.0));
+  EXPECT_EQ(80.0, fd2(ctx, p, +1.0));
+  EXPECT_EQ(80.0, fd2(ctx, p, -5.0));
+  EXPECT_EQ(80.0, fd2(ctx, p, +5.0));
+
   EXPECT_EQ(0.0, fd3(ctx, p, 0.0));  // The 3rd derivative by lambda is zero, as the function is quadratic.
+  EXPECT_EQ(0.0, fd3(ctx, p, -1.0));
+  EXPECT_EQ(0.0, fd3(ctx, p, +1.0));
+  EXPECT_EQ(0.0, fd3(ctx, p, -5.0));
+  EXPECT_EQ(0.0, fd3(ctx, p, +5.0));
 
   // Effectively, as the function is quadratic, making a step of `lambda = -f_lambda'(x)/f_lambda''(x)` hits the min.
   EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
@@ -389,7 +399,13 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
     EXPECT_EQ(4, fd2(ctx, p, 0.0));
     EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
     EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -1.0));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +1.0));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -5.0));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +5.0));
     EXPECT_EQ(0.0, fd3(ctx, p, 0.0));
+    EXPECT_EQ(0.0, fd3(ctx, p, -1.0));
+    EXPECT_EQ(0.0, fd3(ctx, p, +1.0));
   }
 
   // And step size will always be 0.5.
@@ -397,12 +413,24 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
     p = {-9.25, 17.75};
     EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
     EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -1.0));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +1.0));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -5.0));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +5.0));
     EXPECT_EQ(0.0, fd3(ctx, p, 0.0));
+    EXPECT_EQ(0.0, fd3(ctx, p, -1.0));
+    EXPECT_EQ(0.0, fd3(ctx, p, +1.0));
   }
   {
     p = {131.75, +293.25};
     EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
     EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -1.0));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +1.0));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -5.0));
+    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +5.0));
     EXPECT_EQ(0.0, fd3(ctx, p, 0.0));
+    EXPECT_EQ(0.0, fd3(ctx, p, -1.0));
+    EXPECT_EQ(0.0, fd3(ctx, p, +1.0));
   }
 }
