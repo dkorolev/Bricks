@@ -240,4 +240,40 @@ TEST(OptimizationJIT, JITGeneratorUnfreezesVarsContext) {
   }
 }
 
+TEST(OptimizationJIT, FunctionWithArgument) {
+  using namespace current::expression;
+
+  VarsContext context;
+
+  x["a"] = 0.0;
+  value_t const lambda = ExpressionNode::Lambda();
+  value_t const formula = x["a"] + lambda;
+
+  jit::JITCallContext jit_call_context;
+  jit::JITCompiler code_generator(jit_call_context);
+  jit::FunctionWithArgument const f = code_generator.CompileFunctionWithArgument(formula);
+
+  EXPECT_EQ(0.0, f(jit_call_context, {0.0}, 0.0));
+  EXPECT_EQ(1.0, f(jit_call_context, {1.0}, 0.0));
+  EXPECT_EQ(1.0, f(jit_call_context, {0.0}, 1.0));
+  EXPECT_EQ(2.0, f(jit_call_context, {1.0}, 1.0));
+}
+
+TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
+  // This case is special, since the effective implementation of this `lambda` argument
+  // never actually has to actually "compute" the expression node of the respective type. -- D.K.
+  using namespace current::expression;
+
+  VarsContext context;
+  value_t const lambda = ExpressionNode::Lambda();
+
+  jit::JITCallContext jit_call_context;
+  jit::JITCompiler code_generator(jit_call_context);
+  jit::FunctionWithArgument const f = code_generator.CompileFunctionWithArgument(lambda);
+
+  EXPECT_EQ(0.0, f(jit_call_context, {}, 0.0));
+  EXPECT_EQ(0.5, f(jit_call_context, {}, 0.5));
+  EXPECT_EQ(1.0, f(jit_call_context, {}, 1.0));
+}
+
 #endif  // FNCAS_X64_NATIVE_JIT_ENABLED

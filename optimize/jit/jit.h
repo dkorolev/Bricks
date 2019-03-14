@@ -97,17 +97,19 @@ class JITCallContext final {
 
   friend class FunctionImpl;
   friend class FunctionReturningVectorImpl;
+  friend class FunctionWithArgumentImpl;
   friend class JITCompiler;
 
   double* RAMPointer() const { return &ram_[0]; }
 
  public:
-  explicit JITCallContext(VarsMapperConfig const& config) : config_(config), ram_(config_.total_nodes) {}
-
+  // Allocate an extra one `double` so that an external parameter could be passed in it,
+  // to later intoduce functions of one variable, i.e. for directional derivatives.
+  explicit JITCallContext(VarsMapperConfig const& config) : config_(config), ram_(config_.total_nodes + 1u) {}
   JITCallContext()
       : owned_config_if_default_constructed_(VarsManager::TLS().Active().Freeze()),
         config_(Value(owned_config_if_default_constructed_)),
-        ram_(config_.total_nodes) {}
+        ram_(config_.total_nodes + 1u) {}
 
   ~JITCallContext() {
     if (Exists(owned_config_if_default_constructed_)) {
@@ -216,6 +218,49 @@ class FunctionReturningVector final {
   }
 };
 
+class FunctionWithArgumentImpl final {
+ private:
+  JITCallContext const& call_context_;
+  current::fncas::x64_native_jit::CallableVectorUInt8 f_;
+
+  FunctionWithArgumentImpl(FunctionWithArgumentImpl const&) = delete;
+  FunctionWithArgumentImpl(FunctionWithArgumentImpl&&) = delete;
+  FunctionWithArgumentImpl& operator=(FunctionWithArgumentImpl const&) = delete;
+  FunctionWithArgumentImpl& operator=(FunctionWithArgumentImpl&&) = delete;
+
+ public:
+  FunctionWithArgumentImpl(JITCallContext const& call_context, std::vector<uint8_t> code)
+      : call_context_(call_context), f_(code) {}
+
+  double CallFunction(JITCallContext const& call_context, double const* x, double p) const {
+    if (&call_context != &call_context_) {
+      CURRENT_THROW(JITFunctionCallContextMismatchException());
+    }
+    call_context_.RAMPointer()[call_context_.config_.total_nodes] = p;
+    return f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
+  }
+};
+
+class FunctionWithArgument final {
+ private:
+  std::unique_ptr<FunctionWithArgumentImpl> f_;
+
+  friend class JITCompiler;
+  FunctionWithArgument(JITCallContext const& call_context, std::vector<uint8_t> code)
+      : f_(std::make_unique<FunctionWithArgumentImpl>(call_context, code)) {}
+
+ public:
+  double operator()(JITCallContext const& call_context, double const* x, double p) const {
+    return f_->CallFunction(call_context, x, p);
+  }
+  double operator()(JITCallContext const& call_context, std::vector<double> const& x, double p) const {
+    return f_->CallFunction(call_context, &x[0], p);
+  }
+  double operator()(JITCallContext const& call_context, VarsMapper const& vars, double p) const {
+    return f_->CallFunction(call_context, &vars.x[0], p);
+  }
+};
+
 class JITCompiler final {
  private:
   JITCallContext const& context_;
@@ -278,6 +323,10 @@ class JITCompiler final {
     opcodes::store_xmm0_to_memory_by_rbx_offset(code, index);
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
+        } else if (node.type_ == ExpressionNodeType::Lambda) {
+          // TODO(dkorolev): FIXME, this "extra" copy-pasting of that double value should go away.
+          opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, context_.config_.total_nodes);
+          opcodes::store_xmm0_to_memory_by_rbx_offset(code, index);
         } else {
           CURRENT_THROW(JITInternalErrorException());
         }
@@ -339,6 +388,29 @@ class JITCompiler final {
     opcodes::ret(code);
 
     return FunctionReturningVector(context_, std::move(code), std::move(output_node_indexes));
+  }
+
+  FunctionWithArgument CompileFunctionWithArgument(ExpressionNode node) {
+    using namespace current::fncas::x64_native_jit;
+
+    // TODO(dkorolev): Inplace code generation.
+    std::vector<uint8_t> code;
+
+    expression_node_index_t const index = static_cast<expression_node_index_t>(ExpressionNodeIndex(node));
+    if (index < ~index) {
+      opcodes::push_rbx(code);
+      opcodes::mov_rsi_rbx(code);
+      // TODO(dkorolev): Allow computing function with parameter. And test this.
+      EnsureNodeComputed(code, static_cast<expression_node_index_t>(ExpressionNodeIndex(node)));
+      // TODO(dkorolev): Disallow computing function with parameter.
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index);
+      opcodes::pop_rbx(code);
+    } else {
+      opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~index]);
+    }
+    opcodes::ret(code);
+
+    return FunctionWithArgument(context_, std::move(code));
   }
 };
 

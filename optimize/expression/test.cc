@@ -296,3 +296,40 @@ TEST(OptimizationExpression, FreezePreventsNodesCreation) {
 
   EXPECT_THROW(x[0] + 4.0, VarsManagementException);
 }
+
+TEST(OptimizationExpression, Lambda) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  x[0] = 0.0;
+
+  value_t const a = x[0];
+  value_t const b = ExpressionNode::FromImmediateDouble(1.0);
+  value_t const c = ExpressionNode::Lambda();
+
+  EXPECT_EQ("x[0]", a.DebugAsString());
+  EXPECT_EQ("1.000000", b.DebugAsString());
+  EXPECT_EQ("lambda", c.DebugAsString());
+  EXPECT_EQ("((x[0]+1.000000)+lambda)", (a + b + c).DebugAsString());
+}
+
+TEST(OptimizationExpression, LambdaFunctionGeneration) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  x[0] = 0.0;
+  x[1] = 0.0;
+
+  value_t const f = x[0] + 2.0 * x[1];
+  value_t const lambda = ExpressionNode::Lambda();
+  std::vector<value_t> substitute({1.0 + 2.0 * lambda, 3.0 + 4.0 * lambda});
+
+  VarsMapperConfig const vars_config = vars_context.ReindexVars();
+
+  value_t const f2 = Build1DFunction(f, vars_config, substitute);
+
+  EXPECT_EQ("(x[0]{0}+(2.000000*x[1]{1}))", f.DebugAsString());
+  EXPECT_EQ("((1.000000+(2.000000*lambda))+(2.000000*(3.000000+(4.000000*lambda))))", f2.DebugAsString());
+}

@@ -317,3 +317,92 @@ TEST(OptimizationDifferentiate, Constants) {
   EXPECT_EQ("0.000000", Differentiate(two, 1).DebugAsString());
   EXPECT_EQ("0.000000", Differentiate(two, 2).DebugAsString());
 }
+
+TEST(OptimizationDifferentiate, Gradient) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  x[0] = 0.0;
+  x[1] = 0.0;
+
+  VarsMapperConfig const config = vars_context.ReindexVars();
+
+  std::vector<value_t> const g = ComputeGradient(sqr(x[0]) + 2.0 * sqr(x[1]));
+  ASSERT_EQ(2u, g.size());
+  EXPECT_EQ("(((1.000000*2.000000)*x[0]{0})+((2.000000*((0.000000*2.000000)*x[1]{1}))+(sqr(x[1]{1})*0.000000)))",
+            g[0].DebugAsString());
+  EXPECT_EQ("(((0.000000*2.000000)*x[0]{0})+((2.000000*((1.000000*2.000000)*x[1]{1}))+(sqr(x[1]{1})*0.000000)))",
+            g[1].DebugAsString());
+}
+
+TEST(OptimizationDifferentiate, DirectionalDerivative) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  x[0] = 0.0;
+  x[1] = 0.0;
+
+  // This is a function of order two (quadratic), with a minimum of `f(2,4) = 0`.
+  value_t const f = sqr(x[0] - 2.0) + sqr(x[1] - 4.0);
+
+  VarsMapperConfig const config = vars_context.ReindexVars();
+
+  std::vector<value_t> const g = ComputeGradient(f);
+  value_t const f_1d = GenerateLineSearchFunction(config, f, g);
+
+  value_t const d1 = DifferentiateByLambda(f_1d);
+  value_t const d2 = DifferentiateByLambda(d1);
+  value_t const d3 = DifferentiateByLambda(d2);
+
+  jit::JITCallContext ctx;
+  jit::Function const ff = jit::JITCompiler(ctx).Compile(f);
+  jit::FunctionReturningVector const fg = jit::JITCompiler(ctx).Compile(g);
+  jit::FunctionWithArgument const fd1 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d1);
+  jit::FunctionWithArgument const fd2 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d2);
+  jit::FunctionWithArgument const fd3 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d3);
+
+  // Everything is zero at `f(2,4)`.
+  EXPECT_EQ(0.0, ff(ctx, {2.0, 4.0}));
+  EXPECT_EQ("[0.0,0.0]", JSON(fg(ctx, {2.0, 4.0})));
+  EXPECT_EQ(0.0, fd1(ctx, {2.0, 4.0}, 0.0));
+  EXPECT_EQ(0.0, fd2(ctx, {2.0, 4.0}, 0.0));
+  EXPECT_EQ(0.0, fd3(ctx, {2.0, 4.0}, 0.0));
+
+  // A step towards the minimum is required from `{1,1}`.
+  std::vector<double> p({1.0, 1.0});
+  EXPECT_EQ(10.0, ff(ctx, p));
+  EXPECT_EQ("[-2.0,-6.0]", JSON(fg(ctx, p)));
+  EXPECT_EQ(40.0, fd1(ctx, p, 0.0));
+  EXPECT_EQ(80.0, fd2(ctx, p, 0.0));
+  EXPECT_EQ(0.0, fd3(ctx, p, 0.0));  // The 3rd derivative by lambda is zero, as the function is quadratic.
+
+  // Effectively, as the function is quadratic, making a step of `lambda = -f_lambda'(x)/f_lambda''(x)` hits the min.
+  EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
+  EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
+
+  // Now, the above should work for any starting point, given the function being tested is of order two.
+  {
+    p = {1.5, 3.5};
+    EXPECT_EQ(2, fd1(ctx, p, 0.0));
+    EXPECT_EQ(4, fd2(ctx, p, 0.0));
+    EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
+    EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
+    EXPECT_EQ(0.0, fd3(ctx, p, 0.0));
+  }
+
+  // And step size will always be 0.5.
+  {
+    p = {-9.25, 17.75};
+    EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
+    EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
+    EXPECT_EQ(0.0, fd3(ctx, p, 0.0));
+  }
+  {
+    p = {131.75, +293.25};
+    EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
+    EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
+    EXPECT_EQ(0.0, fd3(ctx, p, 0.0));
+  }
+}

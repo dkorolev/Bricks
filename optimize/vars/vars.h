@@ -518,10 +518,12 @@ class VarsContext final : public VarsContextInterface {
  private:
   VarNode root_;
   bool frozen_ = false;
-  std::vector<uint8_t> allocated_var_is_constant_;  // This is a small `vector<bool>` that is `push_back()`-into a lot.
-  std::vector<std::string> var_name_;               // `var index => name`, w/ or w/o dense index, whether it's stamped.
-  std::vector<size_t> dense_index_;                 // `var index => node index` mapping, or `static_cast<size_t>(-1)`.
-  std::vector<size_t> dense_reverse_index_;         // `node index => var index` mapping, always valid.
+  // In the dense indexes universe.
+  std::vector<std::string> var_name_;  // `var index => name`, w/ or w/o dense index, whether it's stamped.
+  std::vector<size_t> dense_index_;    // `var index => node index` mapping, or `static_cast<size_t>(-1)`.
+  // In the "as they are added" indexes universe.
+  std::vector<bool> allocated_var_is_constant_;
+  std::vector<size_t> dense_reverse_index_;  // `node index => var index` mapping, always valid.
   std::vector<ExpressionNodeImpl> expression_nodes_;
 
  public:

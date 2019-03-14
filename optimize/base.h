@@ -54,6 +54,7 @@ enum class ExpressionNodeIndex : expression_node_index_t { Invalid = static_cast
 enum class ExpressionNodeType {
   Uninitialized,
   ImmediateDouble,
+  Lambda,
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name) Operation_##name,
 #include "math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
@@ -81,9 +82,13 @@ class JITCompiler;
 }  // namespace current::expression::jit
 class ExpressionNodeImpl final {
  private:
-  friend class ExpressionNode;    // To manage the below fields.
-  friend class jit::JITCompiler;  // To use the below fields.
-  friend class Differentiator;    // To use the below fields.
+  // To manage the below fields.
+  friend class ExpressionNode;
+
+  // To use the below fields.
+  friend class jit::JITCompiler;
+  friend class Differentiator;
+  friend class Build1DFunctionImpl;
 
   ExpressionNodeType const type_;
   double const value_;             // For `type_ == ImmediateDouble`. TODO(dkorolev): This will go away during refact.
@@ -100,6 +105,12 @@ class ExpressionNodeImpl final {
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::ImmediateDouble>, double x)
       : type_(ExpressionNodeType::ImmediateDouble),
         value_(x),
+        lhs_(ExpressionNodeIndex::Invalid),
+        rhs_(ExpressionNodeIndex::Invalid) {}
+
+  ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Lambda>)
+      : type_(ExpressionNodeType::Lambda),
+        value_(0.0),
         lhs_(ExpressionNodeIndex::Invalid),
         rhs_(ExpressionNodeIndex::Invalid) {}
 

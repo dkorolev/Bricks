@@ -33,13 +33,12 @@ SOFTWARE.
 namespace current {
 namespace expression {
 
-struct ExpressionVarNodeBoxingException final : OptimizeException {
-  using OptimizeException::OptimizeException;
-};
+struct ExpressionVarNodeBoxingException final : OptimizeException {};
 
-struct ExpressionNodeInternalError final : OptimizeException {
-  using OptimizeException::OptimizeException;
-};
+struct ExpressionNodeInternalError final : OptimizeException {};
+
+struct Build1DFunctionRequiresUpToDateVarsIndexes final : OptimizeException {};
+struct Build1DFunctionNumberOfVarsMismatchException final : OptimizeException {};
 
 class ExpressionNode final {
  private:
@@ -68,6 +67,14 @@ class ExpressionNode final {
     return ExpressionNode(ConstructFromIndex(),
                           VarsManager::TLS().Active().EmplaceExpressionNode(
                               ExpressionNodeTypeSelector<ExpressionNodeType::ImmediateDouble>(), x));
+  }
+  static ExpressionNode Lambda() {
+    return ExpressionNode(
+        ConstructFromIndex(),
+        VarsManager::TLS().Active().EmplaceExpressionNode(ExpressionNodeTypeSelector<ExpressionNodeType::Lambda>()));
+  }
+  static ExpressionNode ConstructDefaultExpressionNode() {
+    return ExpressionNode(ConstructFromIndex(), static_cast<expression_node_index_t>(-1));
   }
 
   operator ExpressionNodeIndex() const { return ExpressionNodeIndex(index_); }
@@ -99,6 +106,8 @@ class ExpressionNode final {
     return #fn "(" + ExpressionNode::FromIndex(node.lhs_).DebugAsString() + ')';
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
+      } else if (node.type_ == ExpressionNodeType::Lambda) {
+        return "lambda";
       } else {
         CURRENT_THROW(ExpressionNodeInternalError());
       }
@@ -205,6 +214,63 @@ inline double log_sigmoid(double x) {
 // 2) can use math functions, such as `exp()` or `sqr()` or `sigmoid()`, w/o specifying the namespace.
 using value_t = ExpressionNode;
 using namespace current::expression::functions;
+
+// A helper method to generate a one-dimensional function from a multi-dimensional one,
+// by replacing each occurrence of each variable by a respective provided formula.
+// The usecase of this method is the construction of the "cost function" for line search optimization.
+class Build1DFunctionImpl {
+ private:
+  VarsContext const& vars_context_;
+  std::vector<value_t> const& substitute_;
+
+ public:
+  Build1DFunctionImpl(VarsContext const& vars_context,
+                      VarsMapperConfig const& vars_config,
+                      std::vector<value_t> const& substitute)
+      : vars_context_(vars_context), substitute_(substitute) {
+    // TODO(dkorolev): A stricter check that the config matches the context?
+    if (vars_context_.NumberOfVars() != vars_config.name.size()) {
+      CURRENT_THROW(Build1DFunctionRequiresUpToDateVarsIndexes());
+    }
+    if (substitute_.size() != vars_context_.NumberOfVars()) {
+      CURRENT_THROW(Build1DFunctionNumberOfVarsMismatchException());
+    }
+  }
+
+  value_t DoBuild1DFunction(value_t f) const {
+    expression_node_index_t const index = static_cast<expression_node_index_t>(ExpressionNodeIndex(f));
+    if (~index < index) {
+      return substitute_[~index];
+    } else {
+      ExpressionNodeImpl const& node = vars_context_[index];
+      if (node.type_ == ExpressionNodeType::Uninitialized) {
+        CURRENT_THROW(ExpressionNodeInternalError());
+      } else if (node.type_ == ExpressionNodeType::ImmediateDouble) {
+        return f;
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)           \
+  }                                                                \
+  else if (node.type_ == ExpressionNodeType::Operation_##name) {   \
+    return DoBuild1DFunction(ExpressionNode::FromIndex(node.lhs_)) \
+        op DoBuild1DFunction(ExpressionNode::FromIndex(node.rhs_));
+#include "../math_operations.inl"
+#undef CURRENT_EXPRESSION_MATH_OPERATION
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                  \
+  }                                                           \
+  else if (node.type_ == ExpressionNodeType::Function_##fn) { \
+    return fn(DoBuild1DFunction(ExpressionNode::FromIndex(node.lhs_)));
+#include "../math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
+      } else if (node.type_ == ExpressionNodeType::Lambda) {
+        CURRENT_THROW(ExpressionNodeInternalError());
+      } else {
+        CURRENT_THROW(ExpressionNodeInternalError());
+      }
+    }
+  }
+};
+inline value_t Build1DFunction(value_t f, VarsMapperConfig const& config, std::vector<value_t> const& substitute) {
+  return Build1DFunctionImpl(VarsManager::TLS().Active(), config, substitute).DoBuild1DFunction(f);
+}
 
 }  // namespace current::expression
 }  // namespace current
