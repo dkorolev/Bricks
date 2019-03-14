@@ -234,7 +234,7 @@ TEST(OptimizationExpression, IndexesAreNonFinalizedIndexes) {
   vars_context.Freeze();
   EXPECT_EQ("x[0]{0}", v0.DebugAsString());
   EXPECT_EQ("x[2]{1}", v2.DebugAsString());
-  
+
   vars_context.Unfreeze();
   EXPECT_EQ("x[0]{0}", v0.DebugAsString());
   EXPECT_EQ("x[2]{1}", v2.DebugAsString());
