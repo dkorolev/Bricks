@@ -83,6 +83,8 @@ class ExpressionNodeImpl final {
  private:
   friend class ExpressionNode;    // To manage the below fields.
   friend class jit::JITCompiler;  // To use the below fields.
+  friend class Differentiator;    // To use the below fields.
+
   ExpressionNodeType const type_;
   double const value_;             // For `type_ == ImmediateDouble`.
   ExpressionNodeIndex const lhs_;  // For math operations (left operand) or math functions (the argument).

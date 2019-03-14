@@ -227,6 +227,7 @@ class VarsContextInterface {
  public:
   ~VarsContextInterface() = default;
   virtual bool IsFrozen() const = 0;
+  virtual VarsMapperConfig ReindexVars() = 0;
   virtual VarsMapperConfig Freeze() = 0;
   virtual void Unfreeze() = 0;
   virtual uint32_t AllocateVar(std::string var_name) = 0;
@@ -542,27 +543,31 @@ class VarsContext final : public VarsContextInterface {
     return frozen_;
   }
 
-  VarsMapperConfig Freeze() override {
+  VarsMapperConfig ReindexVars() override {
     VarsManager::TLS().ConfirmActive(this, this);
+    size_t const vars_count = allocated_var_is_constant_.size();
+    VarNode::FrozenVariablesSetBeingPopulated state(vars_count);
+    root_.DSFStampDenseIndexesForJIT(state);
+    if (state.dense_index.size() != vars_count || state.x0.size() != vars_count || state.name.size() != vars_count ||
+        state.is_constant.size() != vars_count) {
+      CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `ReindexVars()`."));
+    }
+    var_name_ = state.name;
+    dense_index_ = state.dense_index;
+    dense_reverse_index_.resize(vars_count);
+    for (size_t i = 0; i < vars_count; ++i) {
+      dense_reverse_index_[dense_index_[i]] = i;
+    }
+    return VarsMapperConfig(
+        vars_count, expression_nodes_.size(), dense_index_, state.x0, state.name, state.is_constant, root_.DoDump());
+  }
+
+  VarsMapperConfig Freeze() override {
     if (frozen_) {
       CURRENT_THROW(VarsAlreadyFrozenException());
     } else {
       frozen_ = true;
-      size_t const vars_count = allocated_var_is_constant_.size();
-      VarNode::FrozenVariablesSetBeingPopulated state(vars_count);
-      root_.DSFStampDenseIndexesForJIT(state);
-      if (state.dense_index.size() != vars_count || state.x0.size() != vars_count || state.name.size() != vars_count ||
-          state.is_constant.size() != vars_count) {
-        CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `Freeze()`."));
-      }
-      var_name_ = state.name;
-      dense_index_ = state.dense_index;
-      dense_reverse_index_.resize(vars_count);
-      for (size_t i = 0; i < vars_count; ++i) {
-        dense_reverse_index_[dense_index_[i]] = i;
-      }
-      return VarsMapperConfig(
-          vars_count, expression_nodes_.size(), dense_index_, state.x0, state.name, state.is_constant, root_.DoDump());
+      return ReindexVars();
     }
   }
 
@@ -598,6 +603,28 @@ class VarsContext final : public VarsContextInterface {
       CURRENT_THROW(VarIndexOutOfBoundsException());
     }
     allocated_var_is_constant_[var_internal_index] = true;
+  }
+
+  double LeafDerivativeZeroOrOne(size_t var_internal_index, size_t derivative_per_finalized_var_index) const {
+    VarsManager::TLS().ConfirmActive(this, this);
+    if (frozen_) {
+      CURRENT_THROW(
+          VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` when the vars context is frozen."));
+    }
+    if (!(var_internal_index < dense_index_.size())) {
+      CURRENT_THROW(VarIndexOutOfBoundsException());
+    }
+    if (dense_index_[var_internal_index] == static_cast<size_t>(-1)) {
+      CURRENT_THROW(
+          VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` on unidexed vars, run `ReindexVars()`."));
+    }
+    if (dense_index_.size() != allocated_var_is_constant_.size()) {
+      CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `LeafDerivativeZeroOrOne()`."));
+    }
+    return (dense_index_[var_internal_index] == derivative_per_finalized_var_index &&
+            !allocated_var_is_constant_[var_internal_index])
+               ? 1.0
+               : 0.0;
   }
 
   template <typename... ARGS>
