@@ -93,8 +93,6 @@ class JITCallContext final {
   Optional<VarsMapperConfig> owned_config_if_default_constructed_;
   VarsMapperConfig const& config_;
 
-  size_t const ram_offset_;          // The offset of "index zero" of the expression tree, in the "ram buffer".
-  size_t const ram_total_;           // The total number of `double`-s in the "intermediate" buffer.
   mutable std::vector<double> ram_;  // The temporary buffer that must be allocated to run JIT functions of this config.
 
   friend class FunctionImpl;
@@ -102,32 +100,14 @@ class JITCallContext final {
   friend class JITCompiler;
 
   double* RAMPointer() const { return &ram_[0]; }
-  size_t ExtraNodesAllocated() const { return ram_offset_; }
-
-  static size_t ComputeExtraRAMSlotsToAllocate(size_t extra_ram_slots_to_allocate, VarsMapperConfig const& config) {
-    if (extra_ram_slots_to_allocate != static_cast<size_t>(-1)) {
-      return extra_ram_slots_to_allocate;
-    } else {
-      // The default number of RAM slots to allocate is `n_vars + 4`. The logic here is that:
-      // a) it's a small enough overhead, and
-      // b) we better allocate enough room for along-the-gradient derivatives and for up-to-4th derivatives right away.
-      return config.total_leaves + 4u;
-    }
-  }
 
  public:
-  explicit JITCallContext(VarsMapperConfig const& config, size_t extra_ram_slots_to_allocate = static_cast<size_t>(-1))
-      : config_(config),
-        ram_offset_(ComputeExtraRAMSlotsToAllocate(extra_ram_slots_to_allocate, config_)),
-        ram_total_(ram_offset_ + config_.total_nodes),
-        ram_(ram_total_) {}
+  explicit JITCallContext(VarsMapperConfig const& config) : config_(config), ram_(config_.total_nodes) {}
 
-  JITCallContext(size_t extra_ram_slots_to_allocate = static_cast<size_t>(-1))
+  JITCallContext()
       : owned_config_if_default_constructed_(VarsManager::TLS().Active().Freeze()),
         config_(Value(owned_config_if_default_constructed_)),
-        ram_offset_(ComputeExtraRAMSlotsToAllocate(extra_ram_slots_to_allocate, config_)),
-        ram_total_(ram_offset_ + config_.total_nodes),
-        ram_(ram_total_) {}
+        ram_(config_.total_nodes) {}
 
   ~JITCallContext() {
     if (Exists(owned_config_if_default_constructed_)) {
@@ -136,7 +116,6 @@ class JITCallContext final {
   }
 
   VarsMapperConfig const& Config() const { return config_; }
-  size_t RAMOffset() const { return ram_offset_; }
 };
 
 class FunctionImpl final {
@@ -184,7 +163,7 @@ class FunctionReturningVectorImpl final {
  private:
   JITCallContext const& call_context_;
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
-  size_t const return_vector_size_;
+  std::vector<expression_node_index_t> const output_node_indexes_;
 
   FunctionReturningVectorImpl(FunctionReturningVectorImpl const&) = delete;
   FunctionReturningVectorImpl(FunctionReturningVectorImpl&&) = delete;
@@ -192,15 +171,26 @@ class FunctionReturningVectorImpl final {
   FunctionReturningVectorImpl& operator=(FunctionReturningVectorImpl&&) = delete;
 
  public:
-  FunctionReturningVectorImpl(JITCallContext const& call_context, std::vector<uint8_t> code, size_t return_vector_size)
-      : call_context_(call_context), f_(code), return_vector_size_(return_vector_size) {}
+  FunctionReturningVectorImpl(JITCallContext const& call_context,
+                              std::vector<uint8_t> code,
+                              std::vector<expression_node_index_t> output_node_indexes)
+      : call_context_(call_context), f_(code), output_node_indexes_(std::move(output_node_indexes)) {}
 
   std::vector<double> CallFunction(JITCallContext const& call_context, double const* x) const {
     if (&call_context != &call_context_) {
       CURRENT_THROW(JITFunctionCallContextMismatchException());
     }
+    std::vector<double> result(output_node_indexes_.size());
     f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
-    return std::vector<double>(call_context_.RAMPointer(), call_context_.RAMPointer() + return_vector_size_);
+    for (size_t i = 0; i < output_node_indexes_.size(); ++i) {
+      expression_node_index_t const index = output_node_indexes_[i];
+      if (index < ~index) {
+        result[i] = call_context_.RAMPointer()[index];
+      } else {
+        result[i] = x[~index];
+      }
+    }
+    return result;
   }
 };
 
@@ -209,8 +199,10 @@ class FunctionReturningVector final {
   std::unique_ptr<FunctionReturningVectorImpl> f_;
 
   friend class JITCompiler;
-  FunctionReturningVector(JITCallContext const& call_context, std::vector<uint8_t> code, size_t return_vector_size)
-      : f_(std::make_unique<FunctionReturningVectorImpl>(call_context, code, return_vector_size)) {}
+  FunctionReturningVector(JITCallContext const& call_context,
+                          std::vector<uint8_t> code,
+                          std::vector<expression_node_index_t> output_node_indexes)
+      : f_(std::make_unique<FunctionReturningVectorImpl>(call_context, code, std::move(output_node_indexes))) {}
 
  public:
   std::vector<double> operator()(JITCallContext const& call_context, double const* x) const {
@@ -244,7 +236,7 @@ class JITCompiler final {
         ExpressionNodeImpl const& node = VarsManager::TLS().Active()[index];
 
         if (node.type_ == ExpressionNodeType::ImmediateDouble) {
-          opcodes::load_immediate_to_memory_by_rbx_offset(code, index + context_.RAMOffset(), node.value_);
+          opcodes::load_immediate_to_memory_by_rbx_offset(code, index, node.value_);
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                   \
   }                                                                                        \
   else if (node.type_ == ExpressionNodeType::Operation_##name) {                           \
@@ -253,16 +245,16 @@ class JITCompiler final {
     EnsureNodeComputed(code, lhs);                                                         \
     EnsureNodeComputed(code, rhs);                                                         \
     if (lhs < ~lhs) {                                                                      \
-      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, lhs + context_.RAMOffset());   \
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, lhs);                          \
     } else {                                                                               \
       opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~lhs]);   \
     }                                                                                      \
     if (rhs < ~rhs) {                                                                      \
-      opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, rhs + context_.RAMOffset()); \
+      opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, rhs);                        \
     } else {                                                                               \
       opcodes::name##_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~rhs]); \
     }                                                                                      \
-    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index + context_.RAMOffset());
+    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index);
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 
@@ -273,7 +265,7 @@ class JITCompiler final {
     EnsureNodeComputed(code, argument);                                                       \
     using namespace current::fncas::x64_native_jit;                                           \
     if (argument < ~argument) {                                                               \
-      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, argument + context_.RAMOffset()); \
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, argument);                        \
     } else {                                                                                  \
       opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~argument]); \
     }                                                                                         \
@@ -283,7 +275,7 @@ class JITCompiler final {
         code, static_cast<uint8_t>(ExpressionFunctionIndex::FunctionIndexOf_##fn));           \
     opcodes::pop_rdx(code);                                                                   \
     opcodes::pop_rdi(code);                                                                   \
-    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index + context_.RAMOffset());
+    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index);
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
         } else {
@@ -313,7 +305,7 @@ class JITCompiler final {
       opcodes::push_rbx(code);
       opcodes::mov_rsi_rbx(code);
       EnsureNodeComputed(code, static_cast<expression_node_index_t>(ExpressionNodeIndex(node)));
-      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index + context_.RAMOffset());
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index);
       opcodes::pop_rbx(code);
     } else {
       opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~index]);
@@ -326,32 +318,27 @@ class JITCompiler final {
   FunctionReturningVector Compile(std::vector<ExpressionNode> const& nodes) {
     using namespace current::fncas::x64_native_jit;
 
-    if (nodes.size() > context_.ExtraNodesAllocated()) {
-      CURRENT_THROW(JITNotEnoughExtraNodesAllocatedInJITCallContext());
-    }
-
     // TODO(dkorolev): Inplace code generation.
     std::vector<uint8_t> code;
 
     opcodes::push_rbx(code);
     opcodes::mov_rsi_rbx(code);
 
+    std::vector<expression_node_index_t> output_node_indexes(nodes.size());
     for (size_t i = 0; i < nodes.size(); ++i) {
-      ExpressionNode node = nodes[i];
-      expression_node_index_t const index = static_cast<expression_node_index_t>(ExpressionNodeIndex(node));
+      output_node_indexes[i] = static_cast<expression_node_index_t>(ExpressionNodeIndex(nodes[i]));
+    }
+
+    for (expression_node_index_t const index : output_node_indexes) {
       if (index < ~index) {
-        EnsureNodeComputed(code, static_cast<expression_node_index_t>(ExpressionNodeIndex(node)));
-        opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index + context_.RAMOffset());
-      } else {
-        opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[~index]);
+        EnsureNodeComputed(code, index);
       }
-      opcodes::store_xmm0_to_memory_by_rbx_offset(code, i);
     }
 
     opcodes::pop_rbx(code);
     opcodes::ret(code);
 
-    return FunctionReturningVector(context_, std::move(code), nodes.size());
+    return FunctionReturningVector(context_, std::move(code), std::move(output_node_indexes));
   }
 };
 
