@@ -360,6 +360,8 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   jit::JITCompiler compiler(ctx);
   jit::Function const compiled_f = compiler.Compile(f);
   jit::FunctionReturningVector const compiled_g = compiler.Compile(g);
+  // NOTE(dkorolev): In an aggressively optimized code, we may not even need the very `l` compiled. -- D.K.
+  jit::FunctionWithArgument const compiled_l = compiler.CompileFunctionWithArgument(d1);
   jit::FunctionWithArgument const compiled_d1 = compiler.CompileFunctionWithArgument(d1);
   jit::FunctionWithArgument const compiled_d2 = compiler.CompileFunctionWithArgument(d2);
   jit::FunctionWithArgument const compiled_d3 = compiler.CompileFunctionWithArgument(d3);
@@ -367,6 +369,7 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   // Everything is zero at `f(2,4)`, as it is the minumum.
   EXPECT_EQ(0.0, compiled_f(ctx, {2.0, 4.0}));
   EXPECT_EQ("[0.0,0.0]", JSON(compiled_g(ctx, {2.0, 4.0})));
+  compiled_l(ctx, {2.0, 4.0}, 0.0);  // Need to evalute `l` after `g` and before `d1`.
   EXPECT_EQ(0.0, compiled_d1(ctx, {2.0, 4.0}, 0.0));
   EXPECT_EQ(0.0, compiled_d2(ctx, {2.0, 4.0}, 0.0));
   EXPECT_EQ(0.0, compiled_d3(ctx, {2.0, 4.0}, 0.0));
@@ -375,6 +378,7 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   std::vector<double> p({1.0, 1.0});
   EXPECT_EQ(10.0, compiled_f(ctx, p));
   EXPECT_EQ("[-2.0,-6.0]", JSON(compiled_g(ctx, p)));
+  compiled_l(ctx, p, 0.0);
   EXPECT_EQ(40.0, compiled_d1(ctx, p, 0.0));
 
   EXPECT_EQ(80.0,
@@ -392,6 +396,12 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
 
   // Effectively, as the function is quadratic, making a step of `lambda = -f_lambda'(x)/f_lambda''(x)` hits the min.
   EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+  double const step = -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+
+  // For the new value of lambda (step size, in this case), need to re-evalute `l` before `d1`.
+  // In this case of a quadratic function, the first step takes us to the minimum, which is zero.
+  EXPECT_EQ(0.0, compiled_l(ctx, p, step));
+  // The derivative is also zero, an it would be (approximately) zero even for the functions that are not quadratic.
   EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
 
   // Now, the above should work for any starting point, given the function being tested is of order two.
@@ -399,9 +409,11 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
     p = {1.5, 3.5};
     compiled_f(ctx, p);
     compiled_g(ctx, p);
+    compiled_l(ctx, p, 0.0);
     EXPECT_EQ(2, compiled_d1(ctx, p, 0.0));
     EXPECT_EQ(4, compiled_d2(ctx, p, 0.0));
     EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+    EXPECT_EQ(0.0, compiled_l(ctx, p, -0.5));
     EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
     EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
     EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +1.0));
@@ -417,7 +429,10 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
     p = {-9.25, 17.75};
     compiled_f(ctx, p);
     compiled_g(ctx, p);
+    compiled_l(ctx, p, 0.0);
     EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+    // For the new value of lambda (step size `-0.5`), need to re-evalute `l` before `d1` and other `d`-s.
+    EXPECT_EQ(0, compiled_l(ctx, p, -0.5));
     EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
     EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
     EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +1.0));
@@ -431,7 +446,10 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
     p = {131.75, +293.25};
     compiled_f(ctx, p);
     compiled_g(ctx, p);
+    compiled_l(ctx, p, 0.0);
     EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+    // For the new value of lambda (step size `-0.5`), need to re-evalute `l` before `d1` and other `d`-s.
+    EXPECT_EQ(0, compiled_l(ctx, p, -0.5));
     EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
     EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
     EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +1.0));
