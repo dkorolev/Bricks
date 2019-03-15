@@ -208,6 +208,42 @@ TEST(OptimizationJIT, OtherMathFunctions) {
   EXPECT_EQ(log(1.0 / (1.0 + exp(+1.5))), f(ctx, {-1.5})[13]);  // log_sigmoid()
 }
 
+TEST(OptimizationJIT, IntermediateResultsAreReused) {
+  using namespace current::expression;
+
+  VarsContext context;
+
+  x["p"] = 0.0;
+  value_t const a = sqrt(1.0 + (2.0 + sqr(x["p"])) - 3.0);  // To make sure `a` is not "optimized away" :-) -- D.K.
+  value_t const b = a + 1.0;
+  value_t const c = b + 2.0;
+
+  jit::JITCallContext jit_call_context;
+  jit::JITCompiler compiler(jit_call_context);
+
+  // Same instance of `jit::JITCompiler` should be used for caching to take place.
+  jit::Function const fa = compiler.Compile(a);
+  jit::Function const fb = compiler.Compile(b);
+  jit::Function const fc = compiler.Compile(c);
+
+  VarsMapper input(jit_call_context.Config());
+
+  // Compute for `0`.
+  EXPECT_EQ(0, fa(jit_call_context, {0.0}));
+  EXPECT_EQ(1, fb(jit_call_context, {0.0}));
+  EXPECT_EQ(3, fc(jit_call_context, {0.0}));
+
+  // Compute for `1`.
+  EXPECT_EQ(1, fa(jit_call_context, {1.0}));
+  EXPECT_EQ(2, fb(jit_call_context, {1.0}));
+  EXPECT_EQ(4, fc(jit_call_context, {1.0}));
+
+  // The values for `b` and `c`, for `p=100`, should be the same,
+  // because `a`, which is equal to `x["p"]`, remains cached as `1`.
+  EXPECT_EQ(2, fb(jit_call_context, {100.0}));
+  EXPECT_EQ(4, fc(jit_call_context, {100.0}));
+}
+
 TEST(OptimizationJIT, NeedActiveVarsContext) {
   using namespace current::expression;
 
