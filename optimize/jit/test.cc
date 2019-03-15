@@ -244,6 +244,26 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
   EXPECT_EQ(4, fc(jit_call_context, {100.0}));
 }
 
+TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
+  using namespace current::expression;
+
+  VarsContext context;
+
+  x["t"] = 0.0;
+  value_t const r = x["t"] - sqrt(2.0) + 1.0;
+
+  jit::JITCallContext jit_call_context;
+  jit::Function const f = jit::JITCompiler(jit_call_context).Compile(r);
+
+  VarsMapper input(jit_call_context.Config());
+
+  // Should be exactly one, as a machine-imperfect `sqrt(2.0)` is being subtracted from the very same value.
+  EXPECT_EQ(1.0, f(jit_call_context, {sqrt(2.0)}));
+
+  // Should be the exact value again.
+  EXPECT_EQ(0.0 - sqrt(2.0) + 1.0, f(jit_call_context, {0.0}));
+}
+
 TEST(OptimizationJIT, NeedActiveVarsContext) {
   using namespace current::expression;
 
