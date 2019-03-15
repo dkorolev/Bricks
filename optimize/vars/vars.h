@@ -77,6 +77,7 @@ struct VarsMapperException : OptimizeException {};
 struct VarsMapperWrongVarException final : VarsMapperException {};
 struct VarsMapperNodeNotVarException final : VarsMapperException {};
 struct VarsMapperVarIsConstant final : VarsMapperException {};
+struct VarsMapperMovePointDimensionsMismatchException final : VarsMapperException {};
 
 namespace json {
 // Short names to save on space in these JSONs.
@@ -222,6 +223,15 @@ class VarsMapper final {
   VarsMapperConfig const& Config() const { return config_; }
   AccessorNode operator[](size_t i) const { return root_[i]; }
   AccessorNode operator[](std::string const& s) const { return root_[s]; }
+
+  void MovePoint(double const* ram, std::vector<size_t> const& direction_indexes, double step_size) {
+    if (direction_indexes.size() != value_.size()) {
+      CURRENT_THROW(VarsMapperMovePointDimensionsMismatchException());
+    }
+    for (size_t i = 0; i < direction_indexes.size(); ++i) {
+      value_[i] += ram[direction_indexes[i]] * step_size;
+    }
+  }
 };
 
 class VarsContextInterface {

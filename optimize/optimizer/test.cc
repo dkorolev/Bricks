@@ -57,7 +57,11 @@ TEST(OptimizationOptimizerLineSearch, QuadraticFunction) {
       0.0,
       optimization_context.compiled_l(optimization_context.jit_call_context, optimization_context.vars_mapper.x, -0.5));
 
-  // TODO(dkorolev): Actually move the point and test its value to be the optimal one, in this case, `3.0`.
+  EXPECT_EQ("[0.0]", JSON(optimization_context.CurrentPoint()));
+  EXPECT_EQ(9.0, optimization_context.ComputeCurrentObjectiveFunctionValue());
+  optimization_context.MovePointAlongGradient(-0.5);
+  EXPECT_EQ("[3.0]", JSON(optimization_context.CurrentPoint()));
+  EXPECT_EQ(0.0, optimization_context.ComputeCurrentObjectiveFunctionValue());
 }
 
 #endif  // FNCAS_X64_NATIVE_JIT_ENABLED

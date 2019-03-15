@@ -135,6 +135,8 @@ class JITCallContext final {
           std::max(next_legal_function_index_to_compute_, current_function_index + 1u);
     }
   }
+
+  double const* ConstRAMPointer() const { return &ram_[0]; }
 };
 
 class FunctionImpl final {
