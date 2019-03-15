@@ -41,21 +41,18 @@ SOFTWARE.
 
 namespace current {
 namespace expression {
+
+struct FunctionInvokedBeforeItsPrerequisitesException final : OptimizeException {};
+
 namespace jit {
 
 static_assert(sizeof(double) == 8u, "The System V JIT is designed for 8-byte `double`-s.");
 
-struct JITFunctionCallContextMismatchException final : OptimizeException {
-  using OptimizeException::OptimizeException;
-};
+struct JITFunctionCallContextMismatchException final : OptimizeException {};
 
-struct JITNotEnoughExtraNodesAllocatedInJITCallContext final : OptimizeException {
-  using OptimizeException::OptimizeException;
-};
+struct JITNotEnoughExtraNodesAllocatedInJITCallContext final : OptimizeException {};
 
-struct JITInternalErrorException final : OptimizeException {
-  using OptimizeException::OptimizeException;
-};
+struct JITInternalErrorException final : OptimizeException {};
 
 struct JITCallContextFunctionPointers {
   std::vector<double (*)(double x)> fns;
@@ -102,6 +99,9 @@ class JITCallContext final {
 
   double* RAMPointer() const { return &ram_[0]; }
 
+  size_t functions_declared_ = 0u;
+  mutable size_t next_legal_function_index_to_compute_ = 0u;
+
  public:
   // Allocate an extra one `double` so that an external parameter could be passed in it,
   // to later intoduce functions of one variable, i.e. for directional derivatives.
@@ -118,11 +118,29 @@ class JITCallContext final {
   }
 
   VarsMapperConfig const& Config() const { return config_; }
+
+  // The `MarkNewPoint()` mechanism is the means to guard against the situation where the functions compiler later
+  // within the same context are called on a new input point before the previous functions have been called.
+  // Since, when declared within one JIT context, the later-compiled functions can and do re-use the previously computed
+  // nodes from the previously called functions, on a new input point calling compiled-later functions before the
+  // compiler-earlier ones may (and will!) result in unexpected results.
+  void MarkNewPoint() { next_legal_function_index_to_compute_ = 0; }
+  size_t CurrentFunctionIndexAndPostIncrementIt() { return functions_declared_++; }
+  void MarkFunctionComputedOrThrowIfPrerequisitesNotMet(size_t current_function_index) const {
+    if (current_function_index > next_legal_function_index_to_compute_) {
+      // Effectively, the user has to "climb this ladder" of computed functions step by step, one function at a time.
+      CURRENT_THROW(FunctionInvokedBeforeItsPrerequisitesException());
+    } else {
+      next_legal_function_index_to_compute_ =
+          std::max(next_legal_function_index_to_compute_, current_function_index + 1u);
+    }
+  }
 };
 
 class FunctionImpl final {
  private:
   JITCallContext const& call_context_;
+  size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
 
   FunctionImpl(FunctionImpl const&) = delete;
@@ -131,12 +149,16 @@ class FunctionImpl final {
   FunctionImpl& operator=(FunctionImpl&&) = delete;
 
  public:
-  FunctionImpl(JITCallContext const& call_context, std::vector<uint8_t> code) : call_context_(call_context), f_(code) {}
+  FunctionImpl(JITCallContext& call_context, std::vector<uint8_t> code)
+      : call_context_(call_context),
+        this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
+        f_(code) {}
 
   double CallFunction(JITCallContext const& call_context, double const* x) const {
     if (&call_context != &call_context_) {
       CURRENT_THROW(JITFunctionCallContextMismatchException());
     }
+    call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
     return f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
   }
 };
@@ -146,7 +168,7 @@ class Function final {
   std::unique_ptr<FunctionImpl> f_;
 
   friend class JITCompiler;
-  Function(JITCallContext const& call_context, std::vector<uint8_t> code)
+  Function(JITCallContext& call_context, std::vector<uint8_t> code)
       : f_(std::make_unique<FunctionImpl>(call_context, code)) {}
 
  public:
@@ -164,6 +186,7 @@ class Function final {
 class FunctionReturningVectorImpl final {
  private:
   JITCallContext const& call_context_;
+  size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
   std::vector<expression_node_index_t> const output_node_indexes_;
 
@@ -173,15 +196,19 @@ class FunctionReturningVectorImpl final {
   FunctionReturningVectorImpl& operator=(FunctionReturningVectorImpl&&) = delete;
 
  public:
-  FunctionReturningVectorImpl(JITCallContext const& call_context,
+  FunctionReturningVectorImpl(JITCallContext& call_context,
                               std::vector<uint8_t> code,
                               std::vector<expression_node_index_t> output_node_indexes)
-      : call_context_(call_context), f_(code), output_node_indexes_(std::move(output_node_indexes)) {}
+      : call_context_(call_context),
+        this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
+        f_(code),
+        output_node_indexes_(std::move(output_node_indexes)) {}
 
   std::vector<double> CallFunction(JITCallContext const& call_context, double const* x) const {
     if (&call_context != &call_context_) {
       CURRENT_THROW(JITFunctionCallContextMismatchException());
     }
+    call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
     std::vector<double> result(output_node_indexes_.size());
     f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
     for (size_t i = 0; i < output_node_indexes_.size(); ++i) {
@@ -201,7 +228,7 @@ class FunctionReturningVector final {
   std::unique_ptr<FunctionReturningVectorImpl> f_;
 
   friend class JITCompiler;
-  FunctionReturningVector(JITCallContext const& call_context,
+  FunctionReturningVector(JITCallContext& call_context,
                           std::vector<uint8_t> code,
                           std::vector<expression_node_index_t> output_node_indexes)
       : f_(std::make_unique<FunctionReturningVectorImpl>(call_context, code, std::move(output_node_indexes))) {}
@@ -221,6 +248,7 @@ class FunctionReturningVector final {
 class FunctionWithArgumentImpl final {
  private:
   JITCallContext const& call_context_;
+  size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
 
   FunctionWithArgumentImpl(FunctionWithArgumentImpl const&) = delete;
@@ -229,13 +257,16 @@ class FunctionWithArgumentImpl final {
   FunctionWithArgumentImpl& operator=(FunctionWithArgumentImpl&&) = delete;
 
  public:
-  FunctionWithArgumentImpl(JITCallContext const& call_context, std::vector<uint8_t> code)
-      : call_context_(call_context), f_(code) {}
+  FunctionWithArgumentImpl(JITCallContext& call_context, std::vector<uint8_t> code)
+      : call_context_(call_context),
+        this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
+        f_(code) {}
 
   double CallFunction(JITCallContext const& call_context, double const* x, double p) const {
     if (&call_context != &call_context_) {
       CURRENT_THROW(JITFunctionCallContextMismatchException());
     }
+    call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
     call_context_.RAMPointer()[call_context_.config_.total_nodes] = p;
     return f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
   }
@@ -246,7 +277,7 @@ class FunctionWithArgument final {
   std::unique_ptr<FunctionWithArgumentImpl> f_;
 
   friend class JITCompiler;
-  FunctionWithArgument(JITCallContext const& call_context, std::vector<uint8_t> code)
+  FunctionWithArgument(JITCallContext& call_context, std::vector<uint8_t> code)
       : f_(std::make_unique<FunctionWithArgumentImpl>(call_context, code)) {}
 
  public:
@@ -263,7 +294,7 @@ class FunctionWithArgument final {
 
 class JITCompiler final {
  private:
-  JITCallContext const& context_;
+  JITCallContext& context_;
   std::vector<bool> node_computed_;
 
   void EnsureNodeComputed(std::vector<uint8_t>& code, expression_node_index_t index) {
@@ -335,8 +366,7 @@ class JITCompiler final {
   }
 
  public:
-  explicit JITCompiler(JITCallContext const& context)
-      : context_(context), node_computed_(context_.Config().total_nodes) {
+  explicit JITCompiler(JITCallContext& context) : context_(context), node_computed_(context_.Config().total_nodes) {
     // Throw if a thread-local vars manager is not available at the moment of constructing the `JITCompiler`.
     VarsManager::TLS().Active();
   }

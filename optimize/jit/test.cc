@@ -242,6 +242,23 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
   // because `a`, which is equal to `x["p"]`, remains cached as `1`.
   EXPECT_EQ(2, fb(jit_call_context, {100.0}));
   EXPECT_EQ(4, fc(jit_call_context, {100.0}));
+
+  // If the extra safety measure of `jit_call_context.MarkNewPoint()` is used, the above logical "flaw" will throw.
+  jit_call_context.MarkNewPoint();
+  EXPECT_EQ(0, fa(jit_call_context, {0.0}));
+  EXPECT_EQ(1, fb(jit_call_context, {0.0}));
+  EXPECT_EQ(3, fc(jit_call_context, {0.0}));
+  jit_call_context.MarkNewPoint();
+  EXPECT_EQ(1, fa(jit_call_context, {1.0}));
+  EXPECT_EQ(2, fb(jit_call_context, {1.0}));
+  EXPECT_EQ(4, fc(jit_call_context, {1.0}));
+  jit_call_context.MarkNewPoint();
+  EXPECT_THROW(fb(jit_call_context, {100.0}), FunctionInvokedBeforeItsPrerequisitesException);
+  EXPECT_THROW(fc(jit_call_context, {100.0}), FunctionInvokedBeforeItsPrerequisitesException);
+  jit_call_context.MarkNewPoint();
+  EXPECT_EQ(100, fa(jit_call_context, {100.0}));
+  EXPECT_EQ(101, fb(jit_call_context, {100.0}));
+  EXPECT_EQ(103, fc(jit_call_context, {100.0}));
 }
 
 TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
