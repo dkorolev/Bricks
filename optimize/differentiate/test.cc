@@ -357,11 +357,12 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   value_t const d3 = DifferentiateByLambda(d2);
 
   jit::JITCallContext ctx;
-  jit::Function const compiled_f = jit::JITCompiler(ctx).Compile(f);
-  jit::FunctionReturningVector const compiled_g = jit::JITCompiler(ctx).Compile(g);
-  jit::FunctionWithArgument const compiled_d1 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d1);
-  jit::FunctionWithArgument const compiled_d2 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d2);
-  jit::FunctionWithArgument const compiled_d3 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d3);
+  jit::JITCompiler compiler(ctx);
+  jit::Function const compiled_f = compiler.Compile(f);
+  jit::FunctionReturningVector const compiled_g = compiler.Compile(g);
+  jit::FunctionWithArgument const compiled_d1 = compiler.CompileFunctionWithArgument(d1);
+  jit::FunctionWithArgument const compiled_d2 = compiler.CompileFunctionWithArgument(d2);
+  jit::FunctionWithArgument const compiled_d3 = compiler.CompileFunctionWithArgument(d3);
 
   // Everything is zero at `f(2,4)`, as it is the minumum.
   EXPECT_EQ(0.0, compiled_f(ctx, {2.0, 4.0}));
@@ -396,8 +397,8 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   // Now, the above should work for any starting point, given the function being tested is of order two.
   {
     p = {1.5, 3.5};
-    // NOTE(dkorolev), TODO(dkorolev): THIS IS FIXME, by means of using the same instance of a JIT compiler for all fs.
-    // compiled_g(ctx, p); -- Should not work w/o it, as some nodes are not computed. -- D.K.
+    compiled_f(ctx, p);
+    compiled_g(ctx, p);
     EXPECT_EQ(2, compiled_d1(ctx, p, 0.0));
     EXPECT_EQ(4, compiled_d2(ctx, p, 0.0));
     EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
@@ -414,8 +415,8 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   // And step size will always be 0.5.
   {
     p = {-9.25, 17.75};
-    // NOTE(dkorolev), TODO(dkorolev): THIS IS FIXME, by means of using the same instance of a JIT compiler for all fs.
-    // compiled_g(ctx, p); -- Should not work w/o it, as some nodes are not computed. -- D.K.
+    compiled_f(ctx, p);
+    compiled_g(ctx, p);
     EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
     EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
     EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
@@ -428,8 +429,8 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   }
   {
     p = {131.75, +293.25};
-    // NOTE(dkorolev), TODO(dkorolev): THIS IS FIXME, by means of using the same instance of a JIT compiler for all fs.
-    // compiled_g(ctx, p); -- Should not work w/o it, as some nodes are not computed. -- D.K.
+    compiled_f(ctx, p);
+    compiled_g(ctx, p);
     EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
     EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
     EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
