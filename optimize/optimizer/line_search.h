@@ -35,6 +35,74 @@ SOFTWARE.
 
 #ifdef FNCAS_X64_NATIVE_JIT_ENABLED
 
+// The optimization direction is minimization.
+// The line search is the crucial component of the optimizer. Here's how it is designed.
+//
+// First and foremost:
+//
+// * In order for the line search to begin, the 1D function, `f(lambda)`, has to be provided.
+//
+//   When running the unit tests this function can be synthetic. In multidimensional optimization,
+//   this `f(lambda)` function is generally a step of `lambda` along the direction of the gradient.
+//   So, `lambda` will be negative, because the cost function is being minimized.
+//
+// * At least one derivative of `f(lambda)` must be provided (and JIT-compiled).
+//
+//   In practice, the line search is not looking for the minimum of the function, but for the zero of its derivative.
+//   Hence, while higher-order derivatives are nice-to-have-s, the first one is a must-have.
+//
+// * Generally, the line search consists of two steps:
+//
+//   a) Finding the valid range to look for the zero of the first derivative, and
+//   b) Finding the zero of the first derivative in this range.
+//
+//   The valid range is simply the range what has the derivatives of different signs on the ends.
+//   It is also important that the value of the derivative and the function is normal (non-NaN) on them.
+//
+//   Finding the zero in the above range can be thought of as simple binary search, although various heuristics,
+//   such as Newton's method or higher-order approximations, are be used.
+//
+// Finding the valid range.
+//
+// Down the text the term "left" is referred to the absolute smaller value of the step size, the term "right" refers
+// to the larger absolute value. The step sizes along the gradient are themselves negative, so the order is flipped.
+//
+// Finding the valid range starts at zero. All the provided derivatives are computed; it is expected that if the user
+// would not want all of them to be used, they would provide fewer compiled derivatives to begin with.
+//
+// The cost function is then approximated with the Maclaurin series, and the zero is searched via it. Since this series
+// is low-dimensional and generally very quick to compute, and since the within-range search is used later, approximate
+// means to find that zero are used.
+//
+// If the Maclaurin series doesn't have a zero in the negative direction of the gradient, the highest order derivative
+// is nullified and the process is tried again. Once all the derivatives have been rules out (i.e., if all of them are
+// negative), the fallback algorithm is the simple exponential increase in step size, starting from a very small step.
+//
+// If the Maclaurin series approach suggests certain step size, the function and its derivative are evaluated at it.
+// If the sign of the derivative at that point is different from the sign of the derivative at zero, then the desired
+// range is found. If the sign is the same, first of all, 2x, 4x, and 8x this step are tried. If all of them fail,
+// the very search continues from that 8x point, which happens up to three times, after which the function is declared
+// to not have a minimum. As an extra check, along with comparing the derivatives, the values are being compared. If
+// they are increasing, while the derivative suggest they should decrease, then we are dealing with an ill-formed
+// function, which warrants an exception.
+//
+// If at any of the above steps the function or its derivative are NaN, the fallback algorithm is the binary search.
+//
+// Finding the zero in the valid range.
+//
+// The general approach is to keep shrinking the range. If only one derivative is provided, which is the bare minimum
+// required, then the solution is to iteratively bisect the range by the point that is proportionally closer to one of
+// its ends based on the absolute value of the derivative (keep in mind the derivatives have different signs on the
+// ends of the range). In other words, the derivative is approximated by a linear function on each iteration. If more
+// than one derivative is provided, at most one extra one is used. So, instead of two datapoints, the values of the
+// derivative at both ends of the range, there are four datapoints: two values of the derivative and two values of the
+// derivative of the derivative. The curve of the derivative in the range is then approximated by a fourth order one,
+// and its zero is found. Again, as this approximation is very fast to compute, its zero can be found approximately,
+// using the numerical method.
+//
+// If on any step of within-range search the value of the function or its derivative is NaN, the function is declared
+// malformed, and an exception is thrown.
+
 namespace current {
 namespace expression {
 
