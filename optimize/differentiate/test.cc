@@ -350,87 +350,94 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   VarsMapperConfig const config = vars_context.ReindexVars();
 
   std::vector<value_t> const g = ComputeGradient(f);
-  value_t const f_1d = GenerateLineSearchFunction(config, f, g);
+  value_t const l = GenerateLineSearchFunction(config, f, g);
 
-  value_t const d1 = DifferentiateByLambda(f_1d);
+  value_t const d1 = DifferentiateByLambda(l);
   value_t const d2 = DifferentiateByLambda(d1);
   value_t const d3 = DifferentiateByLambda(d2);
 
   jit::JITCallContext ctx;
-  jit::Function const ff = jit::JITCompiler(ctx).Compile(f);
-  jit::FunctionReturningVector const fg = jit::JITCompiler(ctx).Compile(g);
-  jit::FunctionWithArgument const fd1 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d1);
-  jit::FunctionWithArgument const fd2 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d2);
-  jit::FunctionWithArgument const fd3 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d3);
+  jit::Function const compiled_f = jit::JITCompiler(ctx).Compile(f);
+  jit::FunctionReturningVector const compiled_g = jit::JITCompiler(ctx).Compile(g);
+  jit::FunctionWithArgument const compiled_d1 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d1);
+  jit::FunctionWithArgument const compiled_d2 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d2);
+  jit::FunctionWithArgument const compiled_d3 = jit::JITCompiler(ctx).CompileFunctionWithArgument(d3);
 
-  // Everything is zero at `f(2,4)`.
-  EXPECT_EQ(0.0, ff(ctx, {2.0, 4.0}));
-  EXPECT_EQ("[0.0,0.0]", JSON(fg(ctx, {2.0, 4.0})));
-  EXPECT_EQ(0.0, fd1(ctx, {2.0, 4.0}, 0.0));
-  EXPECT_EQ(0.0, fd2(ctx, {2.0, 4.0}, 0.0));
-  EXPECT_EQ(0.0, fd3(ctx, {2.0, 4.0}, 0.0));
+  // Everything is zero at `f(2,4)`, as it is the minumum.
+  EXPECT_EQ(0.0, compiled_f(ctx, {2.0, 4.0}));
+  EXPECT_EQ("[0.0,0.0]", JSON(compiled_g(ctx, {2.0, 4.0})));
+  EXPECT_EQ(0.0, compiled_d1(ctx, {2.0, 4.0}, 0.0));
+  EXPECT_EQ(0.0, compiled_d2(ctx, {2.0, 4.0}, 0.0));
+  EXPECT_EQ(0.0, compiled_d3(ctx, {2.0, 4.0}, 0.0));
 
   // A step towards the minimum is required from `{1,1}`.
   std::vector<double> p({1.0, 1.0});
-  EXPECT_EQ(10.0, ff(ctx, p));
-  EXPECT_EQ("[-2.0,-6.0]", JSON(fg(ctx, p)));
-  EXPECT_EQ(40.0, fd1(ctx, p, 0.0));
+  EXPECT_EQ(10.0, compiled_f(ctx, p));
+  EXPECT_EQ("[-2.0,-6.0]", JSON(compiled_g(ctx, p)));
+  EXPECT_EQ(40.0, compiled_d1(ctx, p, 0.0));
 
-  EXPECT_EQ(80.0, fd2(ctx, p, 0.0));  // The 2nd derivative by lambda is a constant, as the function is quadratic.
-  EXPECT_EQ(80.0, fd2(ctx, p, -1.0));
-  EXPECT_EQ(80.0, fd2(ctx, p, +1.0));
-  EXPECT_EQ(80.0, fd2(ctx, p, -5.0));
-  EXPECT_EQ(80.0, fd2(ctx, p, +5.0));
+  EXPECT_EQ(80.0,
+            compiled_d2(ctx, p, 0.0));  // The 2nd derivative by lambda is a constant, as the function is quadratic.
+  EXPECT_EQ(80.0, compiled_d2(ctx, p, -1.0));
+  EXPECT_EQ(80.0, compiled_d2(ctx, p, +1.0));
+  EXPECT_EQ(80.0, compiled_d2(ctx, p, -5.0));
+  EXPECT_EQ(80.0, compiled_d2(ctx, p, +5.0));
 
-  EXPECT_EQ(0.0, fd3(ctx, p, 0.0));  // The 3rd derivative by lambda is zero, as the function is quadratic.
-  EXPECT_EQ(0.0, fd3(ctx, p, -1.0));
-  EXPECT_EQ(0.0, fd3(ctx, p, +1.0));
-  EXPECT_EQ(0.0, fd3(ctx, p, -5.0));
-  EXPECT_EQ(0.0, fd3(ctx, p, +5.0));
+  EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));  // The 3rd derivative by lambda is zero, as the function is quadratic.
+  EXPECT_EQ(0.0, compiled_d3(ctx, p, -1.0));
+  EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
+  EXPECT_EQ(0.0, compiled_d3(ctx, p, -5.0));
+  EXPECT_EQ(0.0, compiled_d3(ctx, p, +5.0));
 
   // Effectively, as the function is quadratic, making a step of `lambda = -f_lambda'(x)/f_lambda''(x)` hits the min.
-  EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
-  EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
+  EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+  EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
 
   // Now, the above should work for any starting point, given the function being tested is of order two.
   {
     p = {1.5, 3.5};
-    EXPECT_EQ(2, fd1(ctx, p, 0.0));
-    EXPECT_EQ(4, fd2(ctx, p, 0.0));
-    EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
-    EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -1.0));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +1.0));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -5.0));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +5.0));
-    EXPECT_EQ(0.0, fd3(ctx, p, 0.0));
-    EXPECT_EQ(0.0, fd3(ctx, p, -1.0));
-    EXPECT_EQ(0.0, fd3(ctx, p, +1.0));
+    // NOTE(dkorolev), TODO(dkorolev): THIS IS FIXME, by means of using the same instance of a JIT compiler for all fs.
+    // compiled_g(ctx, p); -- Should not work w/o it, as some nodes are not computed. -- D.K.
+    EXPECT_EQ(2, compiled_d1(ctx, p, 0.0));
+    EXPECT_EQ(4, compiled_d2(ctx, p, 0.0));
+    EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+    EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +1.0));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -5.0));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +5.0));
+    EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));
+    EXPECT_EQ(0.0, compiled_d3(ctx, p, -1.0));
+    EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
   }
 
   // And step size will always be 0.5.
   {
     p = {-9.25, 17.75};
-    EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
-    EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -1.0));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +1.0));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -5.0));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +5.0));
-    EXPECT_EQ(0.0, fd3(ctx, p, 0.0));
-    EXPECT_EQ(0.0, fd3(ctx, p, -1.0));
-    EXPECT_EQ(0.0, fd3(ctx, p, +1.0));
+    // NOTE(dkorolev), TODO(dkorolev): THIS IS FIXME, by means of using the same instance of a JIT compiler for all fs.
+    // compiled_g(ctx, p); -- Should not work w/o it, as some nodes are not computed. -- D.K.
+    EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+    EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +1.0));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -5.0));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +5.0));
+    EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));
+    EXPECT_EQ(0.0, compiled_d3(ctx, p, -1.0));
+    EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
   }
   {
     p = {131.75, +293.25};
-    EXPECT_EQ(0.5, fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0));
-    EXPECT_EQ(0.0, fd1(ctx, p, -(fd1(ctx, p, 0.0) / fd2(ctx, p, 0.0))));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -1.0));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +1.0));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, -5.0));
-    EXPECT_EQ(fd2(ctx, p, 0.0), fd2(ctx, p, +5.0));
-    EXPECT_EQ(0.0, fd3(ctx, p, 0.0));
-    EXPECT_EQ(0.0, fd3(ctx, p, -1.0));
-    EXPECT_EQ(0.0, fd3(ctx, p, +1.0));
+    // NOTE(dkorolev), TODO(dkorolev): THIS IS FIXME, by means of using the same instance of a JIT compiler for all fs.
+    // compiled_g(ctx, p); -- Should not work w/o it, as some nodes are not computed. -- D.K.
+    EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+    EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +1.0));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -5.0));
+    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +5.0));
+    EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));
+    EXPECT_EQ(0.0, compiled_d3(ctx, p, -1.0));
+    EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
   }
 }
