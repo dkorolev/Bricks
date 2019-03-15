@@ -35,40 +35,29 @@ TEST(OptimizationOptimizerLineSearch, QuadraticFunction) {
   VarsContext vars_context;
 
   x[0] = 0.0;
+
   value_t const f = sqr(x[0] - 3.0);
 
-  VarsMapperConfig const config = vars_context.ReindexVars();
-  VarsMapper vars_mapper(config);
+  OptimizationContext optimization_context(vars_context, f);
+  LineSearchContext const line_search_context(optimization_context);
 
-  std::vector<value_t> const g = ComputeGradient(f);
-  value_t const l = GenerateLineSearchFunction(config, f, g);
+  // The function and its gradient must be computed prior to the line search being invoked, in order for the internal
+  // `jit_call_context` nodes to be properly initialized. In the case of multidimensional gradient descent optimization
+  // this will happen organically, as no line search begins w/o computing the gradient (and computing the function is
+  // the prerequisite for computing the gradient). In the case of explicitly testing the 1D optimizer, the compuatation
+  // of both the function and the gradient must be invoked manually beforehand, for each starting point.
+  optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_mapper.x);
+  optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_mapper.x);
 
-  value_t const d1 = DifferentiateByLambda(l);
-  value_t const d2 = DifferentiateByLambda(d1);
-  value_t const d3 = DifferentiateByLambda(d2);
-
-  jit::JITCallContext jit_call_context;
-  jit::JITCompiler compiler(jit_call_context);
-  jit::Function const compiled_f = compiler.Compile(f);
-  jit::FunctionReturningVector const compiled_g = compiler.Compile(g);
-  jit::FunctionWithArgument const compiled_l = compiler.CompileFunctionWithArgument(d1);
-  jit::FunctionWithArgument const compiled_d1 = compiler.CompileFunctionWithArgument(d1);
-  jit::FunctionWithArgument const compiled_d2 = compiler.CompileFunctionWithArgument(d2);
-  jit::FunctionWithArgument const compiled_d3 = compiler.CompileFunctionWithArgument(d3);
-  std::vector<jit::FunctionWithArgument const*> const compiled_ds({&compiled_d2, &compiled_d3});
-
-  // NOTE(dkorolev): IMPORTANT: The function and its gradient should be computed prior to the line search being invoked,
-  // in order for the internal `jit_call_context` nodes to be properly initialized.
-  compiled_f(jit_call_context, vars_mapper.x);
-  compiled_g(jit_call_context, vars_mapper.x);
-
-  LineSearchContext const line_search_context(jit_call_context, vars_mapper, compiled_l, compiled_d1, compiled_ds);
-
-  // In case of the quadratic function, see the `../differentiate/test.cc` test, the first and best step is `-0.5`.
+  // In case of the quadratic function, see `../differentiate/test.cc`, the first and best step is always  `-0.5`.
   EXPECT_EQ(-0.5, LineSearch(line_search_context));
 
   // This step should take the function to its optimum, which, in this case, is the minimum, equals to zero.
-  EXPECT_EQ(0.0, compiled_l(jit_call_context, vars_mapper.x, -0.5));
+  EXPECT_EQ(
+      0.0,
+      optimization_context.compiled_l(optimization_context.jit_call_context, optimization_context.vars_mapper.x, -0.5));
+
+  // TODO(dkorolev): Actually move the point and test its value to be the optimal one, in this case, `3.0`.
 }
 
 #endif  // FNCAS_X64_NATIVE_JIT_ENABLED
