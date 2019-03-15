@@ -35,21 +35,49 @@ SOFTWARE.
 
 namespace current {
 namespace expression {
+
+struct OptimizationException final : OptimizeException {
+  using OptimizeException::OptimizeException;
+};
+
 namespace optimizer {
 
-inline double LineSearch(jit::JITCallContext const& jit_call_context,
-                         VarsMapper& vars_mapper,
-                         jit::FunctionWithArgument const& f,
-                         jit::FunctionWithArgument const& d,
-                         std::vector<jit::FunctionWithArgument const*> const& more_ds) {
-  // NOTE(dkorolev): IMPORTANT: The value of the one-dimensional function should be computed at zero prior to computing
-  //                            the derivatives, in order for the internal `jit_call_contex` nodes to be initialized.
-  double const value_at_0 = f(jit_call_context, vars_mapper.x, 0.0);
-  static_cast<void>(value_at_0);
-  double const derivative_at_0 = d(jit_call_context, vars_mapper.x, 0.0);
-  double const second_derivative_at_0 = (*more_ds[0])(jit_call_context, vars_mapper.x, 0.0);
-  return -(derivative_at_0 / second_derivative_at_0);
-}
+class LineSearchContext final {
+ private:
+  friend class LineSearchImpl;
+
+  jit::JITCallContext const& jit_call_context;
+  VarsMapper const& vars_mapper;
+  jit::FunctionWithArgument const& f;
+  jit::FunctionWithArgument const& d;
+  std::vector<jit::FunctionWithArgument const*> const& more_ds;
+
+ public:
+  LineSearchContext(jit::JITCallContext const& jit_call_context,
+                    VarsMapper const& vars_mapper,
+                    jit::FunctionWithArgument const& f,
+                    jit::FunctionWithArgument const& d,
+                    std::vector<jit::FunctionWithArgument const*> const& more_ds)
+      : jit_call_context(jit_call_context), vars_mapper(vars_mapper), f(f), d(d), more_ds(more_ds) {}
+};
+
+class LineSearchImpl final {
+ public:
+  static double DoLineSearch(LineSearchContext const& self) {
+    // NOTE(dkorolev): IMPORTANT: The value of the one-dimensional function should be computed at zero prior to
+    // computing the derivatives, in order for the internal `jit_call_context` nodes to be initialized.
+    double const value_at_0 = self.f(self.jit_call_context, self.vars_mapper.x, 0.0);
+    static_cast<void>(value_at_0);
+    double const derivative_at_0 = self.d(self.jit_call_context, self.vars_mapper.x, 0.0);
+    if (derivative_at_0 < 0) {
+      CURRENT_THROW(OptimizationException("Line search should begin in the direction of the gradient."));
+    }
+    double const second_derivative_at_0 = (*self.more_ds[0])(self.jit_call_context, self.vars_mapper.x, 0.0);
+    return -(derivative_at_0 / second_derivative_at_0);
+  }
+};
+
+inline double LineSearch(LineSearchContext const& self) { return LineSearchImpl::DoLineSearch(self); }
 
 }  // namespace current::expression::optimizer
 }  // namespace current::expression

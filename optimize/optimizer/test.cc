@@ -55,16 +55,17 @@ TEST(OptimizationOptimizerLineSearch, QuadraticFunction) {
   jit::FunctionWithArgument const compiled_d1 = compiler.CompileFunctionWithArgument(d1);
   jit::FunctionWithArgument const compiled_d2 = compiler.CompileFunctionWithArgument(d2);
   jit::FunctionWithArgument const compiled_d3 = compiler.CompileFunctionWithArgument(d3);
+  std::vector<jit::FunctionWithArgument const*> const compiled_ds({&compiled_d2, &compiled_d3});
 
   // NOTE(dkorolev): IMPORTANT: The function and its gradient should be computed prior to the line search being invoked,
-  //                            in order for the internal `jit_call_contex` nodes to be properly initialized.
+  // in order for the internal `jit_call_context` nodes to be properly initialized.
   compiled_f(jit_call_context, vars_mapper.x);
   compiled_g(jit_call_context, vars_mapper.x);
 
-  std::vector<jit::FunctionWithArgument const*> const compiled_ds({&compiled_d2, &compiled_d3});
+  LineSearchContext const line_search_context(jit_call_context, vars_mapper, compiled_l, compiled_d1, compiled_ds);
 
   // In case of the quadratic function, see the `../differentiate/test.cc` test, the first and best step is `-0.5`.
-  EXPECT_EQ(-0.5, LineSearch(jit_call_context, vars_mapper, compiled_l, compiled_d1, compiled_ds));
+  EXPECT_EQ(-0.5, LineSearch(line_search_context));
 
   // This step should take the function to its optimum, which, in this case, is the minimum, equals to zero.
   EXPECT_EQ(0.0, compiled_l(jit_call_context, vars_mapper.x, -0.5));

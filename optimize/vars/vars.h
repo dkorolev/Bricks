@@ -219,6 +219,7 @@ class VarsMapper final {
   std::vector<double> const& x;  // `x` is a const reference `value_`, for easy read-only access to dense vars.
   explicit VarsMapper(VarsMapperConfig config)
       : config_(config), value_(config.x0), root_(value_, config_.root), x(value_) {}
+  VarsMapperConfig const& Config() const { return config_; }
   AccessorNode operator[](size_t i) const { return root_[i]; }
   AccessorNode operator[](std::string const& s) const { return root_[s]; }
 };
