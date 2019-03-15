@@ -183,7 +183,7 @@ inline std::vector<value_t> ComputeGradient(value_t f) {
 // Given a function and the formulas for its gradient (actually, node indexes for them only),
 // generates a one-dimensional function `f(lambda)`, which is `f(x0 + lambda * gradient)`.
 inline value_t GenerateLineSearchFunction(VarsMapperConfig const& config, value_t f, std::vector<value_t> const& g) {
-  value_t const lambda = ExpressionNode::Lambda();
+  value_t const lambda = value_t::lambda();
   std::vector<value_t> substitute(config.name.size(), value_t::ConstructDefaultExpressionNode());
   for (size_t i = 0u; i < substitute.size(); ++i) {
     substitute[i] = ExpressionNode::FromIndex(~static_cast<expression_node_index_t>(i)) + lambda * g[i];

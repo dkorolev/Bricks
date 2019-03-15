@@ -306,7 +306,7 @@ TEST(OptimizationExpression, Lambda) {
 
   value_t const a = x[0];
   value_t const b = ExpressionNode::FromImmediateDouble(1.0);
-  value_t const c = ExpressionNode::Lambda();
+  value_t const c = value_t::lambda();
 
   EXPECT_EQ("x[0]", a.DebugAsString());
   EXPECT_EQ("1.000000", b.DebugAsString());
@@ -323,7 +323,7 @@ TEST(OptimizationExpression, LambdaFunctionGeneration) {
   x[1] = 0.0;
 
   value_t const f = x[0] + 2.0 * x[1];
-  value_t const lambda = ExpressionNode::Lambda();
+  value_t const lambda = value_t::lambda();
   std::vector<value_t> substitute({1.0 + 2.0 * lambda, 3.0 + 4.0 * lambda});
 
   VarsMapperConfig const vars_config = vars_context.ReindexVars();

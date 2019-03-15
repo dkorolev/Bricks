@@ -68,7 +68,7 @@ class ExpressionNode final {
                           VarsManager::TLS().Active().EmplaceExpressionNode(
                               ExpressionNodeTypeSelector<ExpressionNodeType::ImmediateDouble>(), x));
   }
-  static ExpressionNode Lambda() {
+  static ExpressionNode lambda() {
     return ExpressionNode(
         ConstructFromIndex(),
         VarsManager::TLS().Active().EmplaceExpressionNode(ExpressionNodeTypeSelector<ExpressionNodeType::Lambda>()));

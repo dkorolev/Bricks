@@ -186,7 +186,7 @@ TEST(OptimizationJIT, OtherMathFunctions) {
   EXPECT_EQ(tan(1.5), f(ctx, {1.5})[4]);
   EXPECT_EQ(sqr(1.5), f(ctx, {1.5})[5]);
   EXPECT_EQ(sqrt(1.5), f(ctx, {1.5})[6]);
-  EXPECT_EQ(asin(0.75), f(ctx, {0.75})[7]);
+  EXPECT_EQ(asin(0.75), f(ctx, {0.75})[7]);  // Obviously, no `1.5` input for asin/acos.
   EXPECT_EQ(acos(0.75), f(ctx, {0.75})[8]);
   EXPECT_EQ(atan(1.5), f(ctx, {1.5})[9]);
   EXPECT_EQ(unit_step(1.5), f(ctx, {1.5})[10]);
@@ -246,7 +246,7 @@ TEST(OptimizationJIT, FunctionWithArgument) {
   VarsContext context;
 
   x["a"] = 0.0;
-  value_t const lambda = ExpressionNode::Lambda();
+  value_t const lambda = value_t::lambda();
   value_t const formula = x["a"] + lambda;
 
   jit::JITCallContext jit_call_context;
@@ -265,7 +265,7 @@ TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
   using namespace current::expression;
 
   VarsContext context;
-  value_t const lambda = ExpressionNode::Lambda();
+  value_t const lambda = value_t::lambda();
 
   jit::JITCallContext jit_call_context;
   jit::JITCompiler code_generator(jit_call_context);
