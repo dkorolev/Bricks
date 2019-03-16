@@ -25,8 +25,8 @@ SOFTWARE.
 #ifndef OPTIMIZE_OPTIMIZER_LINE_SEARCH_LINE_SEARCH_H
 #define OPTIMIZE_OPTIMIZER_LINE_SEARCH_LINE_SEARCH_H
 
-#include "../optimizer_base.h"
 #include "../context.h"
+#include "../optimizer_base.h"
 
 #include "../../base.h"
 #include "../../differentiate/differentiate.h"
