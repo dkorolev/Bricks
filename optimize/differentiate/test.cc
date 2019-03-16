@@ -344,7 +344,7 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   x[0] = 0.0;
   x[1] = 0.0;
 
-  // This is a function of order two (quadratic), with a minimum of `f(2,4) = 0`.
+  // This is a function of order two, with a minimum of `f(2,4) = 0`.
   value_t const f = sqr(x[0] - 2.0) + sqr(x[1] - 4.0);
 
   VarsMapperConfig const config = vars_context.ReindexVars();
@@ -382,26 +382,26 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   EXPECT_EQ(40.0, compiled_d1(ctx, p, 0.0));
 
   EXPECT_EQ(80.0,
-            compiled_d2(ctx, p, 0.0));  // The 2nd derivative by lambda is a constant, as the function is quadratic.
+            compiled_d2(ctx, p, 0.0));  // The 2nd derivative by lambda is a constant, as the function is of oder two.
   EXPECT_EQ(80.0, compiled_d2(ctx, p, -1.0));
   EXPECT_EQ(80.0, compiled_d2(ctx, p, +1.0));
   EXPECT_EQ(80.0, compiled_d2(ctx, p, -5.0));
   EXPECT_EQ(80.0, compiled_d2(ctx, p, +5.0));
 
-  EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));  // The 3rd derivative by lambda is zero, as the function is quadratic.
+  EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));  // The 3rd derivative by lambda is zero, as the function is of order two.
   EXPECT_EQ(0.0, compiled_d3(ctx, p, -1.0));
   EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
   EXPECT_EQ(0.0, compiled_d3(ctx, p, -5.0));
   EXPECT_EQ(0.0, compiled_d3(ctx, p, +5.0));
 
-  // Effectively, as the function is quadratic, making a step of `lambda = -f_lambda'(x)/f_lambda''(x)` hits the min.
+  // Effectively, as the function is of order two, making a step of `lambda = -f_lambda'(x)/f_lambda''(x)` hits the min.
   EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
   double const step = -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
 
   // For the new value of lambda (step size, in this case), need to re-evalute `l` before `d1`.
-  // In this case of a quadratic function, the first step takes us to the minimum, which is zero.
+  // In this case of a function of order two, the first step takes us to the minimum, which is zero.
   EXPECT_EQ(0.0, compiled_l(ctx, p, step));
-  // The derivative is also zero, an it would be (approximately) zero even for the functions that are not quadratic.
+  // The derivative is also zero, an it would be (approximately) zero even for the functions that are not of order two.
   EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
 
   // Now, the above should work for any starting point, given the function being tested is of order two.

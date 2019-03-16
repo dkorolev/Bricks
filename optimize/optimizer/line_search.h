@@ -103,6 +103,8 @@ SOFTWARE.
 // If on any step of within-range search the value of the function or its derivative is NaN, the function is declared
 // malformed, and an exception is thrown.
 
+#define CURRENT_OPTIMIZE_PARANOID_CHECKS
+
 namespace current {
 namespace expression {
 
@@ -123,10 +125,51 @@ struct LineSearchResult {
   std::vector<char const*> comments;
 };
 
+inline bool IsNormal(double arg) { return (std::isnormal(arg) || arg == 0.0); }
+
+// A simple binary search with a few extra safety checks (that do not sacrifice performance).
+// Prerequisites: `a != b`, `f(a)` is true, `f(b)` is false.
+// Returns: `c` where `f(c)` is true.
+template <typename F>
+double BinarySearch(
+    double a, double b, F&& f, Optional<bool> ova = nullptr, Optional<bool> ovb = nullptr, size_t total_steps = 40) {
+  if (!IsNormal(a) || !IsNormal(b)) {
+    CURRENT_THROW(OptimizationException("BinarySearch(): must start from normal points."));
+  }
+  bool va = Exists(ova) ? Value(ova) : f(a);
+  if (!va) {
+    CURRENT_THROW(OptimizationException("BinarySearch(): must start from `a` where `f(a)` is true."));
+  }
+  bool vb = Exists(ovb) ? Value(ovb) : f(b);
+  if (vb) {
+    CURRENT_THROW(OptimizationException("BinarySearch(): must start from `b` where `f(b)` is false."));
+  }
+  for (size_t iteration = 0; iteration < total_steps; ++iteration) {
+    double c = a + 0.5 * (b - a);
+    if (!IsNormal(c)) {
+      CURRENT_THROW(OptimizationException("BinarySearch(): `c = 0.5 * (a + b)` is not normal; underflow?"));
+    }
+    if (!(a != c && b != c && ((c < a) != (c < b)))) {
+      CURRENT_THROW(OptimizationException("BinarySearch(): `c` not between `a` and `b`; underflow?"));
+    }
+    (f(c) ? a : b) = c;
+  }
+// A guaranteed invariant is that `f(returned_a)` is true.
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
+  if (!f(a)) {
+    CURRENT_THROW(OptimizationException("BinarySearch(): internal return value `f(a) == true` invariant error."));
+  }
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
+  return a;
+}
+
 class LineSearchImpl final {
  public:
   static LineSearchResult DoLineSearch(LineSearchContext const& self) {
     LineSearchResult result;
+
+    // TODO(dkorolev): The proper implementation will use more derivatives!
+    static_cast<void>(self.more_ds);
 
     // NOTE(dkorolev): IMPORTANT: To ensure all the values are valid, for each new step size the order of computations
     // should be: `l`, `d`, and then `ds`. This is to ensure the internal node values cache is kept valid all the time.
@@ -135,66 +178,181 @@ class LineSearchImpl final {
 
     result.path.push_back(LineSearchResult::IntermediatePoint{0.0, value_at_0, derivative_at_0});
 
-    if (derivative_at_0 < 0) {
-      CURRENT_THROW(OptimizationException("Line search should begin in the direction of the gradient."));
+    if (!IsNormal(value_at_0) || !IsNormal(derivative_at_0)) {
+      CURRENT_THROW(OptimizationException("Both f(l) and f'(l) must be normal at the staritng point of line search."));
     }
-    double const second_derivative_at_0 = (*self.more_ds[0])(self.jit_call_context, self.vars_mapper.x, 0.0);
-    // TODO(dkorolev): Need to look at the sign of the second derivative, and to compare it to zero.
-
-    double const step = -(derivative_at_0 / second_derivative_at_0);
-    double const value_at_step = self.l(self.jit_call_context, self.vars_mapper.x, step);
-    double const derivative_at_step = self.d(self.jit_call_context, self.vars_mapper.x, step);
-
-    result.path.push_back(LineSearchResult::IntermediatePoint{step, value_at_step, derivative_at_step});
-
-    // TODO(dkorolev): No bare `1e-6` here, introduce optimization parameters.
-    if (fabs(derivative_at_step) < 1e-6) {
-      result.comments.push_back("bingo");
-      result.best_step = step;
+    if (derivative_at_0 < 0) {
+      // Well, the gradient should point toward the direction of the function increasing.
+      CURRENT_THROW(OptimizationException("The derivative at the starting midpoint should ne non-negative."));
+    }
+    if (derivative_at_0 == 0) {
+      // We are at the minimum (or, in the terribly unlikely scenario, we are at the local maximum).
+      // Either there's no improvement along the gradient, or the gradient itself is zero.
+      // Return the starting point as the result of the optimization.
+      result.comments.push_back("the starting point is already an extremum");
+      result.best_step = 0.0;
       return result;
-    } else if (derivative_at_step < 0) {
-      result.comments.push_back("overshot");
-      double a = 0;
-      double va = derivative_at_0;
-      double b = step;
-      double vb = derivative_at_step;
+    }
 
-      double c;
+    // TODO(dkorolev): This should be a parameter.
+    double step = -std::pow(0.5, 22);
+    double value_at_step = self.l(self.jit_call_context, self.vars_mapper.x, step);
+    double derivative_at_step = self.d(self.jit_call_context, self.vars_mapper.x, step);
 
-      for (size_t iteration = 0; iteration < 10; ++iteration) {
-        double const k = va / (va - vb);
-        if (!(k > 0 && k < 1)) {
-          CURRENT_THROW(OptimizationException("The Newton method is failing, same signs at the ends, internal error."));
+    if (!IsNormal(value_at_step) || !IsNormal(derivative_at_step)) {
+      CURRENT_THROW(OptimizationException("Both f(l) and f'(l) must be normal at near-zero step of line search."));
+    }
+    if (derivative_at_step < 0) {
+      CURRENT_THROW(OptimizationException("Derivative at a near-zero step should ne non-negative."));
+    }
+
+    // Friendly reminder: As `step` is negative, the "left" and "right" are actually right and left.
+    double left_end_of_range = 0.0;
+    double value_at_left_end_of_range = value_at_0;  // The left end of the range only moves if the value improves.
+    double derivative_at_left_end_of_range = derivative_at_0;  // Invariant: This stays positive.
+    double right_end_of_range = step;
+    double value_at_right_end_of_range = value_at_step;
+    double derivative_at_right_end_of_range = derivative_at_step;
+
+    [&]() {
+      for (size_t top_level_iteration = 0; top_level_iteration < 100u; ++top_level_iteration) {
+        result.path.push_back(LineSearchResult::IntermediatePoint{step, value_at_step, derivative_at_step});
+
+        double new_step = step * 1.5;
+
+        // Friendly reminder: `new_step` is negative,
+        if (!IsNormal(new_step) || (step > 0 || new_step > 0) || (-new_step < -step)) {
+          CURRENT_THROW(OptimizationException("Internal error: wrong `new_step`. Overflow?"));
         }
-        c = a + (b - a) * k;
-        double const value_at_c = self.l(self.jit_call_context, self.vars_mapper.x, c);
-        double const derivative_at_c = self.d(self.jit_call_context, self.vars_mapper.x, c);
 
-        result.path.push_back(LineSearchResult::IntermediatePoint{c, value_at_c, derivative_at_c});
+        double const value_at_new_step = self.l(self.jit_call_context, self.vars_mapper.x, new_step);
+        double const derivative_at_new_step = self.d(self.jit_call_context, self.vars_mapper.x, new_step);
 
-        if (fabs(derivative_at_c) < 1e-6) {
-          result.comments.push_back("bingo");
-          result.best_step = c;
-          return result;
-        } else {
-          result.comments.push_back("newton");
-          if (derivative_at_step < 0) {
-            a = c;
-            va = derivative_at_c;
+        if (IsNormal(value_at_new_step) && IsNormal(derivative_at_new_step)) {
+          // No NaN-s in sight.
+          if (derivative_at_new_step <= 0) {
+            // First of all, if the derivative is now non-positive, we've found our range.
+            // TODO(dkorolev): If the derivative is zero, just return the point, right?
+            result.comments.push_back("perfect search range located");
+            right_end_of_range = new_step;
+            value_at_right_end_of_range = value_at_new_step;
+            derivative_at_right_end_of_range = derivative_at_new_step;
+            return;
           } else {
-            b = c;
-            vb = derivative_at_c;
+            // If the derivative is still positive, good, keep (exponentially) increasing the step size.
+            step = new_step;
+            derivative_at_step = derivative_at_new_step;
+            value_at_step = value_at_new_step;
+
+            // One trick here is to move the left end of the range, but only if the very value is decreasing too.
+            if (value_at_new_step <= value_at_left_end_of_range) {
+              left_end_of_range = new_step;
+              value_at_left_end_of_range = value_at_new_step;
+              derivative_at_left_end_of_range = derivative_at_new_step;
+            }
           }
+        } else {
+          // NaNs. Abandon searching for the "best" right end, just find the max. non-NaN step and use it.
+          double const safe_right_end_of_range = BinarySearch(step, new_step, [&](double candidate_binary_search_step) {
+            double const value_at_x = self.l(self.jit_call_context, self.vars_mapper.x, candidate_binary_search_step);
+            double const derivative_at_x =
+                self.d(self.jit_call_context, self.vars_mapper.x, candidate_binary_search_step);
+            return IsNormal(value_at_x) && IsNormal(derivative_at_x);
+          });
+          // TODO(dkorolev): Cache these values in the binary search inner function, to not recompute them.
+          double const value_at_right_end_of_range =
+              self.l(self.jit_call_context, self.vars_mapper.x, safe_right_end_of_range);
+          double const derivative_at_right_end_of_range =
+              self.d(self.jit_call_context, self.vars_mapper.x, safe_right_end_of_range);
+          if (!IsNormal(value_at_right_end_of_range) || !IsNormal(derivative_at_right_end_of_range)) {
+            CURRENT_THROW(OptimizationException("Internal error: can't find a normal step at all."));
+          }
+          right_end_of_range = safe_right_end_of_range;
         }
       }
+      // Well, it's weird: all the expansion iterations didn't get us anywhere.
+      CURRENT_THROW(OptimizationException("Internal error: exponential expansion steps didn't end?"));
+    }();
 
-      result.comments.push_back("well, we tried");
-      result.best_step = c;
+    result.path.push_back(LineSearchResult::IntermediatePoint{
+        right_end_of_range, value_at_right_end_of_range, derivative_at_right_end_of_range});
+
+    if (right_end_of_range > left_end_of_range) {
+      // Should not happen. At all. Friendly reminder: The sign is negative, and left/right are flipped.
+      CURRENT_THROW(OptimizationException("Internal error: maformed range."));
+    } else if (left_end_of_range == right_end_of_range) {
+      // Our range is a single point, so we found it!
+      result.path.push_back(LineSearchResult::IntermediatePoint{
+          left_end_of_range, value_at_left_end_of_range, derivative_at_left_end_of_range});
+      result.comments.push_back("range is a single point, minimum found");
+      result.best_step = left_end_of_range;
       return result;
     } else {
-      result.comments.push_back("not implemented yet");
-      result.best_step = step;
-      return result;
+      if (derivative_at_left_end_of_range < 0) {
+        // It is a strict invariant that is broken, so truly an internal error.
+        CURRENT_THROW(OptimizationException("Internal error: `derivative_at_left_end_of_range < 0`."));
+      } else if (derivative_at_left_end_of_range == 0) {
+        result.comments.push_back("zero derivative at the left end of the range");
+        // TODO(dkorolev): What's there on the right end of the range? If it's also zero and the function is better?..
+        result.best_step = left_end_of_range;  //  + 0.5 * (right_end_of_range - left_end_of_range);
+        return result;
+      } else {
+        // Range non-empty, left end derivative is strictly positive, all as it should be.
+        if (derivative_at_right_end_of_range == 0) {
+          // TODO(dkorolev): What's there in the middle of the range?
+          result.comments.push_back("zero derivative at the right end of the range");
+          result.best_step = right_end_of_range;
+          return result;
+        } else if (derivative_at_right_end_of_range > 0) {
+          // TODO(dkorolev): This will happen only if the "just anything non-NaN" was the rule to find the right end.
+          result.comments.push_back("suboptimal, perhaps no minimum?");
+          result.best_step = right_end_of_range;
+          return result;
+        } else {
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
+          {
+            {
+              double const value_at_lhs = self.l(self.jit_call_context, self.vars_mapper.x, left_end_of_range);
+              double const derivative_at_lhs = self.d(self.jit_call_context, self.vars_mapper.x, left_end_of_range);
+              if (!IsNormal(value_at_lhs) || !IsNormal(derivative_at_lhs)) {
+                CURRENT_THROW(OptimizationException("Internal error: inexplicable."));
+              }
+              if (!(derivative_at_lhs > 0)) {
+                CURRENT_THROW(OptimizationException("Internal error: inexplicable."));
+              }
+            }
+            {
+              double const value_at_rhs = self.l(self.jit_call_context, self.vars_mapper.x, right_end_of_range);
+              double const derivative_at_rhs = self.d(self.jit_call_context, self.vars_mapper.x, right_end_of_range);
+              if (!IsNormal(value_at_rhs) || !IsNormal(derivative_at_rhs)) {
+                CURRENT_THROW(OptimizationException("Internal error: inexplicable."));
+              }
+              if (!(derivative_at_rhs < 0)) {
+                CURRENT_THROW(OptimizationException("Internal error: inexplicable."));
+              }
+            }
+          }
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
+          // Perfect situation: a non-empty range, the derivatives of different signs, in the right order, at its ends.
+          // TODO(dkorolev): A smarter optimization here, of course!
+          double const midpoint = BinarySearch(left_end_of_range, right_end_of_range, [&](double point_in_range) {
+            double const value_at_x = self.l(self.jit_call_context, self.vars_mapper.x, point_in_range);
+            double const derivative_at_x = self.d(self.jit_call_context, self.vars_mapper.x, point_in_range);
+            if (!IsNormal(value_at_x) || !IsNormal(derivative_at_x)) {
+              CURRENT_THROW(OptimizationException("Internal error: final optimization value/derivative not normal?"));
+            }
+            return derivative_at_x > 0;
+          });
+          // TODO(dkorolev): Cache the values.
+          double const value_at_midpoint = self.l(self.jit_call_context, self.vars_mapper.x, midpoint);
+          double const derivative_at_midpoint = self.d(self.jit_call_context, self.vars_mapper.x, midpoint);
+          result.path.push_back(
+              LineSearchResult::IntermediatePoint{midpoint, value_at_midpoint, derivative_at_midpoint});
+          result.comments.push_back("TODO(dkorolev): suboptimal, but solution found using binary search");
+          result.best_step = midpoint;
+          return result;
+        }
+      }
     }
   }
 };

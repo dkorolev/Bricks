@@ -32,7 +32,7 @@ SOFTWARE.
 
 DEFINE_bool(save_line_search_test_plots, false, "Set to have each 1D optimization regression test to be plotted.");
 
-TEST(OptimizationOptimizerLineSearch, QuadraticFunction) {
+TEST(OptimizationOptimizerLineSearch, FunctionOfOrderTwo) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
@@ -53,8 +53,8 @@ TEST(OptimizationOptimizerLineSearch, QuadraticFunction) {
   optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_mapper.x);
   optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_mapper.x);
 
-  // In case of the quadratic function, see `../differentiate/test.cc`, the first and best step is always  `-0.5`.
-  EXPECT_EQ(-0.5, LineSearch(line_search_context).best_step);
+  // In case of the function of order two, see `../differentiate/test.cc`, the first and best step is always  `-0.5`.
+  EXPECT_NEAR(-0.5, LineSearch(line_search_context).best_step, 1e-6);
 
   // This step should take the function to its optimum, which, in this case, is the minimum, equals to zero.
   EXPECT_EQ(
@@ -123,9 +123,12 @@ inline void SavePlotAndLineSearchPath(std::string const& test_name,
           .OutputFormat(format);
 
   // OK to use the non-portable `.current/` here, as this code is a) flag-protected, and b) System V only. -- D.K.
-  current::FileSystem::WriteStringToFile(plot_body, (".current/" + test_name + '.' + extension).c_str());
+  current::FileSystem::WriteStringToFile(
+      plot_body, (".current/" + test_name.substr(0, 2) + '-' + test_name.substr(2) + '.' + extension).c_str());
 }
 
+// TODO(dkorolev): Test same functions with different numbers of derivatives taken.
+// TODO(dkorolev): Also test the number of steps it took to optimize a function.
 #define TEST_1D_LINE_SEARCH(test_name, function_body, expected_final_value, expected_comments)                         \
   TEST(OptimizationOptimizerLineSearch, RegressionTest##test_name) {                                                   \
     using namespace current::expression;                                                                               \
@@ -151,13 +154,46 @@ inline void SavePlotAndLineSearchPath(std::string const& test_name,
   }
 
 // This is a simple order-two function, with a clearly visible minumum at `x = 6`, found in a single Newtop step.
-TEST_1D_LINE_SEARCH(00Parabola, 5 + sqr(x - 6), 5.0, "bingo")
+TEST_1D_LINE_SEARCH(01Parabola,
+                    5 + sqr(x - 6),
+                    5.0,
+                    "perfect search range located; TODO(dkorolev): suboptimal, but solution found using binary search");
 
 // A modification to the above test to make it an order-three function, so that the first step "overshoots" `x = 6`.
-TEST_1D_LINE_SEARCH(01SlightlyCubicParabola,
+TEST_1D_LINE_SEARCH(02SlightlyCubicParabola,
                     5 + (x - 6) * (x - 6) * (1 + 0.03 * (x - 6)),
                     5.0,
-                    "overshot; newton; newton; newton; newton; newton; newton; newton; newton; newton; bingo")
+                    "perfect search range located; TODO(dkorolev): suboptimal, but solution found using binary search");
+
+// A sine.
+TEST_1D_LINE_SEARCH(03Sine,
+                    2 - sin(0.35 * x - 0.75),
+                    1.0,
+                    "perfect search range located; TODO(dkorolev): suboptimal, but solution found using binary search");
+
+// A piece of a circle.
+TEST_1D_LINE_SEARCH(04CircleArc,
+                    10 - sqrt(sqr(9) - sqr(x - 6)),
+                    1.0,
+                    "perfect search range located; TODO(dkorolev): suboptimal, but solution found using binary search");
+
+// An power-(-2) hump.
+TEST_1D_LINE_SEARCH(05PowerNegativeTwoHump,
+                    2 - 1 / (1 + sqr(x - 6)),
+                    1.0,
+                    "perfect search range located; TODO(dkorolev): suboptimal, but solution found using binary search");
+
+// A bell-curve-resembling arc.
+TEST_1D_LINE_SEARCH(06ExpHump,
+                    2 - exp(-sqr(x / 2 - 3)),
+                    1.0,
+                    "perfect search range located; TODO(dkorolev): suboptimal, but solution found using binary search");
+
+// A valley formed by two softmaxes.
+TEST_1D_LINE_SEARCH(07HumpOfTwoSoftmaxes,
+                    2 + (log(1 + exp(x - 6)) + log(1 + exp(6 - x))),
+                    2.0 + 2.0 * log(2.0),
+                    "perfect search range located; TODO(dkorolev): suboptimal, but solution found using binary search");
 
 #undef TEST_1D_LINE_SEARCH
 
