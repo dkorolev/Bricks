@@ -42,15 +42,17 @@ struct OptimizationResult {
   std::vector<double> final_point;
 
   // Some rudimentary history.
+  size_t iterations;
   std::vector<std::vector<double>> trace;
   std::vector<double> values;
   std::vector<double> steps;
 };
 
 inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
-  size_t const kMaxIterations = 10;
-  double const kMinImprovementPerIteration = 1e-6;
-  double const kMinStep = 1e-6;
+  size_t const kMaxIterations = 100;
+  double const kMinImprovementPerIteration = 1e-10;
+  double const kMinImprovementPerTwoIterations = 1e-9;
+  double const kMinStep = 1e-9;
 
   OptimizationResult result;
 
@@ -62,13 +64,17 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
   result.values.push_back(starting_value);
   result.trace.push_back(optimization_context.vars_mapper.x);
 
-  for (size_t iteration = 0; iteration < kMaxIterations; ++iteration) {
+  result.iterations = 1;
+  do {
     optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_mapper.x);
 
     double const step = LineSearch(line_search_context).best_step;
     if (-step < kMinStep) {
       break;
     }
+
+    ++result.iterations;
+
     optimization_context.MovePointAlongGradient(step);
 
     result.steps.push_back(step);
@@ -81,7 +87,11 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
         ((*(result.values.rbegin() + 1) - result.values.back()) < kMinImprovementPerIteration)) {
       break;
     }
-  }
+    if (result.values.size() >= 3 &&
+        ((*(result.values.rbegin() + 2) - result.values.back()) < kMinImprovementPerTwoIterations)) {
+      break;
+    }
+  } while (result.iterations < kMaxIterations);
 
   result.final_point = result.trace.back();
 

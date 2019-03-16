@@ -41,16 +41,17 @@ TEST(OptimizationOptimizer, TrivialSingleStepOptimization) {
 
   OptimizationResult const result = Optimize(optimization_context);
 
+  EXPECT_EQ(2u, result.iterations);
+
   EXPECT_EQ("[34.0,0.0]", JSON(result.values));
   EXPECT_EQ("[[0.0,0.0],[3.0,5.0]]", JSON(result.trace));
   EXPECT_EQ("[-0.5]", JSON(result.steps));
 
-  // A single integer step, the result is exact.
   EXPECT_EQ("[3.0,5.0]", JSON(result.final_point));
   ASSERT_EQ(2u, result.final_point.size());
-  EXPECT_EQ(3, result.final_point[0]);
-  EXPECT_EQ(5, result.final_point[1]);
-  EXPECT_EQ(0.0, result.final_value);
+  EXPECT_NEAR(3, result.final_point[0], 1e-9);
+  EXPECT_NEAR(5, result.final_point[1], 1e-9);
+  EXPECT_NEAR(0.0, result.final_value, 1e-9);
 
   EXPECT_EQ(0.0, optimization_context.compiled_f(optimization_context.jit_call_context, result.final_point));
   EXPECT_EQ("[0.0,0.0]",
@@ -71,6 +72,14 @@ TEST(OptimizationOptimizer, MultiStepOptimization) {
   OptimizationContext optimization_context(vars_context, f);
   OptimizationResult const result = Optimize(optimization_context);
 
+  EXPECT_EQ(5u, result.iterations);
+
+  EXPECT_EQ("[3.0,5.0]", JSON(result.final_point));
+  ASSERT_EQ(2u, result.final_point.size());
+  EXPECT_NEAR(3, result.final_point[0], 1e-6);
+  EXPECT_NEAR(5, result.final_point[1], 1e-6);
+  EXPECT_NEAR(0.0, result.final_value, 1e-6);
+
   EXPECT_EQ(
       "["
       "[0.0,0.0],"
@@ -83,4 +92,60 @@ TEST(OptimizationOptimizer, MultiStepOptimization) {
   EXPECT_EQ("[8.11060540012572,3.105144018869468,2.7725974219447426,2.772588722239781,2.772588722239781]",
             JSON(result.values));
   EXPECT_EQ("[-4.270881774245182,-2.11361538852622,-2.0000029213342627,-1.9999998287475738]", JSON(result.steps));
+}
+
+#if 0
+// TODO(dkorolev): Maybe it's time to add some conjugate algorithm. Maybe later.
+// http://en.wikipedia.org/wiki/Rosenbrock_function
+TEST(OptimizationOptimizer, RosenbrockFunction) {
+  using namespace current::expression;
+  using namespace current::expression::optimizer;
+
+  VarsContext vars_context;
+
+  x[0] = -3.0;
+  x[1] = -4.0;
+
+  double const a = 1.0;
+  double const b = 100.0;
+  value_t const d1 = (a - x[0]);
+  value_t const d2 = (x[1] - x[0] * x[0]);
+  value_t const f = d1 * d1 + b * d2 * d2;
+
+  OptimizationContext optimization_context(vars_context, f);
+  OptimizationResult const result = Optimize(optimization_context);
+
+  EXPECT_EQ( ??? , result.iterations);
+
+}
+#endif
+
+// http://en.wikipedia.org/wiki/Himmelblau%27s_function
+// Non-convex function with four local minima:
+// f(3.0, 2.0) = 0.0
+// f(-2.805118, 3.131312) = 0.0
+// f(-3.779310, -3.283186) = 0.0
+// f(3.584428, -1.848126) = 0.0
+// TODO(dkorolev): Find the other three minimums by starting from different points.
+TEST(OptimizationOptimizer, HimmelblauFunction) {
+  using namespace current::expression;
+  using namespace current::expression::optimizer;
+
+  VarsContext vars_context;
+
+  x[0] = 5.0;
+  x[1] = 5.0;
+
+  value_t const d1 = (x[0] * x[0] + x[1] - 11);
+  value_t const d2 = (x[0] + x[1] * x[1] - 7);
+  value_t const f = (d1 * d1 + d2 * d2);
+
+  OptimizationContext optimization_context(vars_context, f);
+  OptimizationResult const result = Optimize(optimization_context);
+
+  EXPECT_EQ("[3.0000001667927784,2.0000010448011289]", JSON(result.final_point));
+  ASSERT_EQ(2u, result.final_point.size());
+  EXPECT_NEAR(3, result.final_point[0], 5e-5);
+  EXPECT_NEAR(2, result.final_point[1], 5e-5);
+  EXPECT_NEAR(0.0, result.final_value, 1e-6);
 }
