@@ -22,11 +22,24 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "optimizer.h"
+#ifndef OPTIMIZE_OPTIMIZER_OPTIMIZER_H
+#define OPTIMIZE_OPTIMIZER_OPTIMIZER_H
 
-#include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "optimizer_base.h"
+#include "context.h"
 
-TEST(OptimizationOptimizer, Foo) {
-  using namespace current::expression::optimizer;
-  EXPECT_EQ(42, Foo());
-}
+#ifdef FNCAS_X64_NATIVE_JIT_ENABLED
+
+namespace current {
+namespace expression {
+namespace optimizer {
+
+inline int Foo() { return 42; }
+
+}  // namespace current::expression::optimizer
+}  // namespace current::expression
+}  // namespace current
+
+#endif  // FNCAS_X64_NATIVE_JIT_ENABLED
+
+#endif  // #ifndef OPTIMIZE_OPTIMIZER_OPTIMIZER_H

@@ -22,19 +22,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#ifndef OPTIMIZE_OPTIMIZER_LINE_SEARCH_H
-#define OPTIMIZE_OPTIMIZER_LINE_SEARCH_H
+#ifndef OPTIMIZE_OPTIMIZER_LINE_SEARCH_LINE_SEARCH_H
+#define OPTIMIZE_OPTIMIZER_LINE_SEARCH_LINE_SEARCH_H
 
-#include "context.h"
+#include "../optimizer_base.h"
+#include "../context.h"
 
-#include "../base.h"
-#include "../differentiate/differentiate.h"
-#include "../expression/expression.h"
-#include "../jit/jit.h"
-#include "../vars/vars.h"
+#include "../../base.h"
+#include "../../differentiate/differentiate.h"
+#include "../../expression/expression.h"
+#include "../../jit/jit.h"
+#include "../../vars/vars.h"
 
 #ifdef FNCAS_X64_NATIVE_JIT_ENABLED
 
+// TODO(dkorolev): Update this comment.
+//
 // The optimization direction is minimization.
 // The line search is the crucial component of the optimizer. Here's how it is designed.
 //
@@ -103,15 +106,8 @@ SOFTWARE.
 // If on any step of within-range search the value of the function or its derivative is NaN, the function is declared
 // malformed, and an exception is thrown.
 
-#define CURRENT_OPTIMIZE_PARANOID_CHECKS
-
 namespace current {
 namespace expression {
-
-struct OptimizationException final : OptimizeException {
-  using OptimizeException::OptimizeException;
-};
-
 namespace optimizer {
 
 struct LineSearchResult {
@@ -547,4 +543,4 @@ inline LineSearchResult LineSearch(LineSearchContext const& self) { return LineS
 
 #endif  // FNCAS_X64_NATIVE_JIT_ENABLED
 
-#endif  // #ifndef OPTIMIZE_OPTIMIZER_LINE_SEARCH_H
+#endif  // #ifndef OPTIMIZE_OPTIMIZER_LINE_SEARCH_LINE_SEARCH_H
