@@ -121,8 +121,9 @@ struct LineSearchResult {
     double f;
     double df;
   };
-  std::vector<IntermediatePoint> path;
-  std::vector<char const*> comments;
+  std::vector<IntermediatePoint> path1;
+  std::vector<IntermediatePoint> path2;
+  std::vector<std::string> comments;
 };
 
 inline bool IsNormal(double arg) { return (std::isnormal(arg) || arg == 0.0); }
@@ -176,7 +177,7 @@ class LineSearchImpl final {
     double const value_at_0 = self.l(self.jit_call_context, self.vars_mapper.x, 0.0);
     double const derivative_at_0 = self.d(self.jit_call_context, self.vars_mapper.x, 0.0);
 
-    result.path.push_back(LineSearchResult::IntermediatePoint{0.0, value_at_0, derivative_at_0});
+    result.path1.push_back(LineSearchResult::IntermediatePoint{0.0, value_at_0, derivative_at_0});
 
     if (!IsNormal(value_at_0) || !IsNormal(derivative_at_0)) {
       CURRENT_THROW(OptimizationException("Both f(l) and f'(l) must be normal at the staritng point of line search."));
@@ -194,6 +195,9 @@ class LineSearchImpl final {
       return result;
     }
 
+#if 0
+    // TODO(dkorolev): This logic, in some form, is to be used if NaN-s are hit.
+    //                 I'd rather finish the end-to-end logic, and then revisit this part. -- D.K.
     // TODO(dkorolev): This should be a parameter.
     double step = -std::pow(0.5, 22);
     double value_at_step = self.l(self.jit_call_context, self.vars_mapper.x, step);
@@ -233,10 +237,17 @@ class LineSearchImpl final {
           if (derivative_at_new_step <= 0) {
             // First of all, if the derivative is now non-positive, we've found our range.
             // TODO(dkorolev): If the derivative is zero, just return the point, right?
-            result.comments.push_back("perfect search range located");
             right_end_of_range = new_step;
             value_at_right_end_of_range = value_at_new_step;
             derivative_at_right_end_of_range = derivative_at_new_step;
+            result.comments.push_back(
+                current::strings::Printf("perfect search range: (%lf .. %lf), f = { %lf, %lf } d = { %lf, %lf }",
+                                         left_end_of_range,
+                                         right_end_of_range,
+                                         value_at_left_end_of_range,
+                                         value_at_right_end_of_range,
+                                         derivative_at_left_end_of_range,
+                                         derivative_at_right_end_of_range));
             return;
           } else {
             // If the derivative is still positive, good, keep (exponentially) increasing the step size.
@@ -273,17 +284,93 @@ class LineSearchImpl final {
       // Well, it's weird: all the expansion iterations didn't get us anywhere.
       CURRENT_THROW(OptimizationException("Internal error: exponential expansion steps didn't end?"));
     }();
+#else
+    double const first_step = -(1.0 / 32.0);  // TODO(dkorolev): Or, if the previous step is available, use 1/8 of it.
 
-    result.path.push_back(LineSearchResult::IntermediatePoint{
+    double left_end_of_range = 0.0;
+    double value_at_left_end_of_range = value_at_0;  // The left end of the range only moves if the value improves.
+    double derivative_at_left_end_of_range = derivative_at_0;  // Invariant: This stays positive.
+    double right_end_of_range = first_step;
+    double value_at_right_end_of_range;
+    double derivative_at_right_end_of_range;
+
+    double const delta_right_end_of_range_exp_growth_k = 2.5;
+    double delta_right_end_of_range = right_end_of_range * delta_right_end_of_range_exp_growth_k;
+    for (size_t blah = 0; blah < 1000u; ++blah) {
+      result.comments.push_back(current::strings::Printf("step of %lf", right_end_of_range));
+
+      value_at_right_end_of_range = self.l(self.jit_call_context, self.vars_mapper.x, right_end_of_range);
+      derivative_at_right_end_of_range = self.d(self.jit_call_context, self.vars_mapper.x, right_end_of_range);
+
+      if (!IsNormal(value_at_right_end_of_range) || !IsNormal(derivative_at_right_end_of_range)) {
+        // TODO(dkorolev): Begin shrinking.
+        CURRENT_THROW(OptimizationException("TODO(dkorolev): Don't just fail here, check smaller steps first."));
+      }
+
+      result.path1.push_back(LineSearchResult::IntermediatePoint{
+          right_end_of_range, value_at_right_end_of_range, derivative_at_right_end_of_range});
+
+      if (derivative_at_right_end_of_range == 0) {
+        // Miracle: Hit the perfect point on the first step.
+        // TODO(dkorolev): Check for plaleau?
+        result.comments.push_back("magically hit the gold, could be a plateau");
+        result.best_step = right_end_of_range;
+        return result;
+      } else if (derivative_at_right_end_of_range < 0) {
+        result.comments.push_back("valid overstep, good");
+        break;
+      } else {
+        // Well, had the derivative at step been positive, we'd have a range.
+        // Otherwise, we'll have to keep moving until it is positive.
+        if (derivative_at_right_end_of_range < (127.0 / 128.0) * derivative_at_left_end_of_range) {
+          // The check is to not extrapolate too far in case of machine precision issues.
+          bool const shift = (value_at_right_end_of_range <= value_at_left_end_of_range);
+          double const new_left_end_of_range = shift ? right_end_of_range : left_end_of_range;
+          double const new_value_at_left_end_of_range =
+              shift ? value_at_right_end_of_range : value_at_left_end_of_range;
+          double const new_derivative_at_left_end_of_range =
+              shift ? derivative_at_right_end_of_range : derivative_at_left_end_of_range;
+
+          double const times =
+              derivative_at_left_end_of_range / (derivative_at_left_end_of_range - derivative_at_right_end_of_range);
+          result.comments.push_back(strings::Printf("extrapolating, times = %lf", times));
+
+          double const old_right_end_of_range = right_end_of_range;
+          right_end_of_range = left_end_of_range + (right_end_of_range - left_end_of_range) * std::min(4.0, times);
+          delta_right_end_of_range = std::min(delta_right_end_of_range, right_end_of_range - old_right_end_of_range);
+
+          left_end_of_range = new_left_end_of_range;
+          value_at_left_end_of_range = new_value_at_left_end_of_range;
+          derivative_at_left_end_of_range = new_derivative_at_left_end_of_range;
+        } else {
+          result.comments.push_back("can't extrapolate just yet");
+          if (value_at_right_end_of_range <= value_at_left_end_of_range) {
+            result.comments.push_back("but can move the left end of the range");
+            left_end_of_range = right_end_of_range;
+            value_at_left_end_of_range = value_at_right_end_of_range;
+            derivative_at_left_end_of_range = derivative_at_right_end_of_range;
+          }
+          right_end_of_range +=
+              delta_right_end_of_range;  // 1.5;  // left_end_of_range + (right_end_of_range - left_end_of_range) * 10;
+          delta_right_end_of_range *= delta_right_end_of_range_exp_growth_k;
+        }
+      }
+    }
+#endif
+
+    result.path1.push_back(LineSearchResult::IntermediatePoint{
+        right_end_of_range, value_at_right_end_of_range, derivative_at_right_end_of_range});
+
+    result.path2.push_back(LineSearchResult::IntermediatePoint{
+        left_end_of_range, value_at_left_end_of_range, derivative_at_left_end_of_range});
+    result.path2.push_back(LineSearchResult::IntermediatePoint{
         right_end_of_range, value_at_right_end_of_range, derivative_at_right_end_of_range});
 
     if (right_end_of_range > left_end_of_range) {
       // Should not happen. At all. Friendly reminder: The sign is negative, and left/right are flipped.
-      CURRENT_THROW(OptimizationException("Internal error: maformed range."));
+      CURRENT_THROW(OptimizationException("Internal error: malformed range."));
     } else if (left_end_of_range == right_end_of_range) {
       // Our range is a single point, so we found it!
-      result.path.push_back(LineSearchResult::IntermediatePoint{
-          left_end_of_range, value_at_left_end_of_range, derivative_at_left_end_of_range});
       result.comments.push_back("range is a single point, minimum found");
       result.best_step = left_end_of_range;
       return result;
@@ -334,21 +421,116 @@ class LineSearchImpl final {
           }
 #endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
           // Perfect situation: a non-empty range, the derivatives of different signs, in the right order, at its ends.
-          // TODO(dkorolev): A smarter optimization here, of course!
-          double const midpoint = BinarySearch(left_end_of_range, right_end_of_range, [&](double point_in_range) {
-            double const value_at_x = self.l(self.jit_call_context, self.vars_mapper.x, point_in_range);
-            double const derivative_at_x = self.d(self.jit_call_context, self.vars_mapper.x, point_in_range);
-            if (!IsNormal(value_at_x) || !IsNormal(derivative_at_x)) {
-              CURRENT_THROW(OptimizationException("Internal error: final optimization value/derivative not normal?"));
+          // Take the first step assuming the derivative is linear; further steps will assume it's of power two.
+          double const first_k =
+              derivative_at_left_end_of_range / (derivative_at_left_end_of_range - derivative_at_right_end_of_range);
+          double range_width;
+          double midpoint;
+          midpoint = left_end_of_range + (right_end_of_range - left_end_of_range) * first_k;
+
+          size_t final_iteration = 0;
+          do {
+            ++final_iteration;
+            double const value_at_midpoint = self.l(self.jit_call_context, self.vars_mapper.x, midpoint);
+            double const derivative_at_midpoint = self.d(self.jit_call_context, self.vars_mapper.x, midpoint);
+            result.path2.push_back(
+                LineSearchResult::IntermediatePoint{midpoint, value_at_midpoint, derivative_at_midpoint});
+            if (derivative_at_midpoint == 0.0) {
+              result.comments.push_back(
+                  current::strings::Printf("perfect, exactly zero derivative @ step = %lf", midpoint));
+              break;
+            } else if (fabs(derivative_at_midpoint) < 1e-10) {
+              result.comments.push_back(
+                  current::strings::Printf("perfect, near zero derivative @ step = %lf", midpoint));
+              break;
+            } else {
+              result.comments.push_back(
+                  current::strings::Printf("next iteration, log(range_width) = %lf", log(range_width)));
+
+              // This is the perfect step size for power two approximation of the line search function.
+              // I.e., it assumes the derivative is a parabola. Solving for the coefficient for `k^2` we get:
+              //
+              // f(k = 0) == derivative_at_left_end_of_range
+              // f(k = 1) == derivative_at_right_end_of_range
+              // f(k = k) == derivative_at_midpoint, while it's supposed to be 0.
+              // f(k) = a * k^2 + b * k + c
+              //
+              // c         = derivative_at_left_end_of_range
+              // a + b + c = derivative_at_right_end_of_range
+              // a + b     = derivative_at_right_end_of_range - derivative_at_left_end_of_range
+              // a * k^2 + b * k + c = derivative_at_midpoint
+              // k * (a * k + b) = (derivative_at_midpoint - derivative_at_left_end_of_range)
+              // a * k + b = (derivative_at_midpoint - derivative_at_left_end_of_range) / k
+              // a * (k - 1) =
+              //     (derivative_at_midpoint - derivative_at_left_end_of_range) / k -
+              //   - (derivative_at_right_end_of_range - derivative_at_left_end_of_range)
+              // a =
+              //      ((derivative_at_midpoint - derivative_at_left_end_of_range) / k -
+              //        - (derivative_at_right_end_of_range - derivative_at_left_end_of_range)) / (k - 1)
+              double const k = (midpoint - left_end_of_range) / (right_end_of_range - left_end_of_range);
+              if (!(k > 0 && k < 1)) {
+                CURRENT_THROW(OptimizationException("Machine precision error."));
+              }
+
+              double const c = derivative_at_left_end_of_range;
+              double const a = ((derivative_at_midpoint - derivative_at_left_end_of_range) / k -
+                                (derivative_at_right_end_of_range - derivative_at_left_end_of_range)) /
+                               (k - 1);
+              double const b = (derivative_at_right_end_of_range - derivative_at_left_end_of_range) - a;
+
+              double const check_1 = a + b + c;
+              double const check_k = a * k * k + b * k + c;
+              if (fabs(check_1 - derivative_at_right_end_of_range) > 1e-6) {
+                CURRENT_THROW(OptimizationException("Machine precision error."));
+              }
+              if (fabs(check_k - derivative_at_midpoint) > 1e-6) {
+                CURRENT_THROW(OptimizationException("Machine precision error."));
+              }
+              double const d = b * b - 4 * a * c;
+              if (d < 0) {
+                CURRENT_THROW(OptimizationException("Machine precision error."));
+              }
+
+              double const sqrt_d = sqrt(d);
+              double const k1 = (-b - sqrt_d) / (a + a);
+              double const k2 = (-b + sqrt_d) / (a + a);
+
+              bool const k1_in_range = (k1 > 0 && k1 < 1);
+              bool const k2_in_range = (k2 > 0 && k2 < 1);
+
+              if (!(k1_in_range || k2_in_range)) {
+                CURRENT_THROW(OptimizationException("Machine precision error."));
+              }
+
+              if (k1_in_range && k2_in_range) {
+                // Given the sign of derivative is different at `k=0` and `k=1`, there can not be two roots in between.
+                // NOTE(dkorolev): Mathematically, it's likely that a fixed sign is the right one, but I'm an engineer.
+                CURRENT_THROW(OptimizationException("Machine precision error."));
+              }
+
+              double const best_k = (k1_in_range ? k1 : k2);
+              double const check_best_k = a * best_k * best_k + b * best_k + c;
+              if (fabs(check_best_k) > 1e-6) {
+                CURRENT_THROW(OptimizationException("Machine precision error."));
+              }
+
+              double best_midpoint = left_end_of_range + (right_end_of_range - left_end_of_range) * best_k;
+
+              if (derivative_at_midpoint > 0) {
+                left_end_of_range = midpoint;
+                value_at_left_end_of_range = value_at_midpoint;
+                derivative_at_left_end_of_range = derivative_at_midpoint;
+              } else {
+                right_end_of_range = midpoint;
+                value_at_right_end_of_range = value_at_midpoint;
+                derivative_at_right_end_of_range = derivative_at_midpoint;
+              }
+
+              midpoint = best_midpoint;
             }
-            return derivative_at_x > 0;
-          });
-          // TODO(dkorolev): Cache the values.
-          double const value_at_midpoint = self.l(self.jit_call_context, self.vars_mapper.x, midpoint);
-          double const derivative_at_midpoint = self.d(self.jit_call_context, self.vars_mapper.x, midpoint);
-          result.path.push_back(
-              LineSearchResult::IntermediatePoint{midpoint, value_at_midpoint, derivative_at_midpoint});
-          result.comments.push_back("TODO(dkorolev): suboptimal, but solution found using binary search");
+          } while (final_iteration < 100u && (range_width = left_end_of_range - right_end_of_range) > 1e-6);
+
+          result.comments.push_back("converged");
           result.best_step = midpoint;
           return result;
         }
