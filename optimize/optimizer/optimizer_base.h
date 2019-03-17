@@ -36,6 +36,8 @@ SOFTWARE.
 namespace current {
 namespace expression {
 
+inline bool IsNormal(double arg) { return (std::isnormal(arg) || arg == 0.0); }
+
 struct OptimizationException final : OptimizeException {
   using OptimizeException::OptimizeException;
 };
