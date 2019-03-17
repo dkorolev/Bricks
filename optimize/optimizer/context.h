@@ -88,9 +88,13 @@ struct OptimizationContext {
   static std::vector<value_t> ComputeDS(value_t l) {
     // TODO(dkorolev): The number of the derivatives to take should be a parameter.
     value_t const d1 = DifferentiateByLambda(l);
+#if 1
+    return std::vector<value_t>({d1});
+#else
     value_t const d2 = DifferentiateByLambda(d1);
     value_t const d3 = DifferentiateByLambda(d2);
     return std::vector<value_t>({d1, d2, d3});
+#endif
   }
 
   static std::vector<std::unique_ptr<jit::FunctionWithArgument>> CompileDS(jit::JITCompiler& jit_compiler,
