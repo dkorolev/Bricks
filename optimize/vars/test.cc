@@ -103,6 +103,19 @@ TEST(OptimizationVars, SparseByString) {
       SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
 }
 
+TEST(OptimizationVars, EmptyStringAllowedAsVarName) {
+  using namespace current::expression;
+  VarsContext context;
+  x["ok"] = 1;
+  x[""] = 2;
+  x["nested"]["also ok"] = 3;
+  x["nested"][""] = 4;
+  EXPECT_VAR_NAME_IS_RIGHT(x["ok"]);
+  EXPECT_VAR_NAME_IS_RIGHT(x[""]);
+  EXPECT_VAR_NAME_IS_RIGHT(x["nested"]["ok"]);
+  EXPECT_VAR_NAME_IS_RIGHT(x["nested"][""]);
+}
+
 TEST(OptimizationVars, DenseVector) {
   using namespace current::expression;
   VarsContext context;

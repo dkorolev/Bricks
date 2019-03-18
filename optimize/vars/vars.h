@@ -286,7 +286,7 @@ class VarsManager final {
 
 class StringOrInt {
  private:
-  std::string s;
+  Optional<std::string> s;
   size_t i = static_cast<size_t>(-1);
 
  public:
@@ -294,11 +294,11 @@ class StringOrInt {
   StringOrInt(std::string s) : s(std::move(s)) {}
   StringOrInt(size_t i) : i(i) {}
 
-  operator bool() const { return !s.empty() || i != static_cast<size_t>(-1); }
+  operator bool() const { return Exists(s) || i != static_cast<size_t>(-1); }
 
   std::string AsString() const {
-    CURRENT_ASSERT(s.empty() == (i != static_cast<size_t>(-1)));
-    if (!s.empty()) {
+    CURRENT_ASSERT(!Exists(s) == (i != static_cast<size_t>(-1)));
+    if (Exists(s)) {
       return JSON(s);
     } else {
       return current::ToString(i);
