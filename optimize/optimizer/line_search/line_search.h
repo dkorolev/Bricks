@@ -100,8 +100,9 @@ CURRENT_STRUCT(LineSearchResult) {
   CURRENT_FIELD(best_step, double);                                // The ultimate output.
   CURRENT_FIELD(path1, std::vector<LineSearchIntermediatePoint>);  // The search for the range where `d` changes sign.
   CURRENT_FIELD(path2, std::vector<LineSearchIntermediatePoint>);  // The search for the zero of `d` in that range.
-  // TODO(dkorolev): Remove / `#ifdef` this?
-  CURRENT_FIELD(comments, std::vector<std::string>);  // Mostly for unit-testing purposes.
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
+  CURRENT_FIELD(comments, std::vector<std::string>);
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
 };
 
 // A simple binary search with a few extra safety checks (that do not sacrifice performance).
@@ -170,8 +171,10 @@ class LineSearchImpl final {
       // We are at the minimum; or, in the terribly unlikely scenario, we are at the local maximum or a local extremum.
       // Return the starting point as the result of the optimizations
       // Since this implementation is focused on performance, ignore the possibility of being at a plateau now. -- D.K.
-      result.comments.push_back("the starting point is already an extremum");
       result.best_step = 0.0;
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
+      result.comments.push_back("the starting point is already an extremum");
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
       return result;
     }
 
@@ -190,8 +193,11 @@ class LineSearchImpl final {
     double const delta_right_end_of_range_exp_growth_k = 2.5;
     double delta_right_end_of_range = right_end_of_range * delta_right_end_of_range_exp_growth_k;
 
-    // TODO(dkorolev): `1000` is a magic number to get rid of.
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
     std::string range_search_comment = "range search: ";
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
+
+    // TODO(dkorolev): `1000` is a magic number to get rid of.
     for (size_t range_search_iteration_index = 0; range_search_iteration_index < 1000u;
          ++range_search_iteration_index) {
       value_at_right_end_of_range = self.l(self.jit_call_context, self.vars_mapper.x, right_end_of_range);
@@ -206,15 +212,21 @@ class LineSearchImpl final {
           right_end_of_range, value_at_right_end_of_range, derivative_at_right_end_of_range));
 
       if (derivative_at_right_end_of_range == 0) {
-        // Miracle: the right end of the range fulfills the stopping criteria.
-        // Since this implementation is focused on performance, ignore the possibility of being at a plateau now.
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
         range_search_comment += " miracle";
         result.comments.push_back(range_search_comment);
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
         result.best_step = right_end_of_range;
+        // Miracle: the right end of the range fulfills the stopping criteria.
+        // Since this implementation is focused on performance, ignore the possibility of being at a plateau now.
         return result;
       } else if (derivative_at_right_end_of_range < 0) {
-        // The desired search range for zero of the derivative is found, as `f'(lambda)` is positive at the left end.
+// The desired search range for zero of the derivative is found, as `f'(lambda)` is positive at the left end.
+
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
         range_search_comment += " found";
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
+
         break;
       } else {
         // The derivative at the new right end is still negative. Keep moving until it is positive.
@@ -234,11 +246,13 @@ class LineSearchImpl final {
           // TODO(dkorolev): Fix the magic number.
           double const real_times = std::min(4.0, times);
 
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
           if (times == real_times) {
             range_search_comment += strings::Printf("*(%.1lf)", times);
           } else {
             range_search_comment += strings::Printf("*(%.1lf->%.1lf)", times, real_times);
           }
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
 
           double const old_right_end_of_range = right_end_of_range;
 
@@ -248,17 +262,20 @@ class LineSearchImpl final {
           left_end_of_range = new_left_end_of_range;
           value_at_left_end_of_range = new_value_at_left_end_of_range;
           derivative_at_left_end_of_range = new_derivative_at_left_end_of_range;
-        } else {
-          // The derivative at the right end of the range is actually larger than its value on the left end.
-          // We have to keep moving further, substantially, at the function is not even convex in the right direction.
+        } else {  // We have to keep moving further, as the function is not even convex in the right direction.
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
           range_search_comment += '.';
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
           if (value_at_right_end_of_range <= value_at_left_end_of_range) {
             // Well, on the other hand, if the function is not convex in the right direction, there's a good chance
             // the very value of the objective function will be improving. So, move the left end of the range as well.
-            range_search_comment += '+';
             left_end_of_range = right_end_of_range;
             value_at_left_end_of_range = value_at_right_end_of_range;
             derivative_at_left_end_of_range = derivative_at_right_end_of_range;
+
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
+            range_search_comment += '+';
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
           }
           // Keep moving the right end of the range further to the right, at exponentially increasing steps.
           // Friendly reminder, that the step size is actually negative, so the right end technically is the left one.
@@ -267,14 +284,17 @@ class LineSearchImpl final {
         }
       }
     }
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
     result.comments.push_back(range_search_comment);
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
 
     if (right_end_of_range > left_end_of_range) {
       // Should not happen. At all. Friendly reminder: The sign is negative, and left/right are flipped.
       CURRENT_THROW(OptimizationException("Internal error: malformed range."));
-    } else if (left_end_of_range == right_end_of_range) {
-      // Our range is a single point, so we found it!
+    } else if (left_end_of_range == right_end_of_range) {  // Our range is a single point, so we found it!
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
       result.comments.push_back("range is a single point, minimum found");
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
       result.best_step = left_end_of_range;
       return result;
     } else {
@@ -282,14 +302,17 @@ class LineSearchImpl final {
         // It is a strict invariant that is broken, so truly an internal error.
         CURRENT_THROW(OptimizationException("Internal error: `derivative_at_left_end_of_range < 0`."));
       } else if (derivative_at_left_end_of_range == 0) {
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
         result.comments.push_back("zero derivative at the left end of the range");
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
         // For performance reasons, ignore any and all possibilities for a plateau just yet, simply return the point.
         result.best_step = left_end_of_range;
         return result;
       } else {
-        if (derivative_at_right_end_of_range == 0) {
-          // For performance reasons, ignore any and all possibilities for a plateau just yet, simply return the point.
+        if (derivative_at_right_end_of_range == 0) {  // For performance reasons, ignore the possibility of a plateau.
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
           result.comments.push_back("zero derivative at the right end of the range");
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
           result.best_step = right_end_of_range;
           return result;
         } else if (derivative_at_right_end_of_range > 0) {
@@ -338,20 +361,26 @@ class LineSearchImpl final {
 
           std::vector<double> range_widths;
 
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
           std::string zero_search_comment = "zero search: 1.0";
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
 
           // TODO(dkorolev): Magic number?
           for (size_t final_iteration_index = 0; final_iteration_index < 100u; ++final_iteration_index) {
             double const current_range_width = left_end_of_range - right_end_of_range;
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
             if (!range_widths.empty()) {
               zero_search_comment += strings::Printf("*=%.1lf%%", 100.0 * current_range_width / range_widths.back());
             }
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
             range_widths.push_back(current_range_width);
 
             // TODO(dkorolev): Magic number?
             if (current_range_width < 1e-6) {
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
               zero_search_comment = " range shrinked to almost a point";
               result.comments.push_back(zero_search_comment);
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
               result.best_step = midpoint;
               return result;
             }
@@ -361,13 +390,17 @@ class LineSearchImpl final {
             double const derivative_at_midpoint = self.d(self.jit_call_context, self.vars_mapper.x, midpoint);
             result.path2.push_back(LineSearchIntermediatePoint(midpoint, value_at_midpoint, derivative_at_midpoint));
             if (derivative_at_midpoint == 0.0) {
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
               zero_search_comment += " hit exactly zero derivative";
               result.comments.push_back(zero_search_comment);
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
               result.best_step = midpoint;
               return result;
             } else if (fabs(derivative_at_midpoint) < 1e-10) {
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
               zero_search_comment += " reached near zero derivative";
               result.comments.push_back(zero_search_comment);
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
               result.best_step = midpoint;
               return result;
             } else {

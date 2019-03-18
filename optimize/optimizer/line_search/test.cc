@@ -181,6 +181,16 @@ inline void SavePlotAndLineSearchPath(std::string const& test_name,
       plot_body, (".current/" + test_name.substr(0, 2) + '-' + test_name.substr(2) + '.' + extension).c_str());
 }
 
+inline void ExpectCommentsMatchIfInParanoidMode(std::string const& expected_comments,
+                                                current::expression::optimizer::LineSearchResult const& result) {
+#ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
+  EXPECT_EQ(expected_comments, current::strings::Join(result.comments, "; "));
+#else
+  static_cast<void>(expected_comments);
+  static_cast<void>(result);
+#endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
+}
+
 #define TEST_1D_LINE_SEARCH(                                                                                           \
     test_name, function_body, expected_final_value, expected_path1_steps, expected_path2_steps, expected_comments)     \
   TEST(OptimizationOptimizerLineSearch, RegressionTest##test_name) {                                                   \
@@ -204,7 +214,7 @@ inline void SavePlotAndLineSearchPath(std::string const& test_name,
     if (FLAGS_save_line_search_test_plots) {                                                                           \
       SavePlotAndLineSearchPath(#test_name, #function_body, optimization_context, result, derivative_value);           \
     }                                                                                                                  \
-    EXPECT_EQ(expected_comments, current::strings::Join(result.comments, "; "));                                       \
+    ExpectCommentsMatchIfInParanoidMode(expected_comments, result);                                                    \
     if (!std::isnan(expected_final_value)) {                                                                           \
       EXPECT_NEAR(expected_final_value, final_value, 1e-6);                                                            \
     }                                                                                                                  \
