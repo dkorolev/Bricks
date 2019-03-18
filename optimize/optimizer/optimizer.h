@@ -49,10 +49,13 @@ struct OptimizationResult {
 };
 
 inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
+  // TODO(dkorolev): These should be parameters.
   size_t const kMaxIterations = 100;
   double const kMinImprovementPerIteration = 1e-10;
   double const kMinImprovementPerTwoIterations = 1e-9;
   double const kMinStep = 1e-9;
+
+  LineSearchParameters line_search_parameters;
 
   OptimizationResult result;
 
@@ -65,19 +68,20 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
   result.trace.push_back(optimization_context.vars_mapper.x);
 
   result.iterations = 1;
+  Optional<double> step;
   do {
     optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_mapper.x);
 
-    double const step = LineSearch(line_search_context).best_step;
-    if (-step < kMinStep) {
+    step = LineSearch(line_search_context, line_search_parameters, step).best_step;
+    if (-Value(step) < kMinStep) {
       break;
     }
 
     ++result.iterations;
 
-    optimization_context.MovePointAlongGradient(step);
+    optimization_context.MovePointAlongGradient(Value(step));
 
-    result.steps.push_back(step);
+    result.steps.push_back(Value(step));
     result.trace.push_back(optimization_context.vars_mapper.x);
 
     result.values.push_back(

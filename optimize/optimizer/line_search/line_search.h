@@ -84,7 +84,7 @@ namespace optimizer {
 CURRENT_STRUCT(LineSearchParameters) {
   // Initial steps.
   CURRENT_FIELD(default_first_step, double, -1.0 / 32);
-  CURRENT_FIELD(default_first_step_as_fraction_of_previous_best_step, double, 1.0 / 8);
+  CURRENT_FIELD(default_first_step_as_fraction_of_previous_best_step, double, 1.0 / 16);
 
   // Exponential search parameters.
   CURRENT_FIELD(range_exp_growth_k, double, 2.5);
