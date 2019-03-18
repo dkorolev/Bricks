@@ -81,6 +81,23 @@ namespace current {
 namespace expression {
 namespace optimizer {
 
+CURRENT_STRUCT(LineSearchParameters) {
+  // Initial steps.
+  CURRENT_FIELD(default_first_step, double, -1.0 / 32);
+  CURRENT_FIELD(default_first_step_as_fraction_of_previous_best_step, double, 1.0 / 8);
+
+  // Exponential search parameters.
+  CURRENT_FIELD(range_exp_growth_k, double, 2.5);
+  CURRENT_FIELD(min_decrease_in_decreasing_derivative_for_slope_approximation, double, 127.0 / 128);
+  CURRENT_FIELD(max_range_search_extrapolation_step_k, double, 4.0);
+
+  CURRENT_FIELD(zero_search_range_size_small_epsilon, double, 1e-6);
+
+  // These two processes are fast-converging, and throwing in case of no success. Capping iterations at 100 is safe.
+  CURRENT_FIELD(max_range_search_iterations, uint32_t, 100u);
+  CURRENT_FIELD(max_derivative_zero_search_iterations, uint32_t, 100u);
+};
+
 CURRENT_STRUCT(LineSearchIntermediatePointWithOptionalValues) {
   CURRENT_FIELD(x, double);            // The step size.
   CURRENT_FIELD(f, Optional<double>);  // The value of the function.
@@ -143,7 +160,9 @@ double SlowBinarySearch(
 
 class LineSearchImpl final {
  public:
-  static LineSearchResult DoLineSearch(LineSearchContext const& self) {
+  static LineSearchResult DoLineSearch(LineSearchContext const& self,
+                                       LineSearchParameters const& params,
+                                       Optional<double> previous_best_step) {
     // NOTE(dkorolev): IMPORTANT: To ensure all the values are valid, for each new step size the order of computations
     // should be: `l`, `d`, and then `ds`. This is to ensure the internal node values cache is kept valid all the time.
 
@@ -178,10 +197,11 @@ class LineSearchImpl final {
       return result;
     }
 
-    // TODO(dkorolev): Fix the magic number.
-    double const first_step = -(1.0 / 32.0);  // TODO(dkorolev): Or, if the previous step is available, use 1/8 of it.
+    double const first_step =
+        !Exists(previous_best_step)
+            ? params.default_first_step
+            : Value(previous_best_step) * params.default_first_step_as_fraction_of_previous_best_step;
 
-    // TODO(dkorolev): Fix the magic number.
     double left_end_of_range = 0.0;
     double value_at_left_end_of_range = value_at_0;  // The left end of the range only moves if the value improves.
     double derivative_at_left_end_of_range = derivative_at_0;  // Invariant: This stays positive.
@@ -190,21 +210,23 @@ class LineSearchImpl final {
     double value_at_right_end_of_range;
     double derivative_at_right_end_of_range;
 
-    double const delta_right_end_of_range_exp_growth_k = 2.5;
-    double delta_right_end_of_range = right_end_of_range * delta_right_end_of_range_exp_growth_k;
+    double delta_right_end_of_range = right_end_of_range * params.range_exp_growth_k;
 
 #ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
     std::string range_search_comment = "range search: ";
 #endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
 
-    // TODO(dkorolev): `1000` is a magic number to get rid of.
-    for (size_t range_search_iteration_index = 0; range_search_iteration_index < 1000u;
-         ++range_search_iteration_index) {
+    uint32_t number_of_range_search_iterations = 0u;
+    while (true) {
+      if (++number_of_range_search_iterations > params.max_range_search_iterations) {
+        CURRENT_THROW(OptimizationException("Too many unsuccessful range search iterations."));
+      }
+
       value_at_right_end_of_range = self.l(self.jit_call_context, self.vars_mapper.x, right_end_of_range);
       derivative_at_right_end_of_range = self.d(self.jit_call_context, self.vars_mapper.x, right_end_of_range);
 
       if (!IsNormal(value_at_right_end_of_range) || !IsNormal(derivative_at_right_end_of_range)) {
-        // TODO(dkorolev): NaNs were hit, fall back to shrinking iterations.
+        // Entered the NaNs territory, but all is not necessarily lost.
         CURRENT_THROW(OptimizationException("TODO(dkorolev): Don't just fail here, check smaller steps first."));
       }
 
@@ -230,8 +252,8 @@ class LineSearchImpl final {
         break;
       } else {
         // The derivative at the new right end is still negative. Keep moving until it is positive.
-        // TODO(dkorolev): Fix the magic number.
-        if (derivative_at_right_end_of_range < (127.0 / 128.0) * derivative_at_left_end_of_range) {
+        if (derivative_at_right_end_of_range <
+            params.min_decrease_in_decreasing_derivative_for_slope_approximation * derivative_at_left_end_of_range) {
           // It is decreasing at decent pace though, so it is possible to approximate where is it supposed to be zero.
           // The check on the decrease pace is to make sure no excessively large step is made.
           bool const shift = (value_at_right_end_of_range <= value_at_left_end_of_range);
@@ -243,8 +265,7 @@ class LineSearchImpl final {
 
           double const times =
               derivative_at_left_end_of_range / (derivative_at_left_end_of_range - derivative_at_right_end_of_range);
-          // TODO(dkorolev): Fix the magic number.
-          double const real_times = std::min(4.0, times);
+          double const real_times = std::min(params.max_range_search_extrapolation_step_k, times);
 
 #ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
           if (times == real_times) {
@@ -280,10 +301,11 @@ class LineSearchImpl final {
           // Keep moving the right end of the range further to the right, at exponentially increasing steps.
           // Friendly reminder, that the step size is actually negative, so the right end technically is the left one.
           right_end_of_range += delta_right_end_of_range;
-          delta_right_end_of_range *= delta_right_end_of_range_exp_growth_k;
+          delta_right_end_of_range *= params.range_exp_growth_k;
         }
       }
     }
+
 #ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
     result.comments.push_back(range_search_comment);
 #endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
@@ -316,7 +338,6 @@ class LineSearchImpl final {
           result.best_step = right_end_of_range;
           return result;
         } else if (derivative_at_right_end_of_range > 0) {
-          // TODO(dkorolev): This will happen only if the "just anything non-NaN" was the rule to find the right end.
           CURRENT_THROW(OptimizationException("Internal error: `derivative_at_right_end_of_range > 0`."));
         } else {
           // The range to search for the zero has been found, as `f'(left)` is positive and `f'(right)` is negative.
@@ -365,8 +386,11 @@ class LineSearchImpl final {
           std::string zero_search_comment = "zero search: 1.0";
 #endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
 
-          // TODO(dkorolev): Magic number?
-          for (size_t final_iteration_index = 0; final_iteration_index < 100u; ++final_iteration_index) {
+          uint32_t number_of_final_iterations = 0u;
+          while (true) {
+            if (++number_of_final_iterations > params.max_derivative_zero_search_iterations) {
+              CURRENT_THROW(OptimizationException("Too many unsuccessful derivative zero search iterations."));
+            }
             double const current_range_width = left_end_of_range - right_end_of_range;
 #ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
             if (!range_widths.empty()) {
@@ -375,8 +399,7 @@ class LineSearchImpl final {
 #endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
             range_widths.push_back(current_range_width);
 
-            // TODO(dkorolev): Magic number?
-            if (current_range_width < 1e-6) {
+            if (current_range_width < params.zero_search_range_size_small_epsilon) {
 #ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
               zero_search_comment = " range shrinked to almost a point";
               result.comments.push_back(zero_search_comment);
@@ -385,7 +408,6 @@ class LineSearchImpl final {
               return result;
             }
 
-            ++final_iteration_index;
             double const value_at_midpoint = self.l(self.jit_call_context, self.vars_mapper.x, midpoint);
             double const derivative_at_midpoint = self.d(self.jit_call_context, self.vars_mapper.x, midpoint);
             result.path2.push_back(LineSearchIntermediatePoint(midpoint, value_at_midpoint, derivative_at_midpoint));
@@ -500,7 +522,11 @@ class LineSearchImpl final {
   }
 };
 
-inline LineSearchResult LineSearch(LineSearchContext const& self) { return LineSearchImpl::DoLineSearch(self); }
+inline LineSearchResult LineSearch(LineSearchContext const& self,
+                                   LineSearchParameters const& params = LineSearchParameters(),
+                                   Optional<double> previous_best_step = nullptr) {
+  return LineSearchImpl::DoLineSearch(self, params, previous_best_step);
+}
 
 }  // namespace current::expression::optimizer
 }  // namespace current::expression
