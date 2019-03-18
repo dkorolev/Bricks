@@ -181,8 +181,6 @@ inline void SavePlotAndLineSearchPath(std::string const& test_name,
       plot_body, (".current/" + test_name.substr(0, 2) + '-' + test_name.substr(2) + '.' + extension).c_str());
 }
 
-// TODO(dkorolev): Test same functions with different numbers of derivatives taken.
-// TODO(dkorolev): Also test the number of steps it took to optimize a function.
 #define TEST_1D_LINE_SEARCH(                                                                                           \
     test_name, function_body, expected_final_value, expected_path1_steps, expected_path2_steps, expected_comments)     \
   TEST(OptimizationOptimizerLineSearch, RegressionTest##test_name) {                                                   \
