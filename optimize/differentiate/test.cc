@@ -460,3 +460,34 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
     EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
   }
 }
+
+inline void RunOptimizationDifferentiateGradientStressTest(size_t dim) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  for (size_t i = 0; i < dim; ++i) {
+    x[i] = 0.0;
+  }
+
+  value_t f = ExpressionNode::FromImmediateDouble(0.0);
+  for (size_t i = 0; i < dim; ++i) {
+    f += exp(x[i]);
+  }
+
+  vars_context.ReindexVars();
+
+  ComputeGradient(f);
+}
+
+TEST(OptimizationDifferentiate, GradientStressTest100Exponents) {
+  RunOptimizationDifferentiateGradientStressTest(100u);
+}
+
+TEST(OptimizationDifferentiate, GradientStressTest1000Exponents) {
+  RunOptimizationDifferentiateGradientStressTest(1000u);
+}
+
+TEST(OptimizationDifferentiate, GradientStressTest10000Exponents) {
+  RunOptimizationDifferentiateGradientStressTest(10000u);
+}
