@@ -55,14 +55,31 @@ enum class ExpressionNodeType {
   Uninitialized,
   ImmediateDouble,
   Lambda,
+
+  MarkerOperationsBeginAfterThisInde,
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name) Operation_##name,
 #include "math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
+  MarkerOperationsEndedBeforeThisIndex,
+
+  MarketFunctionsBeginAfterThisIndex,
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn) Function_##fn,
 #include "math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
+  MarkerFunctionsEndedBeforeThisIndex,
+
   End
 };
+
+inline bool IsOperationNode(ExpressionNodeType type) {
+  return type > ExpressionNodeType::MarkerOperationsBeginAfterThisInde &&
+         type < ExpressionNodeType::MarkerOperationsEndedBeforeThisIndex;
+}
+
+inline bool IsFunctionNode(ExpressionNodeType type) {
+  return type > ExpressionNodeType::MarketFunctionsBeginAfterThisIndex &&
+         type < ExpressionNodeType::MarkerFunctionsEndedBeforeThisIndex;
+}
 
 enum class ExpressionFunctionIndex {
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn) FunctionIndexOf_##fn,

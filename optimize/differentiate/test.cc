@@ -488,6 +488,6 @@ TEST(OptimizationDifferentiate, GradientStressTest1000Exponents) {
   RunOptimizationDifferentiateGradientStressTest(1000u);
 }
 
-TEST(OptimizationDifferentiate, GradientStressTest10000Exponents) {
-  RunOptimizationDifferentiateGradientStressTest(10000u);
+TEST(OptimizationDifferentiate, GradientStressTest2500Exponents) {
+  RunOptimizationDifferentiateGradientStressTest(2500u);
 }
