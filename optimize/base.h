@@ -62,7 +62,7 @@ enum class ExpressionNodeType {
 #undef CURRENT_EXPRESSION_MATH_OPERATION
   MarkerOperationsEndedBeforeThisIndex,
 
-  MarketFunctionsBeginAfterThisIndex,
+  MarkerFunctionsBeginAfterThisIndex,
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn) Function_##fn,
 #include "math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
@@ -77,7 +77,7 @@ inline bool IsOperationNode(ExpressionNodeType type) {
 }
 
 inline bool IsFunctionNode(ExpressionNodeType type) {
-  return type > ExpressionNodeType::MarketFunctionsBeginAfterThisIndex &&
+  return type > ExpressionNodeType::MarkerFunctionsBeginAfterThisIndex &&
          type < ExpressionNodeType::MarkerFunctionsEndedBeforeThisIndex;
 }
 
