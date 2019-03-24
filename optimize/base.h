@@ -49,7 +49,13 @@ namespace expression {
 // Expression nodes: `index`-es map to the indexes in the thread-local singleton, `~index`-es map to variables,
 // and they are differentiated by whether the most significant bit is set.
 using expression_node_index_t = uint64_t;
-enum class ExpressionNodeIndex : expression_node_index_t { Invalid = static_cast<expression_node_index_t>(-1) };
+enum class ExpressionNodeIndex : expression_node_index_t { Invalid = (1ull << 62) };
+
+inline uint64_t IsNodeIndexVarIndex(ExpressionNodeIndex index) {
+  return static_cast<uint64_t>(index) & (1ull << 63);  // Do not cast to bool for performance reasons.
+}
+
+inline uint64_t VarIndexFromNodeIndex(ExpressionNodeIndex index) { return ~static_cast<uint64_t>(index); }
 
 enum class ExpressionNodeType {
   Uninitialized,
@@ -68,8 +74,10 @@ enum class ExpressionNodeType {
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
   MarkerFunctionsEndedBeforeThisIndex,
 
-  End
+  Total
 };
+
+static_assert(static_cast<size_t>(ExpressionNodeType::Total) < (1 << 6), "`ExpressionNodeType` should fit 6 bits.");
 
 inline bool IsOperationNode(ExpressionNodeType type) {
   return type > ExpressionNodeType::MarkerOperationsBeginAfterThisInde &&
@@ -97,6 +105,7 @@ struct ExpressionNodeTypeSelector {};
 namespace jit {
 class JITCompiler;
 }  // namespace current::expression::jit
+constexpr static uint64_t kFFTimesSeven = 0xffffffffffffffull;
 class ExpressionNodeImpl final {
  private:
   // To manage the below fields.
@@ -107,44 +116,81 @@ class ExpressionNodeImpl final {
   friend class Differentiator;
   friend class Build1DFunctionImpl;
 
-  ExpressionNodeType const type_;
-  double const value_;             // For `type_ == ImmediateDouble`. TODO(dkorolev): This will go away during refact.
-  ExpressionNodeIndex const lhs_;  // For math operations (left operand) or math functions (the argument).
-  ExpressionNodeIndex const rhs_;  // For math operations.
+  uint8_t compact_type_ : 6;
+  bool compact_has_double_ : 1;
+  bool compact_flipped_ : 1;
+  uint64_t compact_secondary_index_ : (8 * 7);  // `lhs` or `lhs` for math operations, depending on `compact_flipped_`.
+
+  union {
+    uint64_t compact_primary_index_;  // `rhs` or `lhs` for math operations, depending on `compact_flipped_`.
+    double compact_double_;           // the double value for math operations depending on `compact_has_double_`.
+  };
+
+  // Encode the index into seven bytes, respecting the sign bit as necessary.
+  static uint64_t EncodeIndex(ExpressionNodeIndex original_index) {
+    uint64_t const x = static_cast<uint64_t>(original_index);
+    if (x < ~x) {
+      return x;
+    } else {
+      return x & kFFTimesSeven;
+    }
+  }
+
+  // Decode index from seven bytes back to eight, respecting the MSB as necessary.
+  static ExpressionNodeIndex DecodeIndex(uint64_t encoded_index) {
+    if (encoded_index < (encoded_index ^ kFFTimesSeven)) {
+      return static_cast<ExpressionNodeIndex>(encoded_index);
+    } else {
+      return static_cast<ExpressionNodeIndex>(~(encoded_index ^ kFFTimesSeven));
+    }
+  }
+
+  void InitArgument(ExpressionNodeIndex argument) { compact_primary_index_ = EncodeIndex(argument); }
+
+  void InitLHSRHS(ExpressionNodeIndex lhs, ExpressionNodeIndex rhs) {
+    compact_primary_index_ = EncodeIndex(lhs);
+    compact_secondary_index_ = EncodeIndex(rhs);
+    compact_flipped_ = false;
+  }
 
  public:
-  ExpressionNodeImpl()
-      : type_(ExpressionNodeType::Uninitialized),
-        value_(0.0),
-        lhs_(ExpressionNodeIndex::Invalid),
-        rhs_(ExpressionNodeIndex::Invalid) {}
+  ExpressionNodeType Type() const { return static_cast<ExpressionNodeType>(compact_type_); }
+  double Value() const { return compact_double_; }
+  ExpressionNodeIndex ArgumentIndex() const { return DecodeIndex(compact_primary_index_); }
+  ExpressionNodeIndex LHSIndex() const {
+    return DecodeIndex(compact_flipped_ ? compact_secondary_index_ : compact_primary_index_);
+  }
+  ExpressionNodeIndex RHSIndex() const {
+    return DecodeIndex(compact_flipped_ ? compact_primary_index_ : compact_secondary_index_);
+  }
+
+  ExpressionNodeImpl() = default;
 
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::ImmediateDouble>, double x)
-      : type_(ExpressionNodeType::ImmediateDouble),
-        value_(x),
-        lhs_(ExpressionNodeIndex::Invalid),
-        rhs_(ExpressionNodeIndex::Invalid) {}
+      : compact_type_(static_cast<uint8_t>(ExpressionNodeType::ImmediateDouble)), compact_double_(x) {}
 
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Lambda>)
-      : type_(ExpressionNodeType::Lambda),
-        value_(0.0),
-        lhs_(ExpressionNodeIndex::Invalid),
-        rhs_(ExpressionNodeIndex::Invalid) {}
+      : compact_type_(static_cast<uint8_t>(ExpressionNodeType::Lambda)) {}
 
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                               \
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_##name>, \
                      ExpressionNodeIndex lhs,                                          \
                      ExpressionNodeIndex rhs)                                          \
-      : type_(ExpressionNodeType::Operation_##name), value_(0.0), lhs_(lhs), rhs_(rhs) {}
+      : compact_type_(static_cast<uint8_t>(ExpressionNodeType::Operation_##name)) {    \
+    InitLHSRHS(lhs, rhs);                                                              \
+  }
 #include "math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                                      \
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Function_##fn>, ExpressionNodeIndex argument) \
-      : type_(ExpressionNodeType::Function_##fn), value_(0.0), lhs_(argument), rhs_(ExpressionNodeIndex::Invalid) {}
+      : compact_type_(static_cast<uint8_t>(ExpressionNodeType::Function_##fn)) {                                  \
+    InitArgument(argument);                                                                                       \
+  }
 #include "math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
 };
+static_assert(sizeof(ExpressionNodeImpl) == 16, "`ExpressionNodeImpl` should be 16 bytes.");
 
 }  // namespace current::expression
 }  // namespace current

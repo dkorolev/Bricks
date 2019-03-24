@@ -85,28 +85,30 @@ class ExpressionNode final {
       return vars_context.VarNameByOriginalIndex(~index_);
     } else {
       ExpressionNodeImpl const& node = vars_context[index_];
-      if (node.type_ == ExpressionNodeType::Uninitialized) {
+      ExpressionNodeType const type = node.Type();
+      if (type == ExpressionNodeType::Uninitialized) {
         return "<Uninitialized>";
-      } else if (node.type_ == ExpressionNodeType::ImmediateDouble) {
-        if (node.value_ >= 0) {
-          return current::ToString(node.value_);
+      } else if (type == ExpressionNodeType::ImmediateDouble) {
+        double const value = node.Value();
+        if (value >= 0) {
+          return current::ToString(value);
         } else {
-          return "(" + current::ToString(node.value_) + ')';
+          return "(" + current::ToString(value) + ')';
         }
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                      \
-  }                                                                           \
-  else if (node.type_ == ExpressionNodeType::Operation_##name) {              \
-    return "(" + ExpressionNode::FromIndex(node.lhs_).DebugAsString() + #op + \
-           ExpressionNode::FromIndex(node.rhs_).DebugAsString() + ')';
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                            \
+  }                                                                                 \
+  else if (type == ExpressionNodeType::Operation_##name) {                          \
+    return "(" + ExpressionNode::FromIndex(node.LHSIndex()).DebugAsString() + #op + \
+           ExpressionNode::FromIndex(node.RHSIndex()).DebugAsString() + ')';
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
-#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                  \
-  }                                                           \
-  else if (node.type_ == ExpressionNodeType::Function_##fn) { \
-    return #fn "(" + ExpressionNode::FromIndex(node.lhs_).DebugAsString() + ')';
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)            \
+  }                                                     \
+  else if (type == ExpressionNodeType::Function_##fn) { \
+    return #fn "(" + ExpressionNode::FromIndex(node.ArgumentIndex()).DebugAsString() + ')';
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
-      } else if (node.type_ == ExpressionNodeType::Lambda) {
+      } else if (type == ExpressionNodeType::Lambda) {
         return "lambda";
       } else {
         CURRENT_THROW(ExpressionNodeInternalError());
@@ -238,29 +240,30 @@ class Build1DFunctionImpl {
   }
 
   value_t DoBuild1DFunction(value_t f) const {
-    expression_node_index_t const index = static_cast<expression_node_index_t>(ExpressionNodeIndex(f));
+    auto const index = static_cast<expression_node_index_t>(ExpressionNodeIndex(f));
     if (~index < index) {
       return substitute_[~index];
     } else {
       ExpressionNodeImpl const& node = vars_context_[index];
-      if (node.type_ == ExpressionNodeType::Uninitialized) {
+      ExpressionNodeType const type = node.Type();
+      if (type == ExpressionNodeType::Uninitialized) {
         CURRENT_THROW(ExpressionNodeInternalError());
-      } else if (node.type_ == ExpressionNodeType::ImmediateDouble) {
+      } else if (type == ExpressionNodeType::ImmediateDouble) {
         return f;
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)           \
-  }                                                                \
-  else if (node.type_ == ExpressionNodeType::Operation_##name) {   \
-    return DoBuild1DFunction(ExpressionNode::FromIndex(node.lhs_)) \
-        op DoBuild1DFunction(ExpressionNode::FromIndex(node.rhs_));
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                 \
+  }                                                                      \
+  else if (type == ExpressionNodeType::Operation_##name) {               \
+    return DoBuild1DFunction(ExpressionNode::FromIndex(node.LHSIndex())) \
+        op DoBuild1DFunction(ExpressionNode::FromIndex(node.RHSIndex()));
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
-#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                  \
-  }                                                           \
-  else if (node.type_ == ExpressionNodeType::Function_##fn) { \
-    return fn(DoBuild1DFunction(ExpressionNode::FromIndex(node.lhs_)));
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)            \
+  }                                                     \
+  else if (type == ExpressionNodeType::Function_##fn) { \
+    return fn(DoBuild1DFunction(ExpressionNode::FromIndex(node.ArgumentIndex())));
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
-      } else if (node.type_ == ExpressionNodeType::Lambda) {
+      } else if (type == ExpressionNodeType::Lambda) {
         CURRENT_THROW(ExpressionNodeInternalError());
       } else {
         CURRENT_THROW(ExpressionNodeInternalError());
