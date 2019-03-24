@@ -38,17 +38,9 @@ SOFTWARE.
 #include "../../bricks/file/file.h"
 
 #include "../../3rdparty/gtest/gtest-main.h"
+#include "../../3rdparty/gtest/singlequoted.h"
 
 namespace serialization_test {
-
-inline std::string SingleQuoted(std::string s) {
-  for (char& c : s) {
-    if (c == '\"') {
-      c = '\'';
-    }
-  }
-  return s;
-}
 
 CURRENT_ENUM(Enum, uint32_t){DEFAULT = 0u, SET = 100u};
 

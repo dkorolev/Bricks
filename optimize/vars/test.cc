@@ -29,15 +29,7 @@ SOFTWARE.
 #include "vars.h"
 
 #include "../../3rdparty/gtest/gtest-main.h"
-
-inline std::string SingleQuoted(std::string s) {
-  for (char& c : s) {
-    if (c == '\"') {
-      c = '\'';
-    }
-  }
-  return s;
-}
+#include "../../3rdparty/gtest/singlequoted.h"
 
 #define EXPECT_VAR_NAME_IS_RIGHT(var) EXPECT_EQ(#var, (var).FullVarName())
 #define EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(var, index) EXPECT_EQ(#var "{" #index "}", (var).FullVarName())

@@ -25,15 +25,7 @@ SOFTWARE.
 #include "expression.h"
 
 #include "../../3rdparty/gtest/gtest-main.h"
-
-inline std::string SingleQuoted(std::string s) {
-  for (char& c : s) {
-    if (c == '\"') {
-      c = '\'';
-    }
-  }
-  return s;
-}
+#include "../../3rdparty/gtest/singlequoted.h"
 
 TEST(OptimizationExpression, SimpleVarsAddition) {
   using namespace current::expression;
