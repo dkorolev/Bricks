@@ -349,4 +349,36 @@ TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
   EXPECT_EQ(1.0, f(jit_call_context, {}, 1.0));
 }
 
+inline void RunOptimizationJITStressTest(size_t dim) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  for (size_t i = 0; i < dim; ++i) {
+    x[i] = 0.0;
+  }
+
+  value_t f = ExpressionNode::FromImmediateDouble(0.0);
+  for (size_t i = 0; i < dim; ++i) {
+    f += exp(x[i]);
+  }
+
+  VarsMapperConfig const vars_config = vars_context.Freeze();
+  jit::JITCallContext jit_call_context(vars_config);
+  jit::Function const copiled_f = jit::JITCompiler(jit_call_context).Compile(f);
+
+  VarsMapper input(vars_config);
+  EXPECT_EQ(dim, copiled_f(jit_call_context, input.x));
+}
+
+TEST(OptimizationJIT, JITStressTest1KExponents) { RunOptimizationJITStressTest(1000u); }
+
+TEST(OptimizationJIT, JITStressTest5KExponents) { RunOptimizationJITStressTest(5000u); }
+
+TEST(OptimizationJIT, DISABLED_JITStressTest10KExponents) { RunOptimizationJITStressTest(10 * 1000u); }
+
+TEST(OptimizationJIT, DISABLED_JITStressTest100KExponents) { RunOptimizationJITStressTest(100 * 1000u); }
+
+TEST(OptimizationJIT, DISABLED_JITStressTest1MExponents) { RunOptimizationJITStressTest(1000 * 1000u); }
+
 #endif  // FNCAS_X64_NATIVE_JIT_ENABLED
