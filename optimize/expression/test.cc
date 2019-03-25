@@ -217,8 +217,10 @@ TEST(OptimizationExpression, IndexesAreNonFinalizedIndexes) {
   value_t const v0(x[0]);
   value_t const v2(x[2]);
 
-  EXPECT_EQ(0u, ~static_cast<size_t>(ExpressionNodeIndex(v0)));
-  EXPECT_EQ(1u, ~static_cast<size_t>(ExpressionNodeIndex(v2)));  // `v2`, which is `x[2]`, has an internal index `1`.
+  EXPECT_TRUE(IsNodeIndexVarIndex(v0));
+  EXPECT_TRUE(IsNodeIndexVarIndex(v2));
+  EXPECT_EQ(0u, VarIndexFromNodeIndex(v0));
+  EXPECT_EQ(1u, VarIndexFromNodeIndex(v2));
 
   EXPECT_EQ("x[0]", v0.DebugAsString());
   EXPECT_EQ("x[2]", v2.DebugAsString());
@@ -237,15 +239,18 @@ TEST(OptimizationExpression, IndexesAreNonFinalizedIndexes) {
   EXPECT_EQ("x[1]", v1.DebugAsString());  // No dense index allocated yet for `x[1]` before `Freeze()` was called.
   EXPECT_EQ("x[2]{1}", v2.DebugAsString());
 
-  EXPECT_EQ(0u, ~static_cast<size_t>(ExpressionNodeIndex(v0)));
-  EXPECT_EQ(1u, ~static_cast<size_t>(ExpressionNodeIndex(v2)));  // `v2`, which is `x[2]`, has an internal index `1`.
-  EXPECT_EQ(2u, ~static_cast<size_t>(ExpressionNodeIndex(v1)));  // `v1`, which is `x[1]`, has an internal index `2`.
+  EXPECT_TRUE(IsNodeIndexVarIndex(v0));
+  EXPECT_TRUE(IsNodeIndexVarIndex(v1));
+  EXPECT_TRUE(IsNodeIndexVarIndex(v2));
+  EXPECT_EQ(0u, VarIndexFromNodeIndex(v0));
+  EXPECT_EQ(1u, VarIndexFromNodeIndex(v2));  // `v2`, which is `x[2]`, has an internal index `1`.
+  EXPECT_EQ(2u, VarIndexFromNodeIndex(v1));  // `v1`, which is `x[1]`, has an internal index `2`.
 
   vars_context.Freeze();
 
-  EXPECT_EQ(0u, ~static_cast<size_t>(ExpressionNodeIndex(v0)));
-  EXPECT_EQ(1u, ~static_cast<size_t>(ExpressionNodeIndex(v2)));
-  EXPECT_EQ(2u, ~static_cast<size_t>(ExpressionNodeIndex(v1)));
+  EXPECT_EQ(0u, VarIndexFromNodeIndex(v0));
+  EXPECT_EQ(1u, VarIndexFromNodeIndex(v2));
+  EXPECT_EQ(2u, VarIndexFromNodeIndex(v1));
 
   EXPECT_EQ("x[0]{0}", v0.DebugAsString());
   EXPECT_EQ("x[1]{1}", v1.DebugAsString());
@@ -278,9 +283,9 @@ TEST(OptimizationExpression, FreezePreventsNodesCreation) {
   value_t const tmp1 = x[0] + 1.0;
   value_t const tmp2 = x[0] + 2.0;
   value_t const tmp3 = x[0] + 3.0;
-  EXPECT_EQ(1u, static_cast<size_t>(ExpressionNodeIndex(tmp1)));
-  EXPECT_EQ(3u, static_cast<size_t>(ExpressionNodeIndex(tmp2)));
-  EXPECT_EQ(5u, static_cast<size_t>(ExpressionNodeIndex(tmp3)));
+  EXPECT_EQ(1u, ExpressionNodeIndex(tmp1).internal_value);
+  EXPECT_EQ(3u, ExpressionNodeIndex(tmp2).internal_value);
+  EXPECT_EQ(5u, ExpressionNodeIndex(tmp3).internal_value);
 
   VarsMapperConfig const config = vars_context.Freeze();
   EXPECT_EQ(1u, config.total_leaves);  // Just one variable, `x[0]`.

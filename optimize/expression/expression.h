@@ -61,7 +61,7 @@ class ExpressionNode final {
 
   static ExpressionNode FromIndex(expression_node_index_t index) { return ExpressionNode(ConstructFromIndex(), index); }
   static ExpressionNode FromIndex(ExpressionNodeIndex index) {
-    return ExpressionNode(ConstructFromIndex(), static_cast<expression_node_index_t>(index));
+    return ExpressionNode(ConstructFromIndex(), static_cast<expression_node_index_t>(index.internal_value));
   }
   static ExpressionNode FromImmediateDouble(double x) {
     return ExpressionNode(ConstructFromIndex(),
@@ -77,7 +77,11 @@ class ExpressionNode final {
     return ExpressionNode(ConstructFromIndex(), static_cast<expression_node_index_t>(-1));
   }
 
-  operator ExpressionNodeIndex() const { return ExpressionNodeIndex(index_); }
+  operator ExpressionNodeIndex() const {
+    ExpressionNodeIndex result;
+    result.internal_value = index_;
+    return result;
+  }
 
   std::string DebugAsString() const {
     VarsContext const& vars_context = VarsManager::TLS().Active();
@@ -240,11 +244,11 @@ class Build1DFunctionImpl {
   }
 
   value_t DoBuild1DFunction(value_t f) const {
-    auto const index = static_cast<expression_node_index_t>(ExpressionNodeIndex(f));
-    if (~index < index) {
-      return substitute_[~index];
+    ExpressionNodeIndex const index = ExpressionNodeIndex(f);
+    if (IsNodeIndexVarIndex(index)) {
+      return substitute_[VarIndexFromNodeIndex(index)];
     } else {
-      ExpressionNodeImpl const& node = vars_context_[index];
+      ExpressionNodeImpl const& node = vars_context_[index.internal_value];
       ExpressionNodeType const type = node.Type();
       if (type == ExpressionNodeType::Uninitialized) {
         CURRENT_THROW(ExpressionNodeInternalError());

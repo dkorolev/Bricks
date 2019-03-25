@@ -49,13 +49,16 @@ namespace expression {
 // Expression nodes: `index`-es map to the indexes in the thread-local singleton, `~index`-es map to variables,
 // and they are differentiated by whether the most significant bit is set.
 using expression_node_index_t = uint64_t;
-enum class ExpressionNodeIndex : expression_node_index_t { Invalid = (1ull << 62) };
+struct ExpressionNodeIndex {
+  uint64_t internal_value;
+};
+static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be 8 bytes.");
 
 inline uint64_t IsNodeIndexVarIndex(ExpressionNodeIndex index) {
-  return static_cast<uint64_t>(index) & (1ull << 63);  // Do not cast to bool for performance reasons.
+  return index.internal_value & (1ull << 63);  // Do not cast to bool for performance reasons.
 }
 
-inline uint64_t VarIndexFromNodeIndex(ExpressionNodeIndex index) { return ~static_cast<uint64_t>(index); }
+inline uint64_t VarIndexFromNodeIndex(ExpressionNodeIndex index) { return ~index.internal_value; }
 
 enum class ExpressionNodeType {
   Uninitialized,
@@ -128,7 +131,7 @@ class ExpressionNodeImpl final {
 
   // Encode the index into seven bytes, respecting the sign bit as necessary.
   static uint64_t EncodeIndex(ExpressionNodeIndex original_index) {
-    uint64_t const x = static_cast<uint64_t>(original_index);
+    uint64_t const x = static_cast<uint64_t>(original_index.internal_value);
     if (x < ~x) {
       return x;
     } else {
@@ -138,11 +141,13 @@ class ExpressionNodeImpl final {
 
   // Decode index from seven bytes back to eight, respecting the MSB as necessary.
   static ExpressionNodeIndex DecodeIndex(uint64_t encoded_index) {
+    ExpressionNodeIndex result;
     if (encoded_index < (encoded_index ^ kFFTimesSeven)) {
-      return static_cast<ExpressionNodeIndex>(encoded_index);
+      result.internal_value = encoded_index;
     } else {
-      return static_cast<ExpressionNodeIndex>(~(encoded_index ^ kFFTimesSeven));
+      result.internal_value = ~(encoded_index ^ kFFTimesSeven);
     }
+    return result;
   }
 
   void InitArgument(ExpressionNodeIndex argument) { compact_primary_index_ = EncodeIndex(argument); }

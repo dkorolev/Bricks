@@ -218,7 +218,7 @@ class FunctionReturningVectorImpl final {
       if (IsNodeIndexVarIndex(index)) {
         result[i] = x[VarIndexFromNodeIndex(index)];
       } else {
-        result[i] = call_context_.RAMPointer()[static_cast<size_t>(index)];
+        result[i] = call_context_.RAMPointer()[index.internal_value];
       }
     }
     return result;
@@ -301,21 +301,22 @@ class JITCompiler final {
 
   void EnsureNodeComputed(std::vector<uint8_t>& code, ExpressionNodeIndex index) {
     if (!IsNodeIndexVarIndex(index)) {
+      uint64_t const index_value = index.internal_value;
       // If the MSB of `index` is set, the node is a var or constant from the input vector, which is already computed.
-      if (!(static_cast<size_t>(index) < node_computed_.size())) {
+      if (!(static_cast<size_t>(index_value) < node_computed_.size())) {
         CURRENT_THROW(JITInternalErrorException());
       }
 
-      if (!node_computed_[static_cast<size_t>(index)]) {
-        node_computed_[static_cast<size_t>(index)] = true;
+      if (!node_computed_[index_value]) {
+        node_computed_[index_value] = true;
 
         using namespace current::fncas::x64_native_jit;
 
-        ExpressionNodeImpl const& node = VarsManager::TLS().Active()[static_cast<size_t>(index)];
+        ExpressionNodeImpl const& node = VarsManager::TLS().Active()[index_value];
         ExpressionNodeType const type = node.Type();
 
         if (type == ExpressionNodeType::ImmediateDouble) {
-          opcodes::load_immediate_to_memory_by_rbx_offset(code, index, node.Value());
+          opcodes::load_immediate_to_memory_by_rbx_offset(code, index.internal_value, node.Value());
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                         \
   }                                                                                                              \
   else if (type == ExpressionNodeType::Operation_##name) {                                                       \
@@ -326,14 +327,14 @@ class JITCompiler final {
     if (IsNodeIndexVarIndex(lhs)) {                                                                              \
       opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[VarIndexFromNodeIndex(lhs)]);   \
     } else {                                                                                                     \
-      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, static_cast<uint64_t>(lhs));                         \
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, lhs.internal_value);                                 \
     }                                                                                                            \
     if (IsNodeIndexVarIndex(rhs)) {                                                                              \
       opcodes::name##_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[VarIndexFromNodeIndex(rhs)]); \
     } else {                                                                                                     \
-      opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, rhs);                                              \
+      opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, rhs.internal_value);                               \
     }                                                                                                            \
-    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index);
+    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index.internal_value);
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 
@@ -346,7 +347,7 @@ class JITCompiler final {
     if (IsNodeIndexVarIndex(argument)) {                                                                            \
       opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[VarIndexFromNodeIndex(argument)]); \
     } else {                                                                                                        \
-      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, static_cast<size_t>(argument));                         \
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, argument.internal_value);                               \
     }                                                                                                               \
     opcodes::push_rdi(code);                                                                                        \
     opcodes::push_rdx(code);                                                                                        \
@@ -354,13 +355,13 @@ class JITCompiler final {
         code, static_cast<uint8_t>(ExpressionFunctionIndex::FunctionIndexOf_##fn));                                 \
     opcodes::pop_rdx(code);                                                                                         \
     opcodes::pop_rdi(code);                                                                                         \
-    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index);
+    opcodes::store_xmm0_to_memory_by_rbx_offset(code, index.internal_value);
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
         } else if (type == ExpressionNodeType::Lambda) {
           // TODO(dkorolev): FIXME, this "extra" copy-pasting of that double value should go away.
           opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, context_.config_.total_nodes);
-          opcodes::store_xmm0_to_memory_by_rbx_offset(code, index);
+          opcodes::store_xmm0_to_memory_by_rbx_offset(code, index.internal_value);
         } else {
           CURRENT_THROW(JITInternalErrorException());
         }
@@ -389,7 +390,7 @@ class JITCompiler final {
       opcodes::push_rbx(code);
       opcodes::mov_rsi_rbx(code);
       EnsureNodeComputed(code, index);
-      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index);
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index.internal_value);
       opcodes::pop_rbx(code);
     }
     opcodes::ret(code);
@@ -438,7 +439,7 @@ class JITCompiler final {
       // TODO(dkorolev): Allow computing function with parameter. And test this.
       EnsureNodeComputed(code, index);
       // TODO(dkorolev): Disallow computing function with parameter.
-      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index);
+      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index.internal_value);
       opcodes::pop_rbx(code);
     }
     opcodes::ret(code);

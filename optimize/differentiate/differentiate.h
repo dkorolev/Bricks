@@ -178,7 +178,7 @@ class Differentiator final {
   value_t Differentiate(value_t value_to_differentiate) const {
     ExpressionNodeIndex const index_to_differentiate = value_to_differentiate;
 
-    PushToStack(static_cast<uint64_t>(index_to_differentiate), 0u);
+    PushToStack(index_to_differentiate.internal_value, 0u);
 
     while (stack_.NotEmpty()) {
       DifferentiatorManualStack::ManualStackEntry const self = stack_.DoPop();
@@ -210,8 +210,8 @@ class Differentiator final {
         if (!ready_to_differentiate) {
           size_t const dfs_call_return_value_index = stack_.DoPush(~index, self.return_value_index_times2);
           // Push `b` before `a` to the stack because OCD: This way the LHS is evaluated before RHS. -- D.K.
-          PushToStack(static_cast<uint64_t>(node_rhs), dfs_call_return_value_index * 2u + 1u);
-          PushToStack(static_cast<uint64_t>(node_lhs), dfs_call_return_value_index * 2u);
+          PushToStack(node_rhs.internal_value, dfs_call_return_value_index * 2u + 1u);
+          PushToStack(node_lhs.internal_value, dfs_call_return_value_index * 2u);
         } else {
           value_t const da = value_t::FromIndex(self.return_value[0]);
           value_t const db = value_t::FromIndex(self.return_value[1]);
@@ -234,7 +234,7 @@ class Differentiator final {
         value_t const x = ExpressionNode::FromIndex(node_argument);
         if (!ready_to_differentiate) {
           size_t const dfs_call_return_value_index = stack_.DoPush(~index, self.return_value_index_times2);
-          PushToStack(static_cast<uint64_t>(node_argument), dfs_call_return_value_index * 2u);
+          PushToStack(node_argument.internal_value, dfs_call_return_value_index * 2u);
         } else {
           value_t const dx = value_t::FromIndex(self.return_value[0]);
           value_t df = ExpressionNode::ConstructDefaultExpressionNode();
