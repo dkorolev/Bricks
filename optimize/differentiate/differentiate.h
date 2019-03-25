@@ -150,11 +150,9 @@ class Differentiator final {
   }
 
   void PushToStack(ExpressionNodeIndex node_index, size_t return_value_index_times2) const {
-    if (node_index.IsNodeIndex()) {
-      stack_.DoPush(node_index.NodeIndex(), return_value_index_times2);
-    } else {
-      stack_.DoReturnValue(DerivativeOfVar(node_index.VarIndex()), return_value_index_times2);
-    }
+    node_index.Dispatch(
+        [&](uint64_t node_index) { stack_.DoPush(node_index, return_value_index_times2); },
+        [&](uint64_t var_index) { stack_.DoReturnValue(DerivativeOfVar(var_index), return_value_index_times2); });
   }
 
  public:

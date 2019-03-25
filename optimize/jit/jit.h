@@ -227,12 +227,9 @@ class FunctionReturningVectorImpl final {
     std::vector<double> result(output_node_indexes_.size());
     f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
     for (size_t i = 0; i < output_node_indexes_.size(); ++i) {
-      ExpressionNodeIndex const index = output_node_indexes_[i];
-      if (index.IsNodeIndex()) {
-        result[i] = call_context_.RAMPointer()[index.NodeIndex()];
-      } else {
-        result[i] = x[index.VarIndex()];
-      }
+      result[i] = output_node_indexes_[i].template Dispatch<double>(
+          [&](uint64_t node_index) -> double { return call_context_.RAMPointer()[node_index]; },
+          [&](uint64_t var_index) -> double { return x[var_index]; });
     }
     return result;
   }
@@ -330,12 +327,13 @@ class JITCompiler final {
 #endif
 
     auto const PushNodeToStack = [this, &manual_stack](ExpressionNodeIndex index, bool ready_to_compute_flag) {
-      if (index.IsNodeIndex()) {
-        uint64_t const node_index = static_cast<uint64_t>(index.NodeIndex());
-        if (!node_computed_[node_index]) {
-          manual_stack.push_back(ready_to_compute_flag ? ~node_index : node_index);
-        }
-      }
+      index.Dispatch(
+          [&](uint64_t node_index) {
+            if (!node_computed_[node_index]) {
+              manual_stack.push_back(ready_to_compute_flag ? ~node_index : node_index);
+            }
+          },
+          [](uint64_t) {});
     };
 
     PushNodeToStack(requested_index, false);
@@ -367,54 +365,48 @@ class JITCompiler final {
         if (type == ExpressionNodeType::ImmediateDouble) {
           opcodes::load_immediate_to_memory_by_rbx_offset(code, current_node_index, node.Value());
           node_computed_[current_node_index] = true;
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                               \
-  }                                                                                                    \
-  else if (type == ExpressionNodeType::Operation_##name) {                                             \
-    ExpressionNodeIndex const lhs = node.LHSIndex();                                                   \
-    ExpressionNodeIndex const rhs = node.RHSIndex();                                                   \
-    if (!ready_to_compute) {                                                                           \
-      PushNodeToStack(ExpressionNodeIndex::FromNodeIndex(current_node_index), true);                   \
-      PushNodeToStack(rhs, false);                                                                     \
-      PushNodeToStack(lhs, false);                                                                     \
-    } else {                                                                                           \
-      if (lhs.IsNodeIndex()) {                                                                         \
-        opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, lhs.NodeIndex());                        \
-      } else {                                                                                         \
-        opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[lhs.VarIndex()]);   \
-      }                                                                                                \
-      if (rhs.IsNodeIndex()) {                                                                         \
-        opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, rhs.NodeIndex());                      \
-      } else {                                                                                         \
-        opcodes::name##_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[rhs.VarIndex()]); \
-      }                                                                                                \
-      opcodes::store_xmm0_to_memory_by_rbx_offset(code, current_node_index);                           \
-      node_computed_[current_node_index] = true;                                                       \
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                              \
+  }                                                                                                                   \
+  else if (type == ExpressionNodeType::Operation_##name) {                                                            \
+    ExpressionNodeIndex const lhs = node.LHSIndex();                                                                  \
+    ExpressionNodeIndex const rhs = node.RHSIndex();                                                                  \
+    if (!ready_to_compute) {                                                                                          \
+      PushNodeToStack(ExpressionNodeIndex::FromNodeIndex(current_node_index), true);                                  \
+      PushNodeToStack(rhs, false);                                                                                    \
+      PushNodeToStack(lhs, false);                                                                                    \
+    } else {                                                                                                          \
+      lhs.Dispatch(                                                                                                   \
+          [&](uint64_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                          \
+          [&](uint64_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); });   \
+      rhs.Dispatch(                                                                                                   \
+          [&](uint64_t idx) { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, idx); },                        \
+          [&](uint64_t var) { opcodes::name##_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); }); \
+      opcodes::store_xmm0_to_memory_by_rbx_offset(code, current_node_index);                                          \
+      node_computed_[current_node_index] = true;                                                                      \
     }
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 
-#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                              \
-  }                                                                                                       \
-  else if (type == ExpressionNodeType::Function_##fn) {                                                   \
-    ExpressionNodeIndex const argument = node.ArgumentIndex();                                            \
-    if (!ready_to_compute) {                                                                              \
-      PushNodeToStack(ExpressionNodeIndex::FromNodeIndex(current_node_index), true);                      \
-      PushNodeToStack(argument, false);                                                                   \
-    } else {                                                                                              \
-      using namespace current::fncas::x64_native_jit;                                                     \
-      if (argument.IsNodeIndex()) {                                                                       \
-        opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, argument.NodeIndex());                      \
-      } else {                                                                                            \
-        opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[argument.VarIndex()]); \
-      }                                                                                                   \
-      opcodes::push_rdi(code);                                                                            \
-      opcodes::push_rdx(code);                                                                            \
-      opcodes::call_function_from_rdx_pointers_array_by_index(                                            \
-          code, static_cast<uint8_t>(ExpressionFunctionIndex::FunctionIndexOf_##fn));                     \
-      opcodes::pop_rdx(code);                                                                             \
-      opcodes::pop_rdi(code);                                                                             \
-      opcodes::store_xmm0_to_memory_by_rbx_offset(code, current_node_index);                              \
-      node_computed_[current_node_index] = true;                                                          \
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                                        \
+  }                                                                                                                 \
+  else if (type == ExpressionNodeType::Function_##fn) {                                                             \
+    ExpressionNodeIndex const argument = node.ArgumentIndex();                                                      \
+    if (!ready_to_compute) {                                                                                        \
+      PushNodeToStack(ExpressionNodeIndex::FromNodeIndex(current_node_index), true);                                \
+      PushNodeToStack(argument, false);                                                                             \
+    } else {                                                                                                        \
+      using namespace current::fncas::x64_native_jit;                                                               \
+      argument.Dispatch(                                                                                            \
+          [&](uint64_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                        \
+          [&](uint64_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); }); \
+      opcodes::push_rdi(code);                                                                                      \
+      opcodes::push_rdx(code);                                                                                      \
+      opcodes::call_function_from_rdx_pointers_array_by_index(                                                      \
+          code, static_cast<uint8_t>(ExpressionFunctionIndex::FunctionIndexOf_##fn));                               \
+      opcodes::pop_rdx(code);                                                                                       \
+      opcodes::pop_rdi(code);                                                                                       \
+      opcodes::store_xmm0_to_memory_by_rbx_offset(code, current_node_index);                                        \
+      node_computed_[current_node_index] = true;                                                                    \
     }
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
@@ -444,16 +436,18 @@ class JITCompiler final {
     // TODO(dkorolev): Inplace code generation.
     std::vector<uint8_t> code;
 
-    ExpressionNodeIndex const index = ExpressionNodeIndex(node);
-    if (index.IsNodeIndex()) {
-      opcodes::push_rbx(code);
-      opcodes::mov_rsi_rbx(code);
-      NonRecursiveEnsureNodeComputed(code, index);
-      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index.NodeIndex());
-      opcodes::pop_rbx(code);
-    } else {
-      opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[index.VarIndex()]);
-    }
+    ExpressionNodeIndex index = ExpressionNodeIndex(node);
+    index.Dispatch(
+        [&](uint64_t node_index) {
+          opcodes::push_rbx(code);
+          opcodes::mov_rsi_rbx(code);
+          NonRecursiveEnsureNodeComputed(code, index);
+          opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, node_index);
+          opcodes::pop_rbx(code);
+        },
+        [&](uint64_t var_index) {
+          opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var_index]);
+        });
     opcodes::ret(code);
 
     return Function(context_, std::move(code));
@@ -474,9 +468,7 @@ class JITCompiler final {
     }
 
     for (ExpressionNodeIndex const index : output_node_indexes) {
-      if (index.IsNodeIndex()) {
-        NonRecursiveEnsureNodeComputed(code, index);
-      }
+      index.Dispatch([&](uint64_t) { NonRecursiveEnsureNodeComputed(code, index); }, [](uint64_t) {});
     }
 
     opcodes::pop_rbx(code);
@@ -492,17 +484,19 @@ class JITCompiler final {
     std::vector<uint8_t> code;
 
     ExpressionNodeIndex const index = ExpressionNodeIndex(node);
-    if (index.IsNodeIndex()) {
-      opcodes::push_rbx(code);
-      opcodes::mov_rsi_rbx(code);
-      // TODO(dkorolev): Allow computing function with parameter. And test this.
-      NonRecursiveEnsureNodeComputed(code, index);
-      // TODO(dkorolev): Disallow computing function with parameter.
-      opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, index.NodeIndex());
-      opcodes::pop_rbx(code);
-    } else {
-      opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[index.VarIndex()]);
-    }
+    index.Dispatch(
+        [&](uint64_t node_index) {
+          opcodes::push_rbx(code);
+          opcodes::mov_rsi_rbx(code);
+          // TODO(dkorolev): Allow computing function with parameter. And test this.
+          NonRecursiveEnsureNodeComputed(code, index);
+          // TODO(dkorolev): Disallow computing function with parameter.
+          opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, node_index);
+          opcodes::pop_rbx(code);
+        },
+        [&](uint64_t var_index) {
+          opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var_index]);
+        });
     opcodes::ret(code);
 
     return FunctionWithArgument(context_, std::move(code));

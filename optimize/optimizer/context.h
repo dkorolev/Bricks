@@ -80,7 +80,12 @@ struct OptimizationContext {
   static std::vector<size_t> ComputeGI(std::vector<value_t> const& g) {
     std::vector<size_t> result(g.size());
     for (size_t i = 0; i < g.size(); ++i) {
-      result[i] = ExpressionNodeIndex(g[i]).NodeIndex();
+      result[i] = ExpressionNodeIndex(g[i]).template Dispatch<size_t>(
+          [](uint64_t node_index) { return static_cast<size_t>(node_index); },
+          [](uint64_t) {
+            CURRENT_THROW(OptimizeException("FIXME: internal error, gradient component is not a node."));
+            return static_cast<size_t>(-1);
+          });
     }
     return result;
   }

@@ -84,11 +84,37 @@ class ExpressionNodeIndex {
     return result;
   }
 
-  bool IsNodeIndex() const { return compactified_index_ < ~compactified_index_; }
+  uint64_t ChopIndexToSevenBytes() const { return compactified_index_ & kFFTimesSeven; }
 
-  size_t NodeIndex() const {
+  // NOTE(dkorolev): This is a *temporary* (~5% slower) solution implemented to make sure
+  // I don't forget to handle all the corner cases as the number of them grows larger than two.
+  template <typename T_RETVAL = void, typename F_NODE, typename F_VAR>
+  T_RETVAL Dispatch(F_NODE&& f_node, F_VAR&& f_var) const {
+    if (compactified_index_ < ~compactified_index_) {
 #ifndef NDEBUG
-    if (!IsNodeIndex()) {
+      if (!(compactified_index_ < kFFTimesSeven)) {
+        CURRENT_THROW(OptimizeException("Internal error."));
+      }
+#endif
+      return f_node(compactified_index_);
+    } else {
+#ifndef NDEBUG
+      if (!(~compactified_index_ < kFFTimesSeven)) {
+        CURRENT_THROW(OptimizeException("Internal error."));
+      }
+#endif
+      return f_var(~compactified_index_);
+    }
+  }
+
+  // NOTE(dkorolev): The below section is now "commented out" to make sure I don't miss out on handling all the
+  // corner cases as the "node index" can also be a `lambda` and an encoded `double` value. Once just the simple
+  // check of `if (x.IsNodeIndex()) { ... } else { ... }` is no longer correct, I'd rather have the compiler
+  // highlight all the usecases of this potentially and likely erroneus construct.
+  bool UnitTestIsNodeIndex() const { return compactified_index_ < ~compactified_index_; }
+  size_t UnitTestNodeIndex() const {
+#ifndef NDEBUG
+    if (!UnitTestIsNodeIndex()) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
     if (!(compactified_index_ < kFFTimesSeven)) {
@@ -97,10 +123,9 @@ class ExpressionNodeIndex {
 #endif
     return static_cast<size_t>(compactified_index_);
   }
-
-  size_t VarIndex() const {
+  size_t UnitTestVarIndex() const {
 #ifndef NDEBUG
-    if (IsNodeIndex()) {
+    if (UnitTestIsNodeIndex()) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
     if (!(~compactified_index_ < kFFTimesSeven)) {
@@ -108,10 +133,6 @@ class ExpressionNodeIndex {
     }
 #endif
     return static_cast<size_t>(~compactified_index_);
-  }
-
-  uint64_t ChopIndexToSevenBytes() const {
-    return compactified_index_ & kFFTimesSeven;
   }
 };
 static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be 8 bytes.");
@@ -186,9 +207,7 @@ class ExpressionNodeImpl final {
   // TODO(dkorolev): No need to encode the primary index!
 
   // Encode the index into seven bytes, respecting the sign bit(s) as necessary.
-  static uint64_t EncodeIndex(ExpressionNodeIndex original_index) {
-    return original_index.ChopIndexToSevenBytes();
-  }
+  static uint64_t EncodeIndex(ExpressionNodeIndex original_index) { return original_index.ChopIndexToSevenBytes(); }
 
   // Decode index from seven bytes back to eight, respecting the MSB as necessary.
   static ExpressionNodeIndex DecodeIndex(uint64_t encoded_index) {

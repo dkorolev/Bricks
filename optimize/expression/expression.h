@@ -72,18 +72,19 @@ class ExpressionNode final {
 
   std::string DebugAsString() const {
     VarsContext const& vars_context = VarsManager::TLS().Active();
-    if (index_.IsNodeIndex()) {
-      ExpressionNodeImpl const& node = vars_context[index_.NodeIndex()];
-      ExpressionNodeType const type = node.Type();
-      if (type == ExpressionNodeType::Uninitialized) {
-        return "<Uninitialized>";
-      } else if (type == ExpressionNodeType::ImmediateDouble) {
-        double const value = node.Value();
-        if (value >= 0) {
-          return current::ToString(value);
-        } else {
-          return "(" + current::ToString(value) + ')';
-        }
+    return index_.template Dispatch<std::string>(
+        [&](uint64_t node_index) -> std::string {
+          ExpressionNodeImpl const& node = vars_context[node_index];
+          ExpressionNodeType const type = node.Type();
+          if (type == ExpressionNodeType::Uninitialized) {
+            return "<Uninitialized>";
+          } else if (type == ExpressionNodeType::ImmediateDouble) {
+            double const value = node.Value();
+            if (value >= 0) {
+              return current::ToString(value);
+            } else {
+              return "(" + current::ToString(value) + ')';
+            }
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                 \
   }                                                                      \
   else if (type == ExpressionNodeType::Operation_##name) {               \
@@ -97,14 +98,13 @@ class ExpressionNode final {
     return #fn "(" + ExpressionNode(node.ArgumentIndex()).DebugAsString() + ')';
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
-      } else if (type == ExpressionNodeType::Lambda) {
-        return "lambda";
-      } else {
-        CURRENT_THROW(ExpressionNodeInternalError());
-      }
-    } else {
-      return vars_context.VarNameByOriginalIndex(index_.VarIndex());
-    }
+          } else if (type == ExpressionNodeType::Lambda) {
+            return "lambda";
+          } else {
+            CURRENT_THROW(ExpressionNodeInternalError());
+          }
+        },
+        [&](uint64_t var_index) -> std::string { return vars_context.VarNameByOriginalIndex(var_index); });
   }
 };
 static_assert(sizeof(ExpressionNode) == 8u, "The `ExpressionNode` type is meant to be ultra-lightweight.");
@@ -231,14 +231,14 @@ class Build1DFunctionImpl {
   }
 
   value_t DoBuild1DFunction(value_t f) const {
-    ExpressionNodeIndex const index = ExpressionNodeIndex(f);
-    if (index.IsNodeIndex()) {
-      ExpressionNodeImpl const& node = vars_context_[index.NodeIndex()];
-      ExpressionNodeType const type = node.Type();
-      if (type == ExpressionNodeType::Uninitialized) {
-        CURRENT_THROW(ExpressionNodeInternalError());
-      } else if (type == ExpressionNodeType::ImmediateDouble) {
-        return f;
+    return ExpressionNodeIndex(f).template Dispatch<value_t>(
+        [&](uint64_t node_index) -> value_t {
+          ExpressionNodeImpl const& node = vars_context_[node_index];
+          ExpressionNodeType const type = node.Type();
+          if (type == ExpressionNodeType::Uninitialized) {
+            CURRENT_THROW(ExpressionNodeInternalError());
+          } else if (type == ExpressionNodeType::ImmediateDouble) {
+            return f;
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)   \
   }                                                        \
   else if (type == ExpressionNodeType::Operation_##name) { \
@@ -251,14 +251,13 @@ class Build1DFunctionImpl {
     return fn(DoBuild1DFunction(ExpressionNode(node.ArgumentIndex())));
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
-      } else if (type == ExpressionNodeType::Lambda) {
-        CURRENT_THROW(ExpressionNodeInternalError());
-      } else {
-        CURRENT_THROW(ExpressionNodeInternalError());
-      }
-    } else {
-      return substitute_[index.VarIndex()];
-    }
+          } else if (type == ExpressionNodeType::Lambda) {
+            CURRENT_THROW(ExpressionNodeInternalError());
+          } else {
+            CURRENT_THROW(ExpressionNodeInternalError());
+          }
+        },
+        [&](uint64_t var_index) -> value_t { return substitute_[var_index]; });
   }
 };
 inline value_t Build1DFunction(value_t f, VarsMapperConfig const& config, std::vector<value_t> const& substitute) {
