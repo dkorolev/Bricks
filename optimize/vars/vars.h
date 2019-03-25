@@ -25,6 +25,7 @@ SOFTWARE.
 #ifndef OPTIMIZE_VARS_VARS_H
 #define OPTIMIZE_VARS_VARS_H
 
+#include <iostream>
 #include <map>
 #include <string>
 #include <vector>
@@ -641,18 +642,18 @@ class VarsContext final : public VarsContextInterface {
   }
 
   template <typename... ARGS>
-  expression_node_index_t EmplaceExpressionNode(ARGS&&... args) {
+  size_t EmplaceExpressionNode(ARGS&&... args) {
     VarsManager::TLS().ConfirmActive(this, this);
     if (frozen_) {
       CURRENT_THROW(
           VarsManagementException("Attempted to `EmplaceExpressionNode()` after the vars context is frozen."));
     }
-    auto const new_node_index = static_cast<expression_node_index_t>(expression_nodes_.size());
+    size_t const new_node_index = expression_nodes_.size();
     expression_nodes_.emplace_back(std::forward<ARGS>(args)...);
     return new_node_index;
   }
 
-  ExpressionNodeImpl const& operator[](expression_node_index_t expression_node_index) const {
+  ExpressionNodeImpl const& operator[](size_t expression_node_index) const {
     return expression_nodes_[expression_node_index];
   }
 };

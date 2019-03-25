@@ -36,36 +36,90 @@ struct OptimizeException : Exception {
 
 namespace expression {
 
+// Since we use two's complement extensively, and since the most significant byte of the eight that form the index
+// has other functions, the actual index sometimes has to be compactified, and this is the mask for it.
+constexpr static uint64_t kFFTimesSeven = 0xffffffffffffffull;
+static_assert(kFFTimesSeven == ((1ull << 7 * 8) - 1), "Math is off on this architecture, glad we checked.");
+
 // The data type for the expression should be defined in this `base.h` header, as the thread-local context
 // for expression management is the same as the thread-local context for variables management.
 //
 // There is no expression node type for variables or constants in `ExpressionNodeImpl`, as this class only holds
 // the information about what is being stored in the thread-local singleton of the expression nodes vector.
 // Variables and constants are just references to certain values, and they do not require dedicated expression nodes.
-//
-// TODO(dkorolev): Compactify the below, as this implementation is just the first TDD approximation.
-// It should help hack up the JIT, and perhaps the differentiation and optimization engines, but it's by no means final.
 
-// Expression nodes: `index`-es map to the indexes in the thread-local singleton, `~index`-es map to variables,
-// and they are differentiated by whether the most significant bit is set.
-using expression_node_index_t = uint64_t;
-struct ExpressionNodeIndex {
-  uint64_t internal_value;
+class ExpressionNodeIndex {
+ private:
+  // Expression nodes: `index`-es map to the indexes in the thread-local singleton, `~index`-es map to variables,
+  // and they are differentiated by whether the most significant bit is set.
+  uint64_t compactified_index_;
+
+ public:
+  ExpressionNodeIndex() = default;
+  ExpressionNodeIndex(ExpressionNodeIndex const&) = default;
+  ExpressionNodeIndex(ExpressionNodeIndex&&) = default;
+  ExpressionNodeIndex& operator=(ExpressionNodeIndex const&) = default;
+  ExpressionNodeIndex& operator=(ExpressionNodeIndex&&) = default;
+
+  static ExpressionNodeIndex FromNodeIndex(size_t node_index) {
+#ifndef NDEBUG
+    if (!(node_index < kFFTimesSeven)) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    ExpressionNodeIndex result;
+    result.compactified_index_ = static_cast<uint64_t>(node_index);
+    return result;
+  }
+
+  static ExpressionNodeIndex FromVarIndex(size_t var_index) {
+#ifndef NDEBUG
+    if (!(var_index < kFFTimesSeven)) {
+      *static_cast<volatile char*>(0) = 0xbe;
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    ExpressionNodeIndex result;
+    result.compactified_index_ = ~static_cast<uint64_t>(var_index);
+    return result;
+  }
+
+  bool IsNodeIndex() const { return compactified_index_ < ~compactified_index_; }
+
+  size_t NodeIndex() const {
+#ifndef NDEBUG
+    if (!IsNodeIndex()) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+    if (!(compactified_index_ < kFFTimesSeven)) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    return static_cast<size_t>(compactified_index_);
+  }
+
+  size_t VarIndex() const {
+#ifndef NDEBUG
+    if (IsNodeIndex()) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+    if (!(~compactified_index_ < kFFTimesSeven)) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    return static_cast<size_t>(~compactified_index_);
+  }
+
+  uint64_t RawCompactifiedIndex() const { return compactified_index_; }
 };
 static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be 8 bytes.");
-
-inline uint64_t IsNodeIndexVarIndex(ExpressionNodeIndex index) {
-  return index.internal_value & (1ull << 63);  // Do not cast to bool for performance reasons.
-}
-
-inline uint64_t VarIndexFromNodeIndex(ExpressionNodeIndex index) { return ~index.internal_value; }
 
 enum class ExpressionNodeType {
   Uninitialized,
   ImmediateDouble,
   Lambda,
 
-  MarkerOperationsBeginAfterThisInde,
+  MarkerOperationsBeginAfterThisIndex,
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name) Operation_##name,
 #include "math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
@@ -79,11 +133,10 @@ enum class ExpressionNodeType {
 
   Total
 };
-
-static_assert(static_cast<size_t>(ExpressionNodeType::Total) < (1 << 6), "`ExpressionNodeType` should fit 6 bits.");
+static_assert(static_cast<size_t>(ExpressionNodeType::Total) <= (1 << 6), "`ExpressionNodeType` should fit 6 bits.");
 
 inline bool IsOperationNode(ExpressionNodeType type) {
-  return type > ExpressionNodeType::MarkerOperationsBeginAfterThisInde &&
+  return type > ExpressionNodeType::MarkerOperationsBeginAfterThisIndex &&
          type < ExpressionNodeType::MarkerOperationsEndedBeforeThisIndex;
 }
 
@@ -108,7 +161,6 @@ struct ExpressionNodeTypeSelector {};
 namespace jit {
 class JITCompiler;
 }  // namespace current::expression::jit
-constexpr static uint64_t kFFTimesSeven = 0xffffffffffffffull;
 class ExpressionNodeImpl final {
  private:
   // To manage the below fields.
@@ -129,25 +181,25 @@ class ExpressionNodeImpl final {
     double compact_double_;           // the double value for math operations depending on `compact_has_double_`.
   };
 
+  // TODO(dkorolev): No need to encode the primary index!
+
   // Encode the index into seven bytes, respecting the sign bit as necessary.
   static uint64_t EncodeIndex(ExpressionNodeIndex original_index) {
-    uint64_t const x = static_cast<uint64_t>(original_index.internal_value);
-    if (x < ~x) {
-      return x;
+    if (original_index.IsNodeIndex()) {
+      return static_cast<uint64_t>(original_index.NodeIndex());
     } else {
-      return x & kFFTimesSeven;
+      // Use the fact the value is already the two-s complement. -- D.K.
+      return original_index.RawCompactifiedIndex() & kFFTimesSeven;
     }
   }
 
   // Decode index from seven bytes back to eight, respecting the MSB as necessary.
   static ExpressionNodeIndex DecodeIndex(uint64_t encoded_index) {
-    ExpressionNodeIndex result;
     if (encoded_index < (encoded_index ^ kFFTimesSeven)) {
-      result.internal_value = encoded_index;
+      return ExpressionNodeIndex::FromNodeIndex(static_cast<size_t>(encoded_index));
     } else {
-      result.internal_value = ~(encoded_index ^ kFFTimesSeven);
+      return ExpressionNodeIndex::FromVarIndex(static_cast<size_t>(encoded_index ^ kFFTimesSeven));
     }
-    return result;
   }
 
   void InitArgument(ExpressionNodeIndex argument) { compact_primary_index_ = EncodeIndex(argument); }
