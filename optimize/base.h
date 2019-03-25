@@ -110,7 +110,9 @@ class ExpressionNodeIndex {
     return static_cast<size_t>(~compactified_index_);
   }
 
-  uint64_t RawCompactifiedIndex() const { return compactified_index_; }
+  uint64_t ChopIndexToSevenBytes() const {
+    return compactified_index_ & kFFTimesSeven;
+  }
 };
 static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be 8 bytes.");
 
@@ -183,14 +185,9 @@ class ExpressionNodeImpl final {
 
   // TODO(dkorolev): No need to encode the primary index!
 
-  // Encode the index into seven bytes, respecting the sign bit as necessary.
+  // Encode the index into seven bytes, respecting the sign bit(s) as necessary.
   static uint64_t EncodeIndex(ExpressionNodeIndex original_index) {
-    if (original_index.IsNodeIndex()) {
-      return static_cast<uint64_t>(original_index.NodeIndex());
-    } else {
-      // Use the fact the value is already the two-s complement. -- D.K.
-      return original_index.RawCompactifiedIndex() & kFFTimesSeven;
-    }
+    return original_index.ChopIndexToSevenBytes();
   }
 
   // Decode index from seven bytes back to eight, respecting the MSB as necessary.
