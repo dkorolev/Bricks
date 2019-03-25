@@ -375,10 +375,10 @@ TEST(OptimizationJIT, JITStressTest1KExponents) { RunOptimizationJITStressTest(1
 
 TEST(OptimizationJIT, JITStressTest5KExponents) { RunOptimizationJITStressTest(5000u); }
 
-TEST(OptimizationJIT, DISABLED_JITStressTest10KExponents) { RunOptimizationJITStressTest(10 * 1000u); }
+TEST(OptimizationJIT, JITStressTest10KExponents) { RunOptimizationJITStressTest(10 * 1000u); }
 
-TEST(OptimizationJIT, DISABLED_JITStressTest100KExponents) { RunOptimizationJITStressTest(100 * 1000u); }
+TEST(OptimizationJIT, JITStressTest100KExponents) { RunOptimizationJITStressTest(100 * 1000u); }
 
-TEST(OptimizationJIT, DISABLED_JITStressTest1MExponents) { RunOptimizationJITStressTest(1000 * 1000u); }
+TEST(OptimizationJIT, JITStressTest1MExponents) { RunOptimizationJITStressTest(1000 * 1000u); }
 
 #endif  // FNCAS_X64_NATIVE_JIT_ENABLED
