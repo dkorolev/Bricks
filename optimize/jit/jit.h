@@ -149,6 +149,7 @@ class FunctionImpl final {
  private:
   JITCallContext const& call_context_;
   size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
+  size_t const code_size_;
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
 
   FunctionImpl(FunctionImpl const&) = delete;
@@ -160,6 +161,7 @@ class FunctionImpl final {
   FunctionImpl(JITCallContext& call_context, std::vector<uint8_t> code)
       : call_context_(call_context),
         this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
+        code_size_(code.size()),
         f_(code) {}
 
   double CallFunction(JITCallContext const& call_context, double const* x) const {
@@ -169,6 +171,8 @@ class FunctionImpl final {
     call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
     return f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
   }
+
+  size_t CodeSize() const { return code_size_; }
 };
 
 class Function final {
@@ -189,12 +193,14 @@ class Function final {
   double operator()(JITCallContext const& call_context, VarsMapper const& vars) const {
     return f_->CallFunction(call_context, &vars.x[0]);
   }
+  size_t CodeSize() const { return f_->CodeSize(); }
 };
 
 class FunctionReturningVectorImpl final {
  private:
   JITCallContext const& call_context_;
   size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
+  size_t const code_size_;
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
   std::vector<ExpressionNodeIndex> const output_node_indexes_;
 
@@ -209,6 +215,7 @@ class FunctionReturningVectorImpl final {
                               std::vector<ExpressionNodeIndex> output_node_indexes)
       : call_context_(call_context),
         this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
+        code_size_(code.size()),
         f_(code),
         output_node_indexes_(std::move(output_node_indexes)) {}
 
@@ -229,6 +236,8 @@ class FunctionReturningVectorImpl final {
     }
     return result;
   }
+
+  size_t CodeSize() const { return code_size_; }
 };
 
 class FunctionReturningVector final {
@@ -251,12 +260,14 @@ class FunctionReturningVector final {
   std::vector<double> operator()(JITCallContext const& call_context, VarsMapper const& vars) const {
     return f_->CallFunction(call_context, &vars.x[0]);
   }
+  size_t CodeSize() const { return f_->CodeSize(); }
 };
 
 class FunctionWithArgumentImpl final {
  private:
   JITCallContext const& call_context_;
   size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
+  size_t const code_size_;
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
 
   FunctionWithArgumentImpl(FunctionWithArgumentImpl const&) = delete;
@@ -268,6 +279,7 @@ class FunctionWithArgumentImpl final {
   FunctionWithArgumentImpl(JITCallContext& call_context, std::vector<uint8_t> code)
       : call_context_(call_context),
         this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
+        code_size_(code.size()),
         f_(code) {}
 
   double CallFunction(JITCallContext const& call_context, double const* x, double p) const {
@@ -278,6 +290,8 @@ class FunctionWithArgumentImpl final {
     call_context_.RAMPointer()[call_context_.config_.total_nodes] = p;
     return f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
   }
+
+  size_t CodeSize() const { return code_size_; }
 };
 
 class FunctionWithArgument final {
@@ -298,6 +312,7 @@ class FunctionWithArgument final {
   double operator()(JITCallContext const& call_context, VarsMapper const& vars, double p) const {
     return f_->CallFunction(call_context, &vars.x[0], p);
   }
+  size_t CodeSize() const { return f_->CodeSize(); }
 };
 
 class JITCompiler final {

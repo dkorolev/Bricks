@@ -365,10 +365,12 @@ inline void RunOptimizationJITStressTest(size_t dim) {
 
   VarsMapperConfig const vars_config = vars_context.Freeze();
   jit::JITCallContext jit_call_context(vars_config);
-  jit::Function const copiled_f = jit::JITCompiler(jit_call_context).Compile(f);
+  jit::Function const compiled_f = jit::JITCompiler(jit_call_context).Compile(f);
 
   VarsMapper input(vars_config);
-  EXPECT_EQ(dim, copiled_f(jit_call_context, input.x));
+  EXPECT_EQ(dim, compiled_f(jit_call_context, input.x));
+
+  EXPECT_EQ(31u + 47u * dim, compiled_f.CodeSize());
 }
 
 TEST(OptimizationJIT, JITStressTest1KExponents) { RunOptimizationJITStressTest(1000u); }
@@ -377,8 +379,7 @@ TEST(OptimizationJIT, JITStressTest5KExponents) { RunOptimizationJITStressTest(5
 
 TEST(OptimizationJIT, JITStressTest10KExponents) { RunOptimizationJITStressTest(10 * 1000u); }
 
-TEST(OptimizationJIT, JITStressTest100KExponents) { RunOptimizationJITStressTest(100 * 1000u); }
-
-TEST(OptimizationJIT, JITStressTest1MExponents) { RunOptimizationJITStressTest(1000 * 1000u); }
+// At 47 bytes of JIT code per exponent, 160K of them would be just under 8M, for our CI to not choke. -- D.K.
+TEST(OptimizationJIT, JITStressTest160KExponents) { RunOptimizationJITStressTest(250 * 1000u); }
 
 #endif  // FNCAS_X64_NATIVE_JIT_ENABLED
