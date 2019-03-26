@@ -132,6 +132,7 @@ class Differentiator final {
     index.Dispatch(
         [&](size_t) { stack_.DoPush(index, return_value_index_times2); },
         [&](size_t var_index) { stack_.DoReturnValue(DerivativeOfVar(var_index), return_value_index_times2); },
+        [&](double) { stack_.DoReturnValue(ExpressionNode::FromImmediateDouble(0.0), return_value_index_times2); },
         [&]() {
           if (!differentiate_by_lambda_) {
             CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
@@ -173,6 +174,7 @@ class Differentiator final {
       ExpressionNodeImpl const& short_lived_node = index.template Dispatch<ExpressionNodeImpl const&>(
           [this](size_t node_index) -> ExpressionNodeImpl const& { return vars_context_[node_index]; },
           [](size_t) -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); },
+          [](double) -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); },
           []() -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); });
       ExpressionNodeType const node_type = short_lived_node.Type();
 

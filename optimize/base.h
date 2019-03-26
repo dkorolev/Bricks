@@ -149,11 +149,6 @@ class ExpressionNodeIndex {
   // I don't forget to handle all the corner cases as the number of them grows larger than two.
   template <typename T_RETVAL = void, class F_NODE, class F_VAR, class F_DOUBLE, class F_LAMBDA>
   T_RETVAL Dispatch(F_NODE&& f_node, F_VAR&& f_var, F_DOUBLE&& f_double, F_LAMBDA&& f_lambda) const {
-#ifndef NDEBUG
-    if (compactified_index_ & kBitSpecial) {
-      CURRENT_THROW(OptimizeException("Internal error."));
-    }
-#endif
     if (compactified_index_ & kBitDouble) {
 #ifndef NDEBUG
       if (!IsUInt64PackedDouble(compactified_index_)) {
@@ -162,23 +157,31 @@ class ExpressionNodeIndex {
       }
 #endif
       return f_double(UnpackDouble(compactified_index_));
-    } else if (compactified_index_ & kBitLambda) {
-      return f_lambda();
-    } else if (compactified_index_ & kBitCompactIndexIsVar) {
-      uint64_t const var_index = compactified_index_ ^ kBitCompactIndexIsVar;
-#ifndef NDEBUG
-      if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
-        CURRENT_THROW(OptimizeException("Internal error."));
-      }
-#endif
-      return f_var(static_cast<size_t>(var_index));
     } else {
 #ifndef NDEBUG
-      if (!(compactified_index_ < kFirstIllegalNodeOrVarIndex)) {
+      // Important: The "special" bit is "allowed" to be set in case of `double` values.
+      if (compactified_index_ & kBitSpecial) {
         CURRENT_THROW(OptimizeException("Internal error."));
       }
 #endif
-      return f_node(static_cast<size_t>(compactified_index_));
+      if (compactified_index_ & kBitLambda) {
+        return f_lambda();
+      } else if (compactified_index_ & kBitCompactIndexIsVar) {
+        uint64_t const var_index = compactified_index_ ^ kBitCompactIndexIsVar;
+#ifndef NDEBUG
+        if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
+          CURRENT_THROW(OptimizeException("Internal error."));
+        }
+#endif
+        return f_var(static_cast<size_t>(var_index));
+      } else {
+#ifndef NDEBUG
+        if (!(compactified_index_ < kFirstIllegalNodeOrVarIndex)) {
+          CURRENT_THROW(OptimizeException("Internal error."));
+        }
+#endif
+        return f_node(static_cast<size_t>(compactified_index_));
+      }
     }
   }
 
