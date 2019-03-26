@@ -36,10 +36,16 @@ struct OptimizeException : Exception {
 
 namespace expression {
 
-// Since we use two's complement extensively, and since the most significant byte of the eight that form the index
-// has other functions, the actual index sometimes has to be compactified, and this is the mask for it.
-constexpr static uint64_t kFFTimesSeven = 0xffffffffffffffull;
-static_assert(kFFTimesSeven == ((1ull << 7 * 8) - 1), "Math is off on this architecture, glad we checked.");
+// The universe of indexes of both nodes and vars is the whole seven bytes.
+constexpr static uint64_t kFirstIllegalIndexRepresentingNodeOrVar = (1ull << 56);
+
+// Of these seven bytes, the MSB is the `is index the var index` flag.
+constexpr static uint64_t kBitCompactIndexIsVar = (1ull << 55);
+
+// The first illegal-to-represent actual node index or actual var index is 2^55.
+constexpr static uint64_t kFirstIllegalNodeOrVarIndex = kBitCompactIndexIsVar;
+static_assert(kFirstIllegalNodeOrVarIndex - 1ull == 0x7fffffffffffffull,
+              "Math is off on this architecture, glad we checked.");
 
 // The data type for the expression should be defined in this `base.h` header, as the thread-local context
 // for expression management is the same as the thread-local context for variables management.
@@ -50,9 +56,23 @@ static_assert(kFFTimesSeven == ((1ull << 7 * 8) - 1), "Math is off on this archi
 
 class ExpressionNodeIndex {
  private:
-  // Expression nodes: `index`-es map to the indexes in the thread-local singleton, `~index`-es map to variables,
-  // and they are differentiated by whether the most significant bit is set.
+  // Expression nodes indexes:
+  // - They can be an expression node index or an expression var index. The flag for whether an `ExpressionNodeIndex`
+  //   is a node index or a var index is (1ull << 55), the most significnat bit of the 2nd most significant byte.
+  // - [TBD]: They have a "special" bit dedicated to them, for "manual" "recursion" stack tracking. It's the MSB.
+  // - [TBD]: They have a "lambda" bit dedicated to them, to save space in the expression tree RAM. It's the 2nd MSB.
+  // - [TBD]: They can store _some_ double values (actually, 2^63 double values)!
+  // - They are 8 bytes large, and that's it.
+  //   TODO(dkorolev): Implmenet the TBDs.
   uint64_t compactified_index_;
+
+  friend class ExpressionNodeImpl;
+  uint64_t RawCompactifiedIndex() const { return compactified_index_; }
+  static ExpressionNodeIndex FromRawAlreadyCompactifiedIndex(uint64_t compactified_index) {
+    ExpressionNodeIndex result;
+    result.compactified_index_ = compactified_index;
+    return result;
+  }
 
  public:
   ExpressionNodeIndex() = default;
@@ -63,47 +83,41 @@ class ExpressionNodeIndex {
 
   static ExpressionNodeIndex FromNodeIndex(size_t node_index) {
 #ifndef NDEBUG
-    if (!(node_index < kFFTimesSeven)) {
+    if (!(node_index < kFirstIllegalNodeOrVarIndex)) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
 #endif
-    ExpressionNodeIndex result;
-    result.compactified_index_ = static_cast<uint64_t>(node_index);
-    return result;
+    return FromRawAlreadyCompactifiedIndex(static_cast<uint64_t>(node_index));
   }
 
   static ExpressionNodeIndex FromVarIndex(size_t var_index) {
 #ifndef NDEBUG
-    if (!(var_index < kFFTimesSeven)) {
-      *static_cast<volatile char*>(0) = 0xbe;
+    if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
 #endif
-    ExpressionNodeIndex result;
-    result.compactified_index_ = ~static_cast<uint64_t>(var_index);
-    return result;
+    return FromRawAlreadyCompactifiedIndex(static_cast<uint64_t>(var_index) | kBitCompactIndexIsVar);
   }
-
-  uint64_t ChopIndexToSevenBytes() const { return compactified_index_ & kFFTimesSeven; }
 
   // NOTE(dkorolev): This is a *temporary* (~5% slower) solution implemented to make sure
   // I don't forget to handle all the corner cases as the number of them grows larger than two.
   template <typename T_RETVAL = void, typename F_NODE, typename F_VAR>
   T_RETVAL Dispatch(F_NODE&& f_node, F_VAR&& f_var) const {
-    if (compactified_index_ < ~compactified_index_) {
+    if (compactified_index_ & kBitCompactIndexIsVar) {
+      uint64_t const var_index = compactified_index_ ^ kBitCompactIndexIsVar;
 #ifndef NDEBUG
-      if (!(compactified_index_ < kFFTimesSeven)) {
+      if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
+        CURRENT_THROW(OptimizeException("Internal error."));
+      }
+#endif
+      return f_var(var_index);
+    } else {
+#ifndef NDEBUG
+      if (!(compactified_index_ < kFirstIllegalNodeOrVarIndex)) {
         CURRENT_THROW(OptimizeException("Internal error."));
       }
 #endif
       return f_node(compactified_index_);
-    } else {
-#ifndef NDEBUG
-      if (!(~compactified_index_ < kFFTimesSeven)) {
-        CURRENT_THROW(OptimizeException("Internal error."));
-      }
-#endif
-      return f_var(~compactified_index_);
     }
   }
 
@@ -111,28 +125,36 @@ class ExpressionNodeIndex {
   // corner cases as the "node index" can also be a `lambda` and an encoded `double` value. Once just the simple
   // check of `if (x.IsNodeIndex()) { ... } else { ... }` is no longer correct, I'd rather have the compiler
   // highlight all the usecases of this potentially and likely erroneus construct.
-  bool UnitTestIsNodeIndex() const { return compactified_index_ < ~compactified_index_; }
+  // NOTE(dkorolev): Do not cast to bool for performance reasons.
+  uint64_t UnitTestIsVarIndex() const { return compactified_index_ & kBitCompactIndexIsVar; }
+  bool UnitTestIsNodeIndex() const { return !UnitTestIsVarIndex(); }
   size_t UnitTestNodeIndex() const {
 #ifndef NDEBUG
     if (!UnitTestIsNodeIndex()) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
-    if (!(compactified_index_ < kFFTimesSeven)) {
+#endif
+    size_t const node_index = static_cast<size_t>(compactified_index_);
+#ifndef NDEBUG
+    if (!(node_index < kFirstIllegalNodeOrVarIndex)) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
 #endif
-    return static_cast<size_t>(compactified_index_);
+    return static_cast<size_t>(node_index);
   }
   size_t UnitTestVarIndex() const {
 #ifndef NDEBUG
     if (UnitTestIsNodeIndex()) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
-    if (!(~compactified_index_ < kFFTimesSeven)) {
+#endif
+    size_t const var_index = static_cast<size_t>(compactified_index_ ^ kBitCompactIndexIsVar);
+#ifndef NDEBUG
+    if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
 #endif
-    return static_cast<size_t>(~compactified_index_);
+    return var_index;
   }
 };
 static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be 8 bytes.");
@@ -204,18 +226,24 @@ class ExpressionNodeImpl final {
     double compact_double_;           // the double value for math operations depending on `compact_has_double_`.
   };
 
-  // TODO(dkorolev): No need to encode the primary index!
-
-  // Encode the index into seven bytes, respecting the sign bit(s) as necessary.
-  static uint64_t EncodeIndex(ExpressionNodeIndex original_index) { return original_index.ChopIndexToSevenBytes(); }
-
-  // Decode index from seven bytes back to eight, respecting the MSB as necessary.
-  static ExpressionNodeIndex DecodeIndex(uint64_t encoded_index) {
-    if (encoded_index < (encoded_index ^ kFFTimesSeven)) {
-      return ExpressionNodeIndex::FromNodeIndex(static_cast<size_t>(encoded_index));
-    } else {
-      return ExpressionNodeIndex::FromVarIndex(static_cast<size_t>(encoded_index ^ kFFTimesSeven));
+  // "Encode" the index into seven bytes, even though the representation is a mere copy after the refactoring.
+  static uint64_t EncodeIndex(ExpressionNodeIndex original_index) {
+#ifndef NDEBUG
+    if (!(original_index.RawCompactifiedIndex() < kFirstIllegalIndexRepresentingNodeOrVar)) {
+      CURRENT_THROW(OptimizeException("Internal error."));
     }
+#endif
+    return original_index.RawCompactifiedIndex();
+  }
+
+  // "Decode" the index from seven bytes to eight, into seven bytes, even though the representation is the same.
+  static ExpressionNodeIndex DecodeIndex(uint64_t encoded_index) {
+#ifndef NDEBUG
+    if (!(encoded_index < kFirstIllegalIndexRepresentingNodeOrVar)) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(encoded_index);
   }
 
   void InitArgument(ExpressionNodeIndex argument) { compact_primary_index_ = EncodeIndex(argument); }
