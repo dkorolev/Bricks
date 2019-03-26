@@ -252,6 +252,8 @@ TEST(OwnedBorrowed, UseInternalIsDestructingGetter) {
   thread->join();
 }
 
+#ifndef CURRENT_CI_TRAVIS  // NOTE(dkorolev): Disable some test on Travis, as it really is overloaded.
+
 TEST(WaitableAtomic, Smoke) {
   using current::WaitableAtomic;
   using current::IntrusiveClient;
@@ -355,3 +357,5 @@ TEST(WaitableAtomic, IntrusiveClientsCanBeTransferred) {
   auto f = [](IntrusiveClient& c) { static_cast<void>(c); };
   std::thread([&f](IntrusiveClient c) { f(c); }, object.RegisterScopedClient()).detach();
 }
+
+#endif  // CURRENT_CI_TRAVIS
