@@ -370,7 +370,7 @@ inline void RunOptimizationJITStressTest(size_t dim) {
   VarsMapper input(vars_config);
   EXPECT_EQ(dim, compiled_f(jit_call_context, input.x));
 
-  EXPECT_EQ(31u + 47u * dim, compiled_f.CodeSize());
+  EXPECT_EQ(23u + 47u * dim, compiled_f.CodeSize());
 }
 
 TEST(OptimizationJIT, JITStressTest1KExponents) { RunOptimizationJITStressTest(1000u); }

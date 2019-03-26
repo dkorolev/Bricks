@@ -230,6 +230,7 @@ class FunctionReturningVectorImpl final {
       result[i] = output_node_indexes_[i].template Dispatch<double>(
           [&](size_t node_index) -> double { return call_context_.ConstRAMPointer()[node_index]; },
           [&](size_t var_index) -> double { return x[var_index]; },
+          [&](double value) -> double { return value; },
           [&]() -> double {
             // No `lambda`-s should be encountered when the gradient is being evaluated,
             // because the lambdas are the territory of `FunctionWithArgument`.
@@ -344,6 +345,9 @@ class JITCompiler final {
           [](size_t) {
             // No need to push variables to the "generate JIT code" stack, as their values are already available.
           },
+          [](double) {
+            // No need to "compile" immediate `double` values.
+          },
           []() {
             // No need to do anything for the value of the lambda either.
           });
@@ -384,10 +388,15 @@ class JITCompiler final {
       lhs.Dispatch(                                                                                                \
           [&](size_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                         \
           [&](size_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); },   \
+          [&](double val) { opcodes::load_immediate_to_xmm0(code, val); },                                         \
           [&]() { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, Config().total_nodes); });                 \
       rhs.Dispatch(                                                                                                \
           [&](size_t idx) { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, idx); },                       \
           [&](size_t var) { opcodes::name##_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); }, \
+          [&](double val) {                                                                                        \
+            opcodes::load_immediate_to_xmm1(code, val);                                                            \
+            opcodes::name##_xmm1_xmm0(code);                                                                       \
+          },                                                                                                       \
           [&]() { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, Config().total_nodes); });               \
       opcodes::store_xmm0_to_memory_by_rbx_offset(code, current_node_index);                                       \
       node_computed_[current_node_index] = true;                                                                   \
@@ -407,6 +416,7 @@ class JITCompiler final {
       argument.Dispatch(                                                                                         \
           [&](size_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                       \
           [&](size_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); }, \
+          [&](double val) { opcodes::load_immediate_to_memory_by_rbx_offset(code, current_node_index, val); },   \
           [&]() { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, Config().total_nodes); });               \
       opcodes::push_rdi(code);                                                                                   \
       opcodes::push_rdx(code);                                                                                   \
@@ -426,6 +436,10 @@ class JITCompiler final {
           },
           [](size_t) {
             // Seeing a var node. The stack should only contain indexes that are expression nodes.
+            CURRENT_THROW(JITInternalErrorException());
+          },
+          [](double) {
+            // Seeing a double value node. The stack should only contain indexes that are expression nodes.
             CURRENT_THROW(JITInternalErrorException());
           },
           []() {
@@ -463,6 +477,10 @@ class JITCompiler final {
           // Var. Just load its value into xmm0.
           opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var_index]);
         },
+        [&](double value) {
+          // Value. Just load it into xmm0.
+          opcodes::load_immediate_to_xmm0(code, value);
+        },
         [&]() {
           // Lambda. Just load its value into xmm0.
           opcodes::load_from_memory_by_rsi_offset_to_xmm0(code, Config().total_nodes);
@@ -494,6 +512,9 @@ class JITCompiler final {
           },
           [](size_t) {
             // Var "nodes" are already conveniently available right by the memory location pointed to. A no-op.
+          },
+          [](double) {
+            // Same is true for immediate double values.
           },
           []() {
             // Same is true for the lambda "nodes".
@@ -527,6 +548,10 @@ class JITCompiler final {
         [&](size_t var_index) {
           // Var. Just load its value into xmm0.
           opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var_index]);
+        },
+        [&](double value) {
+          // Value. Just load it into xmm0.
+          opcodes::load_immediate_to_xmm0(code, value);
         },
         [&]() {
           // Lambda. Just load its value into xmm0.
