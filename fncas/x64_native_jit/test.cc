@@ -64,7 +64,59 @@ $ g++ -c -O3 1.cc && objdump -S 1.o
   EXPECT_EQ(3.0, f(x + 16, nullptr, nullptr));
 }
 
-TEST(X64NativeJIT, LoadsImmediateValues) {
+TEST(X64NativeJIT, LoadsImmediateValuesIntoXMM0) {
+  using namespace current::fncas::x64_native_jit;
+
+  std::vector<uint8_t> code;
+
+  opcodes::load_immediate_to_xmm0(code, 42.0);
+  opcodes::ret(code);
+
+  EXPECT_EQ(42.0, current::fncas::x64_native_jit::CallableVectorUInt8(code)(nullptr, nullptr, nullptr));
+
+  for (double const x : std::vector<double>({0.0, 1.0, 0.5, -0.5, 1e10, -1e10, 1e100, -1e100, 1e-10, -1e-10})) {
+    std::vector<uint8_t> bulk_code;
+
+    opcodes::load_immediate_to_xmm0(bulk_code, x);
+    opcodes::ret(bulk_code);
+
+    EXPECT_EQ(x, current::fncas::x64_native_jit::CallableVectorUInt8(bulk_code)(nullptr, nullptr, nullptr));
+  }
+}
+
+TEST(X64NativeJIT, PerformsMathOnTwoXMMs) {
+  using namespace current::fncas::x64_native_jit;
+
+  std::vector<uint8_t> code_add;
+  opcodes::load_immediate_to_xmm0(code_add, 10.0);
+  opcodes::load_immediate_to_xmm1(code_add, 5.0);
+  opcodes::add_xmm1_xmm0(code_add);
+  opcodes::ret(code_add);
+  EXPECT_EQ(15.0, current::fncas::x64_native_jit::CallableVectorUInt8(code_add)(nullptr, nullptr, nullptr));
+
+  std::vector<uint8_t> code_sub;
+  opcodes::load_immediate_to_xmm0(code_sub, 10.0);
+  opcodes::load_immediate_to_xmm1(code_sub, 5.0);
+  opcodes::sub_xmm1_xmm0(code_sub);
+  opcodes::ret(code_sub);
+  EXPECT_EQ(5.0, current::fncas::x64_native_jit::CallableVectorUInt8(code_sub)(nullptr, nullptr, nullptr));
+
+  std::vector<uint8_t> code_mul;
+  opcodes::load_immediate_to_xmm0(code_mul, 10.0);
+  opcodes::load_immediate_to_xmm1(code_mul, 5.0);
+  opcodes::mul_xmm1_xmm0(code_mul);
+  opcodes::ret(code_mul);
+  EXPECT_EQ(50.0, current::fncas::x64_native_jit::CallableVectorUInt8(code_mul)(nullptr, nullptr, nullptr));
+
+  std::vector<uint8_t> code_div;
+  opcodes::load_immediate_to_xmm0(code_div, 10.0);
+  opcodes::load_immediate_to_xmm1(code_div, 5.0);
+  opcodes::div_xmm1_xmm0(code_div);
+  opcodes::ret(code_div);
+  EXPECT_EQ(2.0, current::fncas::x64_native_jit::CallableVectorUInt8(code_div)(nullptr, nullptr, nullptr));
+}
+
+TEST(X64NativeJIT, LoadsImmediateValuesIntoMemory) {
   using namespace current::fncas::x64_native_jit;
 
   double const d1 = 3.14;

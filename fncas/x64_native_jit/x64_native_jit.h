@@ -157,6 +157,40 @@ void ret(C& c) {
   c.push_back(0xc3);
 }
 
+template <typename C>
+void internal_load_immediate_to_xmm_reg(C& c, double v, uint8_t reg) {
+  uint64_t x = *reinterpret_cast<uint64_t const*>(&v);
+
+  // { movabs value, %rax; push %rax; movsd ($rsp), %xmm0, %pop %rax }.
+
+  c.push_back(0x48);
+  c.push_back(0xb8);
+  for (size_t i = 0; i < 8; ++i) {
+    c.push_back(x & 0xff);
+    x >>= 8;
+  }
+
+  c.push_back(0x50);
+
+  c.push_back(0xf2);
+  c.push_back(0x0f);
+  c.push_back(0x10);
+  c.push_back(reg);  // 0x04 <=> %xmm0, 0x0c <=> %xmm1.
+  c.push_back(0x24);
+
+  c.push_back(0x58);
+}
+
+template <typename C>
+void load_immediate_to_xmm0(C& c, double v) {
+  internal_load_immediate_to_xmm_reg(c, v, 0x04);
+}
+
+template <typename C>
+void load_immediate_to_xmm1(C& c, double v) {
+  internal_load_immediate_to_xmm_reg(c, v, 0x0c);
+}
+
 template <typename C, typename O>
 void internal_load_immediate_to_memory_by_someregister_offset(C& c, uint8_t reg, O offset, double v) {
   uint64_t x = *reinterpret_cast<uint64_t const*>(&v);
@@ -227,6 +261,34 @@ void load_from_memory_by_rsi_offset_to_xmm0(C& c, O offset) {
 template <typename C, typename O>
 void load_from_memory_by_rbx_offset_to_xmm0(C& c, O offset) {
   internal_load_from_memory_by_offset_to_xmm0(c, 0x83, offset);
+}
+
+template <typename C>
+void internal_op_xmm1_xmm0(C& c, uint64_t add_sub_mul_div_code) {
+  c.push_back(0xf2);
+  c.push_back(0x0f);
+  c.push_back(add_sub_mul_div_code);
+  c.push_back(0xc1);
+}
+
+template <typename C>
+void add_xmm1_xmm0(C& c) {
+  internal_op_xmm1_xmm0(c, 0x58);
+}
+
+template <typename C>
+void sub_xmm1_xmm0(C& c) {
+  internal_op_xmm1_xmm0(c, 0x5c);
+}
+
+template <typename C>
+void mul_xmm1_xmm0(C& c) {
+  internal_op_xmm1_xmm0(c, 0x59);
+}
+
+template <typename C>
+void div_xmm1_xmm0(C& c) {
+  internal_op_xmm1_xmm0(c, 0x5e);
 }
 
 template <typename C, typename O>
