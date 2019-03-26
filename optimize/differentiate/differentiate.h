@@ -52,31 +52,10 @@ struct DirectionalDerivativeGradientDimMismatchException final : OptimizeExcepti
 class DifferentiatorManualStack {
  public:
   struct ManualStackEntry {
-    // Okay, this is tricky.
-    //
-    // Ordinarily, `index` has a double meaning. If its MSB is not set (as tested by `index < ~index`, as
-    // the type `expression_node_index_t` is unsigned), then it just is the index in the expression nodes
-    // thread-local singleton array. And if its MSB is set (as tested by `~index < index`), then it is
-    // a variable with this index.
-    //
-    // TODO(dkorolev): Eventually, most popular constants, such as { 0.0, 1.0, 0.5, 2.0, 4.0 }, etc. will also
-    // be encoded in this index, as some values whose binary representation starts with `10...`.
-    // Oh, and the `Lambda` type will likely also end up having its own "index", not a node.
-    //
-    // Anyway, within the `ManualStackEntry` class, the `magic_index` field also has a double meaning.
-    // But this meaning is entirely different.
-    //
-    // On the one hand, there is no need to ever put indexes that has the MSB set into this manually managed stack,
-    // as their derivatives are zeroes or ones regardless, and they do not require "recursive" "calls". On the
-    // other hand, it should be encoded in the call stack whether the index is visited during the "recursive" call
-    // doing "up" or "down" -- i.e., whether the logic at the moment should be to "make more calls", placing more
-    // entries onto the "call stack", or to "process" the results of the previous "calls".
-    //
-    // So, the MSB of this `magic_index` field is used exactly for this purpose: to tell the "nodes" that are
-    // ready to have their very own derivative taken, because the results for their child/children is already ready,
-    // or whether this node is being "visited" on the way "down", the results are not yet ready for this very node,
-    // and this "recursive call" should "place the calls" to evalute the derivative of its child/children first.
-    uint64_t magic_index;
+    // The manual stack stores the "indexes" of the nodes to work with, with the special bit used to tell whether
+    // during the "recursive" call the node being considered does already or does not yet have its dependencies ready.
+    // Effectively, it's the flag to tell whether the "recursive" call is visiting this node on the way "down" or "up".
+    ExpressionNodeIndex index_with_special_bit;
 
     // The results of the execution of the "recursive" calls down the stack. For `lhs` and `rhs` respectively.
     ExpressionNodeIndex return_value[2];
@@ -113,9 +92,9 @@ class DifferentiatorManualStack {
 
   bool NotEmpty() const { return actual_size_ > 1u; }
 
-  size_t DoPush(uint64_t magic_index, size_t return_value_index_times2) const {
+  size_t DoPush(ExpressionNodeIndex index, size_t return_value_index_times2) const {
     GrowIfNecessary();
-    call_stack_[actual_size_].magic_index = magic_index;
+    call_stack_[actual_size_].index_with_special_bit = index;
     call_stack_[actual_size_].return_value_index_times2 = return_value_index_times2;
     return actual_size_++;
   }
@@ -149,9 +128,9 @@ class Differentiator final {
     }
   }
 
-  void PushToStack(ExpressionNodeIndex node_index, size_t return_value_index_times2) const {
-    node_index.Dispatch(
-        [&](uint64_t node_index) { stack_.DoPush(node_index, return_value_index_times2); },
+  void PushToStack(ExpressionNodeIndex index, size_t return_value_index_times2) const {
+    index.Dispatch(
+        [&](uint64_t) { stack_.DoPush(index, return_value_index_times2); },
         [&](uint64_t var_index) { stack_.DoReturnValue(DerivativeOfVar(var_index), return_value_index_times2); });
   }
 
@@ -179,18 +158,14 @@ class Differentiator final {
     while (stack_.NotEmpty()) {
       DifferentiatorManualStack::ManualStackEntry const element = stack_.DoPop();
 
-      uint64_t index;
-      bool ready_to_differentiate;
+      ExpressionNodeIndex index = element.index_with_special_bit;
+      bool const ready_to_differentiate = index.ClearSpecialBitAndReturnWhatItWas();
 
-      if (~element.magic_index < element.magic_index) {
-        index = ~element.magic_index;
-        ready_to_differentiate = true;
-      } else {
-        index = element.magic_index;
-        ready_to_differentiate = false;
-      }
-
-      ExpressionNodeImpl const& short_lived_node = vars_context_[index];
+      // The node is `short-lived`, as the const reference to it can and will be invalidated as more nodes are added
+      // to the tree. Thus, all the relevant pieces of data must be extracted from this node before adding the new ones.
+      ExpressionNodeImpl const& short_lived_node = index.template Dispatch<ExpressionNodeImpl const&>(
+          [this](size_t node_index) -> ExpressionNodeImpl const& { return vars_context_[node_index]; },
+          [](size_t) -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); });
       ExpressionNodeType const node_type = short_lived_node.Type();
 
       if (node_type == ExpressionNodeType::ImmediateDouble) {
@@ -201,11 +176,14 @@ class Differentiator final {
         value_t const a = short_lived_node.LHSIndex();
         value_t const b = short_lived_node.RHSIndex();
         if (!ready_to_differentiate) {
-          size_t const dfs_call_return_value_index = stack_.DoPush(~index, element.return_value_index_times2);
-          // Push `rhs` before `lhs` to the stack because OCD: This way the LHS is evaluated before RHS. -- D.K.
+          // Going down. Need to differentiate the dependencies of this node first. Use the special bit. Push this node
+          // before its arguments for it to be evaluated after. Then push { rhs, lhs }, so their order is { lhs, rhs }.
+          index.SetSpecialBit();
+          size_t const dfs_call_return_value_index = stack_.DoPush(index, element.return_value_index_times2);
           PushToStack(b, dfs_call_return_value_index * 2u + 1u);
           PushToStack(a, dfs_call_return_value_index * 2u);
         } else {
+          // Going up, the { lhs, rhs } are already differentiated.
           value_t const da = element.return_value[0];
           value_t const db = element.return_value[1];
           value_t df;
@@ -225,10 +203,13 @@ class Differentiator final {
       } else if (IsFunctionNode(node_type)) {
         value_t const x = short_lived_node.ArgumentIndex();
         if (!ready_to_differentiate) {
-          size_t const dfs_call_return_value_index = stack_.DoPush(~index, element.return_value_index_times2);
+          // Going down. Need to differentiate the argument of this call first. Use the special bit.
+          index.SetSpecialBit();
+          size_t const dfs_call_return_value_index = stack_.DoPush(index, element.return_value_index_times2);
           PushToStack(x, dfs_call_return_value_index * 2u);
         } else {
-          value_t const f = ExpressionNode::FromNodeIndex(index);
+          // Going up, the argument is already differentiated.
+          value_t const f = index;
           value_t const dx = element.return_value[0];
           value_t df;  //  = ExpressionNode::ConstructDefaultExpressionNode();
           if (node_type == ExpressionNodeType::Function_exp) {

@@ -104,7 +104,9 @@ class JITCallContext final {
 
   // The "recursive" call to `*EnsureNodeComputed` should not be recursive because of the possibility of large depth.
   // For its stack to not be re-allocated and re-grown multiple times, keep its RAM allocation in the JIT context.
-  mutable std::vector<uint64_t> ensure_node_computed_manual_stack_;
+  // The underlying type is `ExpressionNodeIndex`, and, same as in `../differentiate/differentiate.h`, the "special" bit
+  // of the stack entry indicates whether the node is being seen on the way "down" or on the way "up" of "recursion".
+  mutable std::vector<ExpressionNodeIndex> ensure_node_computed_manual_stack_;
 
  public:
   // Allocate an extra one `double` so that an external parameter could be passed in it,
@@ -142,7 +144,7 @@ class JITCallContext final {
 
   double const* ConstRAMPointer() const { return &ram_[0]; }
 
-  std::vector<uint64_t>& EnsureNodeComputedManualStack() const { return ensure_node_computed_manual_stack_; }
+  std::vector<ExpressionNodeIndex>& EnsureNodeComputedManualStack() const { return ensure_node_computed_manual_stack_; }
 };
 
 class FunctionImpl final {
@@ -318,7 +320,7 @@ class JITCompiler final {
   std::vector<bool> node_computed_;
 
   void NonRecursiveEnsureNodeComputed(std::vector<uint8_t>& code, ExpressionNodeIndex requested_index) {
-    std::vector<uint64_t>& manual_stack = context_.EnsureNodeComputedManualStack();
+    std::vector<ExpressionNodeIndex>& manual_stack = context_.EnsureNodeComputedManualStack();
 
 #ifndef NDEBUG
     if (!manual_stack.empty()) {
@@ -330,41 +332,39 @@ class JITCompiler final {
       index.Dispatch(
           [&](uint64_t node_index) {
             if (!node_computed_[node_index]) {
-              manual_stack.push_back(ready_to_compute_flag ? ~node_index : node_index);
+              if (ready_to_compute_flag) {
+                index.SetSpecialBit();
+              }
+              manual_stack.push_back(index);
             }
           },
-          [](uint64_t) {});
+          [](uint64_t) {
+            // No need to push variables to the "generate JIT code" stack, as their values are already available.
+          });
     };
 
     PushNodeToStack(requested_index, false);
 
     while (!manual_stack.empty()) {
-      uint64_t const back = manual_stack.back();
+      ExpressionNodeIndex current_node_full_index = manual_stack.back();
       manual_stack.pop_back();
-      size_t current_node_index;
-      bool ready_to_compute;
-      if (back < ~back) {
-        current_node_index = static_cast<size_t>(back);
-        ready_to_compute = false;
-      } else {
-        current_node_index = static_cast<size_t>(~back);
-        ready_to_compute = true;
-      }
+      // size_t current_node_index;
+      bool const ready_to_compute = current_node_full_index.ClearSpecialBitAndReturnWhatItWas();
 
-      // If the MSB of `index` is set, the node is a var or constant from the input vector, which is already computed.
-      if (!(current_node_index < node_computed_.size())) {
-        CURRENT_THROW(JITInternalErrorException());
-      }
-
-      if (!node_computed_[current_node_index]) {
-        using namespace current::fncas::x64_native_jit;
-
-        ExpressionNodeImpl const& node = VarsManager::TLS().Active()[current_node_index];
-        ExpressionNodeType const type = node.Type();
-
-        if (type == ExpressionNodeType::ImmediateDouble) {
-          opcodes::load_immediate_to_memory_by_rbx_offset(code, current_node_index, node.Value());
-          node_computed_[current_node_index] = true;
+      current_node_full_index.Dispatch(
+          [&](size_t current_node_index) {
+#ifndef NDEBUG
+            if (!(current_node_index < node_computed_.size())) {
+              CURRENT_THROW(JITInternalErrorException());
+            }
+#endif
+            if (!node_computed_[current_node_index]) {
+              using namespace current::fncas::x64_native_jit;
+              ExpressionNodeImpl const& node = VarsManager::TLS().Active()[current_node_index];
+              ExpressionNodeType const type = node.Type();
+              if (type == ExpressionNodeType::ImmediateDouble) {
+                opcodes::load_immediate_to_memory_by_rbx_offset(code, current_node_index, node.Value());
+                node_computed_[current_node_index] = true;
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                              \
   }                                                                                                                   \
   else if (type == ExpressionNodeType::Operation_##name) {                                                            \
@@ -410,15 +410,20 @@ class JITCompiler final {
     }
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
-        } else if (type == ExpressionNodeType::Lambda) {
-          // TODO(dkorolev): FIXME, this "extra" copy-pasting of that double value should go away.
-          opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, context_.config_.total_nodes);
-          opcodes::store_xmm0_to_memory_by_rbx_offset(code, current_node_index);
-          node_computed_[current_node_index] = true;
-        } else {
-          CURRENT_THROW(JITInternalErrorException());
-        }
-      }
+              } else if (type == ExpressionNodeType::Lambda) {
+                // TODO(dkorolev): FIXME, this "extra" copy-pasting of that double value should go away.
+                opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, context_.config_.total_nodes);
+                opcodes::store_xmm0_to_memory_by_rbx_offset(code, current_node_index);
+                node_computed_[current_node_index] = true;
+              } else {
+                CURRENT_THROW(JITInternalErrorException());
+              }
+            }
+          },
+          [](uint64_t) {
+            // The stack should only contain indexes that are expression nodes.
+            CURRENT_THROW(JITInternalErrorException());
+          });
     }
   }
 

@@ -47,6 +47,10 @@ constexpr static uint64_t kFirstIllegalNodeOrVarIndex = kBitCompactIndexIsVar;
 static_assert(kFirstIllegalNodeOrVarIndex - 1ull == 0x7fffffffffffffull,
               "Math is off on this architecture, glad we checked.");
 
+// The "special" bit is the MSB.
+// It is used for manual stack in the "recursive" calls to differentiate the node or to JIT-compile it.
+constexpr static uint64_t kBitSpecial = (1ull << 63);
+
 // The data type for the expression should be defined in this `base.h` header, as the thread-local context
 // for expression management is the same as the thread-local context for variables management.
 //
@@ -59,7 +63,7 @@ class ExpressionNodeIndex {
   // Expression nodes indexes:
   // - They can be an expression node index or an expression var index. The flag for whether an `ExpressionNodeIndex`
   //   is a node index or a var index is (1ull << 55), the most significnat bit of the 2nd most significant byte.
-  // - [TBD]: They have a "special" bit dedicated to them, for "manual" "recursion" stack tracking. It's the MSB.
+  // - They have a "special" bit dedicated to them, for "manual" "recursion" stack tracking. It's the very MSB.
   // - [TBD]: They have a "lambda" bit dedicated to them, to save space in the expression tree RAM. It's the 2nd MSB.
   // - [TBD]: They can store _some_ double values (actually, 2^63 double values)!
   // - They are 8 bytes large, and that's it.
@@ -97,6 +101,16 @@ class ExpressionNodeIndex {
     }
 #endif
     return FromRawAlreadyCompactifiedIndex(static_cast<uint64_t>(var_index) | kBitCompactIndexIsVar);
+  }
+
+  void SetSpecialBit() { compactified_index_ |= kBitSpecial; }
+  bool ClearSpecialBitAndReturnWhatItWas() {
+    if (compactified_index_ & kBitSpecial) {
+      compactified_index_ ^= kBitSpecial;
+      return true;
+    } else {
+      return false;
+    }
   }
 
   // NOTE(dkorolev): This is a *temporary* (~5% slower) solution implemented to make sure
