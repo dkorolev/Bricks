@@ -88,6 +88,10 @@ struct OptimizationContext {
             CURRENT_THROW(OptimizeException("FIXME: internal error, gradient component is not a node."));
             return static_cast<size_t>(-1);
           },
+          [](double) {
+            CURRENT_THROW(OptimizeException("A double value appeared where it should not. Pls let @dkorolev know."));
+            return static_cast<size_t>(-1);
+          },
           []() {
             CURRENT_THROW(OptimizeException("A lambda has appeared where it's not expected. Pls let @dkorolev know."));
             return static_cast<size_t>(-1);
