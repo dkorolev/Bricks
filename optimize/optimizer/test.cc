@@ -49,9 +49,9 @@ TEST(OptimizationOptimizer, TrivialSingleStepOptimization) {
 
   EXPECT_EQ("[3.0,5.0]", JSON(result.final_point));
   ASSERT_EQ(2u, result.final_point.size());
-  EXPECT_NEAR(3, result.final_point[0], 1e-9);
-  EXPECT_NEAR(5, result.final_point[1], 1e-9);
-  EXPECT_NEAR(0.0, result.final_value, 1e-9);
+  EXPECT_NEAR(3, result.final_point[0], 1e-6);
+  EXPECT_NEAR(5, result.final_point[1], 1e-6);
+  EXPECT_NEAR(0.0, result.final_value, 1e-6);
 
   EXPECT_EQ(0.0, optimization_context.compiled_f(optimization_context.jit_call_context, result.final_point));
   EXPECT_EQ("[0.0,0.0]",
