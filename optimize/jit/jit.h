@@ -381,11 +381,11 @@ class JITCompiler final {
       PushNodeToStack(rhs, false);                                                                                 \
       PushNodeToStack(lhs, false);                                                                                 \
     } else {                                                                                                       \
-      lhs.Dispatch(                                                                                            \
+      lhs.Dispatch(                                                                                                \
           [&](size_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                         \
           [&](size_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); },   \
           [&]() { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, Config().total_nodes); });                 \
-      rhs.Dispatch(                                                                                            \
+      rhs.Dispatch(                                                                                                \
           [&](size_t idx) { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, idx); },                       \
           [&](size_t var) { opcodes::name##_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); }, \
           [&]() { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, Config().total_nodes); });               \
@@ -404,7 +404,7 @@ class JITCompiler final {
       PushNodeToStack(argument, false);                                                                          \
     } else {                                                                                                     \
       using namespace current::fncas::x64_native_jit;                                                            \
-      argument.Dispatch(                                                                                     \
+      argument.Dispatch(                                                                                         \
           [&](size_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                       \
           [&](size_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); }, \
           [&]() { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, Config().total_nodes); });               \
