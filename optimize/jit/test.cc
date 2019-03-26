@@ -334,7 +334,7 @@ TEST(OptimizationJIT, FunctionWithArgument) {
 
 TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
   // This case is special, since the effective implementation of this `lambda` argument
-  // never actually has to actually "compute" the expression node of the respective type. -- D.K.
+  // never actually has to "compute" the expression node of the respective type. -- D.K.
   using namespace current::expression;
 
   VarsContext context;

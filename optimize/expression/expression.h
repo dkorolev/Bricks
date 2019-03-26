@@ -53,6 +53,9 @@ class ExpressionNode final {
     }
   }
 
+  struct ConstructLambdaNode {};
+  ExpressionNode(ConstructLambdaNode) : index_(ExpressionNodeIndex::LambdaNodeIndex()) {}
+
  public:
   ExpressionNode() = default;
   ExpressionNode(ExpressionNodeIndex index) : index_(index) {}
@@ -63,17 +66,14 @@ class ExpressionNode final {
     return FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
         ExpressionNodeTypeSelector<ExpressionNodeType::ImmediateDouble>(), x));
   }
-  static ExpressionNode lambda() {
-    return FromNodeIndex(
-        VarsManager::TLS().Active().EmplaceExpressionNode(ExpressionNodeTypeSelector<ExpressionNodeType::Lambda>()));
-  }
+  static ExpressionNode lambda() { return ExpressionNode(ConstructLambdaNode()); }
 
   operator ExpressionNodeIndex() const { return index_; }
 
   std::string DebugAsString() const {
     VarsContext const& vars_context = VarsManager::TLS().Active();
     return index_.template Dispatch<std::string>(
-        [&](uint64_t node_index) -> std::string {
+        [&](size_t node_index) -> std::string {
           ExpressionNodeImpl const& node = vars_context[node_index];
           ExpressionNodeType const type = node.Type();
           if (type == ExpressionNodeType::Uninitialized) {
@@ -98,13 +98,12 @@ class ExpressionNode final {
     return #fn "(" + ExpressionNode(node.ArgumentIndex()).DebugAsString() + ')';
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
-          } else if (type == ExpressionNodeType::Lambda) {
-            return "lambda";
           } else {
             CURRENT_THROW(ExpressionNodeInternalError());
           }
         },
-        [&](uint64_t var_index) -> std::string { return vars_context.VarNameByOriginalIndex(var_index); });
+        [&](size_t var_index) -> std::string { return vars_context.VarNameByOriginalIndex(var_index); },
+        [&]() -> std::string { return "lambda"; });
   }
 };
 static_assert(sizeof(ExpressionNode) == 8u, "The `ExpressionNode` type is meant to be ultra-lightweight.");
@@ -232,7 +231,7 @@ class Build1DFunctionImpl {
 
   value_t DoBuild1DFunction(value_t f) const {
     return ExpressionNodeIndex(f).template Dispatch<value_t>(
-        [&](uint64_t node_index) -> value_t {
+        [&](size_t node_index) -> value_t {
           ExpressionNodeImpl const& node = vars_context_[node_index];
           ExpressionNodeType const type = node.Type();
           if (type == ExpressionNodeType::Uninitialized) {
@@ -251,13 +250,15 @@ class Build1DFunctionImpl {
     return fn(DoBuild1DFunction(ExpressionNode(node.ArgumentIndex())));
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
-          } else if (type == ExpressionNodeType::Lambda) {
-            CURRENT_THROW(ExpressionNodeInternalError());
           } else {
             CURRENT_THROW(ExpressionNodeInternalError());
           }
         },
-        [&](uint64_t var_index) -> value_t { return substitute_[var_index]; });
+        [&](size_t var_index) -> value_t { return substitute_[var_index]; },
+        [&]() -> value_t {
+          // No `lambda` support here. `DoBuild1DFunction` introduces `lambda`-s, not uses them.
+          CURRENT_THROW(ExpressionNodeInternalError());
+        });
   }
 };
 inline value_t Build1DFunction(value_t f, VarsMapperConfig const& config, std::vector<value_t> const& substitute) {

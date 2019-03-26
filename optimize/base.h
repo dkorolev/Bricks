@@ -36,15 +36,17 @@ struct OptimizeException : Exception {
 
 namespace expression {
 
-// The universe of indexes of both nodes and vars is the whole seven bytes.
-constexpr static uint64_t kFirstIllegalIndexRepresentingNodeOrVar = (1ull << 56);
+// The universe of { indexes of nodes, indexes of vars, lambda } is the whole seven bytes.
+// Of them, the MSB is the "is lambda" bit, and the next bit is the "is node or var index" bit.
+constexpr static uint64_t kBitLambda = (1ull << 55);
+constexpr static uint64_t kBitCompactIndexIsVar = (1ull << 54);
 
-// Of these seven bytes, the MSB is the `is index the var index` flag.
-constexpr static uint64_t kBitCompactIndexIsVar = (1ull << 55);
+// If the lambda bit is set, the rest should be all zeroes, hence "plus one".
+constexpr static uint64_t kFirstIllegalIndexRepresentingNodeOrVarOrLambda = kBitLambda + 1ull;
 
-// The first illegal-to-represent actual node index or actual var index is 2^55.
+// The first illegal-to-represent actual node index or actual var index is 2^54.
 constexpr static uint64_t kFirstIllegalNodeOrVarIndex = kBitCompactIndexIsVar;
-static_assert(kFirstIllegalNodeOrVarIndex - 1ull == 0x7fffffffffffffull,
+static_assert(kFirstIllegalNodeOrVarIndex - 1ull == 0x3fffffffffffffull,
               "Math is off on this architecture, glad we checked.");
 
 // The "special" bit is the MSB.
@@ -61,13 +63,13 @@ constexpr static uint64_t kBitSpecial = (1ull << 63);
 class ExpressionNodeIndex {
  private:
   // Expression nodes indexes:
-  // - They can be an expression node index or an expression var index. The flag for whether an `ExpressionNodeIndex`
-  //   is a node index or a var index is (1ull << 55), the most significnat bit of the 2nd most significant byte.
+  // - Have a "lambda" bit dedicated to them, to save space in the expression tree RAM.
+  // - When not lambda, can be an expression node index or an expression var index. The flag for whether an "index"
+  //   is a node index or a var index is (1ull << 54), the 2nd most significant bit of the 2nd most significant byte.
   // - They have a "special" bit dedicated to them, for "manual" "recursion" stack tracking. It's the very MSB.
-  // - [TBD]: They have a "lambda" bit dedicated to them, to save space in the expression tree RAM. It's the 2nd MSB.
   // - [TBD]: They can store _some_ double values (actually, 2^63 double values)!
   // - They are 8 bytes large, and that's it.
-  //   TODO(dkorolev): Implmenet the TBDs.
+  //   TODO(dkorolev): Implement the TBDs.
   uint64_t compactified_index_;
 
   friend class ExpressionNodeImpl;
@@ -103,6 +105,8 @@ class ExpressionNodeIndex {
     return FromRawAlreadyCompactifiedIndex(static_cast<uint64_t>(var_index) | kBitCompactIndexIsVar);
   }
 
+  static ExpressionNodeIndex LambdaNodeIndex() { return FromRawAlreadyCompactifiedIndex(kBitLambda); }
+
   void SetSpecialBit() { compactified_index_ |= kBitSpecial; }
   bool ClearSpecialBitAndReturnWhatItWas() {
     if (compactified_index_ & kBitSpecial) {
@@ -115,23 +119,30 @@ class ExpressionNodeIndex {
 
   // NOTE(dkorolev): This is a *temporary* (~5% slower) solution implemented to make sure
   // I don't forget to handle all the corner cases as the number of them grows larger than two.
-  template <typename T_RETVAL = void, typename F_NODE, typename F_VAR>
-  T_RETVAL Dispatch(F_NODE&& f_node, F_VAR&& f_var) const {
-    if (compactified_index_ & kBitCompactIndexIsVar) {
+  template <typename T_RETVAL = void, typename F_NODE, typename F_VAR, typename F_LAMBDA>
+  T_RETVAL Dispatch(F_NODE&& f_node, F_VAR&& f_var, F_LAMBDA&& f_lambda) const {
+#ifndef NDEBUG
+    if (compactified_index_ & kBitSpecial) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    if (compactified_index_ & kBitLambda) {
+      return f_lambda();
+    } else if (compactified_index_ & kBitCompactIndexIsVar) {
       uint64_t const var_index = compactified_index_ ^ kBitCompactIndexIsVar;
 #ifndef NDEBUG
       if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
         CURRENT_THROW(OptimizeException("Internal error."));
       }
 #endif
-      return f_var(var_index);
+      return f_var(static_cast<size_t>(var_index));
     } else {
 #ifndef NDEBUG
       if (!(compactified_index_ < kFirstIllegalNodeOrVarIndex)) {
         CURRENT_THROW(OptimizeException("Internal error."));
       }
 #endif
-      return f_node(compactified_index_);
+      return f_node(static_cast<size_t>(compactified_index_));
     }
   }
 
@@ -176,7 +187,6 @@ static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be
 enum class ExpressionNodeType {
   Uninitialized,
   ImmediateDouble,
-  Lambda,
 
   MarkerOperationsBeginAfterThisIndex,
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name) Operation_##name,
@@ -243,7 +253,7 @@ class ExpressionNodeImpl final {
   // "Encode" the index into seven bytes, even though the representation is a mere copy after the refactoring.
   static uint64_t EncodeIndex(ExpressionNodeIndex original_index) {
 #ifndef NDEBUG
-    if (!(original_index.RawCompactifiedIndex() < kFirstIllegalIndexRepresentingNodeOrVar)) {
+    if (!(original_index.RawCompactifiedIndex() < kFirstIllegalIndexRepresentingNodeOrVarOrLambda)) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
 #endif
@@ -253,7 +263,7 @@ class ExpressionNodeImpl final {
   // "Decode" the index from seven bytes to eight, into seven bytes, even though the representation is the same.
   static ExpressionNodeIndex DecodeIndex(uint64_t encoded_index) {
 #ifndef NDEBUG
-    if (!(encoded_index < kFirstIllegalIndexRepresentingNodeOrVar)) {
+    if (!(encoded_index < kFirstIllegalIndexRepresentingNodeOrVarOrLambda)) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
 #endif
@@ -283,9 +293,6 @@ class ExpressionNodeImpl final {
 
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::ImmediateDouble>, double x)
       : compact_type_(static_cast<uint8_t>(ExpressionNodeType::ImmediateDouble)), compact_double_(x) {}
-
-  ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Lambda>)
-      : compact_type_(static_cast<uint8_t>(ExpressionNodeType::Lambda)) {}
 
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                               \
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_##name>, \

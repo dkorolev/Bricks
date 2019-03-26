@@ -130,8 +130,15 @@ class Differentiator final {
 
   void PushToStack(ExpressionNodeIndex index, size_t return_value_index_times2) const {
     index.Dispatch(
-        [&](uint64_t) { stack_.DoPush(index, return_value_index_times2); },
-        [&](uint64_t var_index) { stack_.DoReturnValue(DerivativeOfVar(var_index), return_value_index_times2); });
+        [&](size_t) { stack_.DoPush(index, return_value_index_times2); },
+        [&](size_t var_index) { stack_.DoReturnValue(DerivativeOfVar(var_index), return_value_index_times2); },
+        [&]() {
+          if (!differentiate_by_lambda_) {
+            CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
+          } else {
+            stack_.DoReturnValue(ExpressionNode::FromImmediateDouble(1.0), return_value_index_times2);
+          }
+        });
   }
 
  public:
@@ -165,7 +172,8 @@ class Differentiator final {
       // to the tree. Thus, all the relevant pieces of data must be extracted from this node before adding the new ones.
       ExpressionNodeImpl const& short_lived_node = index.template Dispatch<ExpressionNodeImpl const&>(
           [this](size_t node_index) -> ExpressionNodeImpl const& { return vars_context_[node_index]; },
-          [](size_t) -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); });
+          [](size_t) -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); },
+          []() -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); });
       ExpressionNodeType const node_type = short_lived_node.Type();
 
       if (node_type == ExpressionNodeType::ImmediateDouble) {
@@ -244,12 +252,6 @@ class Differentiator final {
             CURRENT_THROW(OptimizeException("Internal error."));
           }
           stack_.DoReturnValue(df, element.return_value_index_times2);
-        }
-      } else if (node_type == ExpressionNodeType::Lambda) {
-        if (!differentiate_by_lambda_) {
-          CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
-        } else {
-          stack_.DoReturnValue(ExpressionNode::FromImmediateDouble(1.0), element.return_value_index_times2);
         }
       } else {
         CURRENT_THROW(DifferentiatorForThisNodeTypeNotImplementedException());
