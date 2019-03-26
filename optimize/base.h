@@ -25,6 +25,8 @@ SOFTWARE.
 #ifndef OPTIMIZE_BASE_H
 #define OPTIMIZE_BASE_H
 
+#include "double.h"
+
 #include "../bricks/exception.h"
 #include "../port.h"
 
@@ -52,6 +54,11 @@ static_assert(kFirstIllegalNodeOrVarIndex - 1ull == 0x3fffffffffffffull,
 // The "special" bit is the MSB.
 // It is used for manual stack in the "recursive" calls to differentiate the node or to JIT-compile it.
 constexpr static uint64_t kBitSpecial = (1ull << 63);
+
+// The "this is actually a double value" bit is the 3rd most significant bit, `(1ull << 61)`.
+// TL;DR: `2^63` double values, which are the vast, vast majority of what is ever used in ML,
+// are packed into the very 8-byte `ExpressionNodeIndex` to save on RAM for nodes. See `double.h` for more details.
+constexpr static uint64_t kBitDouble = (1ull << 61);
 
 // The data type for the expression should be defined in this `base.h` header, as the thread-local context
 // for expression management is the same as the thread-local context for variables management.
@@ -105,6 +112,15 @@ class ExpressionNodeIndex {
     return FromRawAlreadyCompactifiedIndex(static_cast<uint64_t>(var_index) | kBitCompactIndexIsVar);
   }
 
+  static ExpressionNodeIndex FromRegularDouble(double x) {
+#ifndef NDEBUG
+    if (!IsRegularDouble(x)) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    return FromRawAlreadyCompactifiedIndex(PackDouble(x));
+  }
+
   static ExpressionNodeIndex LambdaNodeIndex() { return FromRawAlreadyCompactifiedIndex(kBitLambda); }
 
   void SetSpecialBit() { compactified_index_ |= kBitSpecial; }
@@ -117,16 +133,36 @@ class ExpressionNodeIndex {
     }
   }
 
+  // No cast into `bool` for performance reasons. -- D.K.
+  uint64_t IsIndexImmediateDouble() const { return (compactified_index_ & kBitDouble); }
+
+  double GetImmediateDoubleFromIndex() const {
+#ifndef NDEBUG
+    if (!IsIndexImmediateDouble()) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    return UnpackDouble(compactified_index_);
+  }
+
   // NOTE(dkorolev): This is a *temporary* (~5% slower) solution implemented to make sure
   // I don't forget to handle all the corner cases as the number of them grows larger than two.
-  template <typename T_RETVAL = void, typename F_NODE, typename F_VAR, typename F_LAMBDA>
-  T_RETVAL Dispatch(F_NODE&& f_node, F_VAR&& f_var, F_LAMBDA&& f_lambda) const {
+  template <typename T_RETVAL = void, class F_NODE, class F_VAR, class F_DOUBLE, class F_LAMBDA>
+  T_RETVAL Dispatch(F_NODE&& f_node, F_VAR&& f_var, F_DOUBLE&& f_double, F_LAMBDA&& f_lambda) const {
 #ifndef NDEBUG
     if (compactified_index_ & kBitSpecial) {
       CURRENT_THROW(OptimizeException("Internal error."));
     }
 #endif
-    if (compactified_index_ & kBitLambda) {
+    if (compactified_index_ & kBitDouble) {
+#ifndef NDEBUG
+      if (!IsUInt64PackedDouble(compactified_index_)) {
+        // NOTE(dkorolev): This test will always pass unless the code in `double.h` is altered substantially.
+        CURRENT_THROW(OptimizeException("Internal error."));
+      }
+#endif
+      return f_double(UnpackDouble(compactified_index_));
+    } else if (compactified_index_ & kBitLambda) {
       return f_lambda();
     } else if (compactified_index_ & kBitCompactIndexIsVar) {
       uint64_t const var_index = compactified_index_ ^ kBitCompactIndexIsVar;
@@ -241,56 +277,65 @@ class ExpressionNodeImpl final {
   friend class Build1DFunctionImpl;
 
   uint8_t compact_type_ : 6;
-  bool compact_has_double_ : 1;
+
+  // The logic behind this possible "flipping" is simple:
+  // * Node, or, rather, the 8-byte `ExpressionNodeIndex`-es, can contain immediate double values instead of indexes.
+  // * Unlike 8-byte node indexes, that only need seven bytes, immediate double values need the whopping 64 bits.
+  // * Since `ExpressionNodeImpl` should fit everything into 16 bytes, one of its {lhs, rhs} operands is 7 bytes.
+  // * However, there can be no math operation that takes two doubles as the input -- it will be computed right away.
+  // * Still, since the order of the operands does matter, and that one operand that is a double value can be either the
+  //   left hand side one or the right hand side one, of the first bit-packed byte one bit holds the "flipped" flag.
+  // * It makes more sense to "declare" the "secondary" index first, as it's the one chopped to seven bytes.
+  //   For functions (i.e., `exp`), not operators (i.e. `+`), it is easier to retrieve the index of its argument.
+  //
+  // TODO(dkorolev): What if the result of some operation on immediates does not fit the 63-bit "regular" double? Test.
   bool compact_flipped_ : 1;
-  uint64_t compact_secondary_index_ : (8 * 7);  // `lhs` or `lhs` for math operations, depending on `compact_flipped_`.
+  uint64_t compact_secondary_index_ : (8 * 7);
 
   union {
-    uint64_t compact_primary_index_;  // `rhs` or `lhs` for math operations, depending on `compact_flipped_`.
-    double compact_double_;           // the double value for math operations depending on `compact_has_double_`.
+    // TODO(dkorolev): The very `compact_double_` is going away!
+    uint64_t compact_primary_index_;
+    double compact_double_;
   };
 
-  // "Encode" the index into seven bytes, even though the representation is a mere copy after the refactoring.
-  static uint64_t EncodeIndex(ExpressionNodeIndex original_index) {
-#ifndef NDEBUG
-    if (!(original_index.RawCompactifiedIndex() < kFirstIllegalIndexRepresentingNodeOrVarOrLambda)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
-    }
-#endif
-    return original_index.RawCompactifiedIndex();
-  }
-
-  // "Decode" the index from seven bytes to eight, into seven bytes, even though the representation is the same.
-  static ExpressionNodeIndex DecodeIndex(uint64_t encoded_index) {
-#ifndef NDEBUG
-    if (!(encoded_index < kFirstIllegalIndexRepresentingNodeOrVarOrLambda)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
-    }
-#endif
-    return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(encoded_index);
-  }
-
-  void InitArgument(ExpressionNodeIndex argument) { compact_primary_index_ = EncodeIndex(argument); }
+  void InitArgument(ExpressionNodeIndex argument) { compact_primary_index_ = argument.RawCompactifiedIndex(); }
 
   void InitLHSRHS(ExpressionNodeIndex lhs, ExpressionNodeIndex rhs) {
-    compact_primary_index_ = EncodeIndex(lhs);
-    compact_secondary_index_ = EncodeIndex(rhs);
-    compact_flipped_ = false;
+    if (!rhs.IsIndexImmediateDouble()) {
+      compact_primary_index_ = lhs.RawCompactifiedIndex();
+      compact_secondary_index_ = rhs.RawCompactifiedIndex();
+      compact_flipped_ = false;
+    } else {
+#ifndef DEBUG
+      if (lhs.IsIndexImmediateDouble()) {
+        // Can't have both LHS and RHS nodes as immediate doubles.
+        CURRENT_THROW(OptimizeException("Internal error."));
+      }
+#endif
+      compact_secondary_index_ = lhs.RawCompactifiedIndex();
+      compact_primary_index_ = rhs.RawCompactifiedIndex();
+      compact_flipped_ = true;
+    }
   }
 
  public:
   ExpressionNodeType Type() const { return static_cast<ExpressionNodeType>(compact_type_); }
   double Value() const { return compact_double_; }
-  ExpressionNodeIndex ArgumentIndex() const { return DecodeIndex(compact_primary_index_); }
+  ExpressionNodeIndex ArgumentIndex() const {
+    return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(compact_primary_index_);
+  }
   ExpressionNodeIndex LHSIndex() const {
-    return DecodeIndex(compact_flipped_ ? compact_secondary_index_ : compact_primary_index_);
+    return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(compact_flipped_ ? compact_secondary_index_
+                                                                                 : compact_primary_index_);
   }
   ExpressionNodeIndex RHSIndex() const {
-    return DecodeIndex(compact_flipped_ ? compact_primary_index_ : compact_secondary_index_);
+    return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(compact_flipped_ ? compact_primary_index_
+                                                                                 : compact_secondary_index_);
   }
 
   ExpressionNodeImpl() = default;
 
+  // TODO(dkorolev): The very `ExpressionNodeType::ImmediateDouble` is going away!
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::ImmediateDouble>, double x)
       : compact_type_(static_cast<uint8_t>(ExpressionNodeType::ImmediateDouble)), compact_double_(x) {}
 

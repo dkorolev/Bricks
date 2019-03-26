@@ -279,17 +279,17 @@ TEST(OptimizationExpression, FreezePreventsNodesCreation) {
   VarsContext vars_context;
   x[0] = 0.0;
 
-  // NOTE(dkorolev): Each of these assignments generates two expression nodes: one for the value, adn one for the `+`.
   value_t const tmp1 = x[0] + 1.0;
   value_t const tmp2 = x[0] + 2.0;
   value_t const tmp3 = x[0] + 3.0;
-  EXPECT_EQ(1u, ExpressionNodeIndex(tmp1).UnitTestNodeIndex());
-  EXPECT_EQ(3u, ExpressionNodeIndex(tmp2).UnitTestNodeIndex());
-  EXPECT_EQ(5u, ExpressionNodeIndex(tmp3).UnitTestNodeIndex());
+
+  EXPECT_EQ(0u, ExpressionNodeIndex(tmp1).UnitTestNodeIndex());
+  EXPECT_EQ(1u, ExpressionNodeIndex(tmp2).UnitTestNodeIndex());
+  EXPECT_EQ(2u, ExpressionNodeIndex(tmp3).UnitTestNodeIndex());
 
   VarsMapperConfig const config = vars_context.Freeze();
   EXPECT_EQ(1u, config.total_leaves);  // Just one variable, `x[0]`.
-  EXPECT_EQ(6u, config.total_nodes);   // Three immediate value and three `+` nodes.
+  EXPECT_EQ(3u, config.total_nodes);   // Three `+` nodes.
 
   EXPECT_THROW(x[0] + 4.0, VarsManagementException);
 }
@@ -339,9 +339,9 @@ TEST(OptimizationExpression, DoubleValuesAsNodes) {
   value_t one = value_t::FromImmediateDouble(1.0);
   value_t two = value_t::FromImmediateDouble(2.0);
 
-  EXPECT_EQ("(1.000000+2.000000)", (one + two).DebugAsString());
-  EXPECT_EQ("sqr(1.000000)", sqr(one).DebugAsString());
-  EXPECT_EQ("sqrt(((1.000000+1.000000)+2.000000))", sqrt(one + 1.0 + two).DebugAsString());
-  EXPECT_EQ("exp(((1.000000+1.000000)-2.000000))", exp(one + one - 2.0).DebugAsString());
-  EXPECT_EQ("atan(((2.000000-1.500000)-0.500000))", atan(two - 1.5 - 0.5).DebugAsString());
+  EXPECT_EQ("3.000000", (one + two).DebugAsString());
+  EXPECT_EQ("1.000000", sqr(one).DebugAsString());
+  EXPECT_EQ("2.000000", sqrt(one + 1.0 + two).DebugAsString());
+  EXPECT_EQ("1.000000", exp(one + one - 2.0).DebugAsString());
+  EXPECT_EQ("0.000000", atan(two - 1.5 - 0.5).DebugAsString());
 }
