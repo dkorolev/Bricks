@@ -330,3 +330,18 @@ TEST(OptimizationExpression, LambdaFunctionGeneration) {
   EXPECT_EQ("(x[0]{0}+(2.000000*x[1]{1}))", f.DebugAsString());
   EXPECT_EQ("((1.000000+(2.000000*lambda))+(2.000000*(3.000000+(4.000000*lambda))))", f2.DebugAsString());
 }
+
+TEST(OptimizationExpression, DoubleValuesAsNodes) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  value_t one = value_t::FromImmediateDouble(1.0);
+  value_t two = value_t::FromImmediateDouble(2.0);
+
+  EXPECT_EQ("(1.000000+2.000000)", (one + two).DebugAsString());
+  EXPECT_EQ("sqr(1.000000)", sqr(one).DebugAsString());
+  EXPECT_EQ("sqrt(((1.000000+1.000000)+2.000000))", sqrt(one + 1.0 + two).DebugAsString());
+  EXPECT_EQ("exp(((1.000000+1.000000)-2.000000))", exp(one + one - 2.0).DebugAsString());
+  EXPECT_EQ("atan(((2.000000-1.500000)-0.500000))", atan(two - 1.5 - 0.5).DebugAsString());
+}
