@@ -87,6 +87,8 @@ class ExpressionNode final {
       result.index_ = ExpressionNodeIndex::FromRegularDouble(x);
       return result;
     } else {
+      // NOTE(dkorolev): If you _really_ need to use an irregular double with Current's optimizer,
+      // make it a constant variable, via something like `x["my_weird_constant"].SetConstant(1e500);`.
       CURRENT_THROW(DoubleValueNotRegularException(x));
     }
   }
