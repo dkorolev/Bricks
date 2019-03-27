@@ -265,7 +265,7 @@ TEST(OptimizationExpression, MustBeWithinContext) {
     std::vector<value_t> values;
     values.push_back(x[0]);
     values.push_back(exp(x[0]));
-    values.push_back(ExpressionNode::FromImmediateDouble(0.0));
+    values.push_back(0.0);
     return values;
   }();
   ASSERT_THROW(v[0].DebugAsString(), VarsManagementException);
@@ -302,7 +302,7 @@ TEST(OptimizationExpression, Lambda) {
   x[0] = 0.0;
 
   value_t const a = x[0];
-  value_t const b = ExpressionNode::FromImmediateDouble(1.0);
+  value_t const b = 1.0;
   value_t const c = value_t::lambda();
 
   EXPECT_EQ("x[0]", a.DebugAsString());
@@ -336,8 +336,8 @@ TEST(OptimizationExpression, DoubleValuesAsNodes) {
 
   VarsContext vars_context;
 
-  value_t one = value_t::FromImmediateDouble(1.0);
-  value_t two = value_t::FromImmediateDouble(2.0);
+  value_t one = 1.0;
+  value_t two = 2.0;
 
   EXPECT_EQ("3.000000", (one + two).DebugAsString());
   EXPECT_EQ("1.000000", sqr(one).DebugAsString());
@@ -346,10 +346,24 @@ TEST(OptimizationExpression, DoubleValuesAsNodes) {
   EXPECT_EQ("0.000000", atan(two - 1.5 - 0.5).DebugAsString());
 }
 
+TEST(OptimizationExpression, ConstantsForInternalRepresentationsAreCorrect) {
+  using namespace current::expression;
+
+  EXPECT_EQ(kExpressionNodeIndexForDoubleZero, ExpressionNodeIndex(ExpressionNode(0.0)).UnitTestRawCompactifiedIndex())
+      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(ExpressionNode(0.0)).UnitTestRawCompactifiedIndex());
+
+  EXPECT_EQ(kExpressionNodeIndexForDoubleNegativeZero,
+            ExpressionNodeIndex(ExpressionNode(-0.0)).UnitTestRawCompactifiedIndex())
+      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(ExpressionNode(-0.0)).UnitTestRawCompactifiedIndex());
+
+  EXPECT_EQ(kExpressionNodeIndexForDoubleOne, ExpressionNodeIndex(ExpressionNode(1.0)).UnitTestRawCompactifiedIndex())
+      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(ExpressionNode(1.0)).UnitTestRawCompactifiedIndex());
+}
+
 // See `DoublesUpTo1ePositive77AreRegular` and `DoublesUpTo1eNegative76AreRegular` in `../encoded_double/test.cc`.
 TEST(OptimizationExpression, DoubleValuesMustBeRegular) {
   using namespace current::expression;
-  value_t const close_to_the_boundary = value_t::FromImmediateDouble(1e76);
+  value_t const close_to_the_boundary = 1e76;
 
   close_to_the_boundary * 10;
   close_to_the_boundary*(-10);

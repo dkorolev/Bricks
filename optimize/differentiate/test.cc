@@ -310,7 +310,7 @@ TEST(OptimizationDifferentiate, Constants) {
   EXPECT_EQ("0.000000", Differentiate(x[2], 1).DebugAsString());
   EXPECT_EQ("0.000000", Differentiate(x[2], 2).DebugAsString());  // Not `1` because `x[2]` is a constant.
 
-  value_t two = ExpressionNode::FromImmediateDouble(2.0);
+  value_t two = 2.0;
   EXPECT_EQ("0.000000", Differentiate(two, 0).DebugAsString());
   EXPECT_EQ("0.000000", Differentiate(two, 1).DebugAsString());
   EXPECT_EQ("0.000000", Differentiate(two, 2).DebugAsString());
@@ -468,7 +468,7 @@ TEST(OptimizationDifferentiate, GradientComponentsAreNullified) {
     x[i] = 0.0;
   }
 
-  value_t f = ExpressionNode::FromImmediateDouble(0.0);
+  value_t f = 0.0;
   for (size_t i = 0; i < dim; ++i) {
     f += exp(x[i]);
   }
@@ -493,7 +493,7 @@ inline void RunOptimizationDifferentiateGradientStressTest(size_t dim) {
     x[i] = 0.0;
   }
 
-  value_t f = ExpressionNode::FromImmediateDouble(0.0);
+  value_t f = 0.0;
   for (size_t i = 0; i < dim; ++i) {
     f += exp(x[i]);
   }

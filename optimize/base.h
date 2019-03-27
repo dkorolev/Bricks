@@ -123,6 +123,8 @@ class ExpressionNodeIndex {
 
   static ExpressionNodeIndex LambdaNodeIndex() { return FromRawAlreadyCompactifiedIndex(kBitLambda); }
 
+  bool RawCompactifiedIndexEquals(uint64_t value) const { return compactified_index_ == value; }
+
   void SetSpecialBit() { compactified_index_ |= kBitSpecial; }
   bool ClearSpecialBitAndReturnWhatItWas() {
     if (compactified_index_ & kBitSpecial) {
@@ -220,6 +222,8 @@ class ExpressionNodeIndex {
 #endif
     return var_index;
   }
+
+  uint64_t UnitTestRawCompactifiedIndex() const { return RawCompactifiedIndex(); }
 };
 static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be 8 bytes.");
 

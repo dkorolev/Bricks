@@ -120,11 +120,10 @@ class Differentiator final {
     if (!differentiate_by_lambda_) {
       // So, the derivative is zero or one.
       // TODO(dkorolev): Do not, of course, allocate independent expression nodes for every single zero and one.
-      return ExpressionNode::FromImmediateDouble(
-          vars_context_.LeafDerivativeZeroOrOne(var_index, derivative_per_finalized_var_index_));
+      return vars_context_.LeafDerivativeZeroOrOne(var_index, derivative_per_finalized_var_index_);
     } else {
       // When differentiating by lambda, the derivative by each variable is zero.
-      return ExpressionNode::FromImmediateDouble(0.0);
+      return 0.0;
     }
   }
 
@@ -132,12 +131,12 @@ class Differentiator final {
     index.Dispatch(
         [&](size_t) { stack_.DoPush(index, return_value_index_times2); },
         [&](size_t var_index) { stack_.DoReturnValue(DerivativeOfVar(var_index), return_value_index_times2); },
-        [&](double) { stack_.DoReturnValue(ExpressionNode::FromImmediateDouble(0.0), return_value_index_times2); },
+        [&](double) { stack_.DoReturnValue(0.0, return_value_index_times2); },
         [&]() {
           if (!differentiate_by_lambda_) {
             CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
           } else {
-            stack_.DoReturnValue(ExpressionNode::FromImmediateDouble(1.0), return_value_index_times2);
+            stack_.DoReturnValue(1.0, return_value_index_times2);
           }
         });
   }

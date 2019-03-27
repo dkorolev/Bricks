@@ -358,7 +358,7 @@ inline void RunOptimizationJITStressTest(size_t dim) {
     x[i] = 0.0;
   }
 
-  value_t f = ExpressionNode::FromImmediateDouble(0.0);
+  value_t f = 0.0;
   for (size_t i = 0; i < dim; ++i) {
     f += exp(x[i]);
   }
