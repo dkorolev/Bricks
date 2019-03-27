@@ -126,6 +126,7 @@ class ExpressionNodeIndex {
   bool RawCompactifiedIndexEquals(uint64_t value) const { return compactified_index_ == value; }
 
   void SetSpecialBit() { compactified_index_ |= kBitSpecial; }
+  uint64_t GetSpecialBit() const { return compactified_index_ & kBitSpecial; }  // No cast for performance reasons.
   bool ClearSpecialBitAndReturnWhatItWas() {
     if (compactified_index_ & kBitSpecial) {
       compactified_index_ ^= kBitSpecial;

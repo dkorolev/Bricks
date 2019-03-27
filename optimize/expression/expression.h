@@ -93,7 +93,7 @@ class ExpressionNode final {
     if (!IsImmediateDouble()) {
       CURRENT_THROW(ExpressionNodeInternalError());
     }
-    if (index_.ClearSpecialBitAndReturnWhatItWas()) {
+    if (index_.GetSpecialBit()) {
       CURRENT_THROW(ExpressionNodeInternalError());
     }
 #endif
