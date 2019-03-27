@@ -372,9 +372,7 @@ class JITCompiler final {
               using namespace current::fncas::x64_native_jit;
               ExpressionNodeImpl const& node = VarsManager::TLS().Active()[current_node_index];
               ExpressionNodeType const type = node.Type();
-              if (type == ExpressionNodeType::ImmediateDouble) {
-                opcodes::load_immediate_to_memory_by_rbx_offset(code, current_node_index, node.Value());
-                node_computed_[current_node_index] = true;
+              if (false) {
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                           \
   }                                                                                                                \
   else if (type == ExpressionNodeType::Operation_##name) {                                                         \

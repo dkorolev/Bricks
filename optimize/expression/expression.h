@@ -28,10 +28,17 @@ SOFTWARE.
 #include "../base.h"
 #include "../vars/vars.h"
 
+#include "../../bricks/strings/printf.h"
+
 #include <cmath>
 
 namespace current {
 namespace expression {
+
+struct DoubleNotRegularException final : OptimizeException {
+  explicit DoubleNotRegularException(double x)
+      : OptimizeException(current::strings::Printf("%lf, %+la, 0x%016lx", x, x, *reinterpret_cast<uint64_t*>(&x))) {}
+};
 
 struct ExpressionVarNodeBoxingException final : OptimizeException {};
 
@@ -80,8 +87,7 @@ class ExpressionNode final {
       result.index_ = ExpressionNodeIndex::FromRegularDouble(x);
       return result;
     } else {
-      return FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
-          ExpressionNodeTypeSelector<ExpressionNodeType::ImmediateDouble>(), x));
+      CURRENT_THROW(DoubleNotRegularException(x));
     }
   }
   static ExpressionNode lambda() { return ExpressionNode(ConstructLambdaNode()); }
@@ -96,13 +102,6 @@ class ExpressionNode final {
           ExpressionNodeType const type = node.Type();
           if (type == ExpressionNodeType::Uninitialized) {
             return "<Uninitialized>";
-          } else if (type == ExpressionNodeType::ImmediateDouble) {
-            double const value = node.Value();
-            if (value >= 0) {
-              return current::ToString(value);
-            } else {
-              return "(" + current::ToString(value) + ')';
-            }
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                 \
   }                                                                      \
   else if (type == ExpressionNodeType::Operation_##name) {               \
@@ -269,8 +268,6 @@ class Build1DFunctionImpl {
           ExpressionNodeType const type = node.Type();
           if (type == ExpressionNodeType::Uninitialized) {
             CURRENT_THROW(ExpressionNodeInternalError());
-          } else if (type == ExpressionNodeType::ImmediateDouble) {
-            return f;
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)   \
   }                                                        \
   else if (type == ExpressionNodeType::Operation_##name) { \

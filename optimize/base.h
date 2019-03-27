@@ -225,7 +225,6 @@ static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be
 
 enum class ExpressionNodeType {
   Uninitialized,
-  ImmediateDouble,
 
   MarkerOperationsBeginAfterThisIndex,
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name) Operation_##name,
@@ -337,10 +336,6 @@ class ExpressionNodeImpl final {
   }
 
   ExpressionNodeImpl() = default;
-
-  // TODO(dkorolev): The very `ExpressionNodeType::ImmediateDouble` is going away!
-  ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::ImmediateDouble>, double x)
-      : compact_type_(static_cast<uint8_t>(ExpressionNodeType::ImmediateDouble)), compact_double_(x) {}
 
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                               \
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_##name>, \

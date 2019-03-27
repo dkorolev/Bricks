@@ -178,11 +178,7 @@ class Differentiator final {
           []() -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); });
       ExpressionNodeType const node_type = short_lived_node.Type();
 
-      if (node_type == ExpressionNodeType::ImmediateDouble) {
-        // NOTE(dkorolev): This should not happen as I move to the compact form of `ExpressionNodeImpl`.
-        // TODO(dkorolev): This piece of code will go away once I do refactor.
-        stack_.DoReturnValue(ExpressionNode::FromImmediateDouble(0.0), element.return_value_index_times2);
-      } else if (IsOperationNode(node_type)) {
+      if (IsOperationNode(node_type)) {
         value_t const a = short_lived_node.LHSIndex();
         value_t const b = short_lived_node.RHSIndex();
         if (!ready_to_differentiate) {
