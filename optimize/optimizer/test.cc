@@ -26,6 +26,47 @@ SOFTWARE.
 
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
 
+TEST(OptimizationOptimizer, IsNormal) {
+  using namespace current::expression;  // For both `IsNormal()` and custom functions s.a. `sigmoid()`.
+
+  EXPECT_TRUE(IsNormal(1));
+  EXPECT_TRUE(IsNormal(42));
+  EXPECT_TRUE(IsNormal(0.5));
+  EXPECT_TRUE(IsNormal(-1));
+
+  EXPECT_TRUE(IsNormal(0.0));
+  EXPECT_TRUE(IsNormal(-0.0));
+
+  EXPECT_TRUE(IsNormal(sqrt(2.0)));
+  EXPECT_TRUE(IsNormal(log(2.0)));
+  EXPECT_TRUE(IsNormal(exp(2.0)));
+  EXPECT_TRUE(IsNormal(sin(2.0)));
+  EXPECT_TRUE(IsNormal(cos(2.0)));
+  EXPECT_TRUE(IsNormal(tan(2.0)));
+  EXPECT_TRUE(IsNormal(asin(0.5)));
+  EXPECT_TRUE(IsNormal(acos(0.5)));
+  EXPECT_TRUE(IsNormal(atan(2.0)));
+  EXPECT_TRUE(IsNormal(sigmoid(+10)));
+  EXPECT_TRUE(IsNormal(sigmoid(-10)));
+  EXPECT_TRUE(IsNormal(sigmoid(+100)));
+  EXPECT_TRUE(IsNormal(sigmoid(-100)));
+  EXPECT_TRUE(IsNormal(sigmoid(+1000)));
+  EXPECT_TRUE(IsNormal(sigmoid(-1000)));
+  EXPECT_TRUE(IsNormal(log_sigmoid(+10)));
+  EXPECT_TRUE(IsNormal(log_sigmoid(-10)));
+  EXPECT_TRUE(IsNormal(log_sigmoid(+100)));
+  EXPECT_TRUE(IsNormal(log_sigmoid(-100)));
+  EXPECT_TRUE(IsNormal(log_sigmoid(+1000)));
+  EXPECT_TRUE(IsNormal(log_sigmoid(-1000)));
+
+  EXPECT_FALSE(IsNormal(sqrt(-2.0)));
+  EXPECT_FALSE(IsNormal(log(-2.0)));
+  EXPECT_FALSE(IsNormal(log(0.0)));
+  EXPECT_FALSE(IsNormal(exp(1000.0)));
+  EXPECT_FALSE(IsNormal(asin(+1.5)));
+  EXPECT_FALSE(IsNormal(acos(-1.5)));
+}
+
 TEST(OptimizationOptimizer, TrivialSingleStepOptimization) {
   using namespace current::expression;
   using namespace current::expression::optimizer;

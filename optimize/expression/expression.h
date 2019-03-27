@@ -35,8 +35,8 @@ SOFTWARE.
 namespace current {
 namespace expression {
 
-struct DoubleNotRegularException final : OptimizeException {
-  explicit DoubleNotRegularException(double x)
+struct DoubleValueNotRegularException final : OptimizeException {
+  explicit DoubleValueNotRegularException(double x)
       : OptimizeException(current::strings::Printf("%lf, %+la, 0x%016lx", x, x, *reinterpret_cast<uint64_t*>(&x))) {}
 };
 
@@ -87,7 +87,7 @@ class ExpressionNode final {
       result.index_ = ExpressionNodeIndex::FromRegularDouble(x);
       return result;
     } else {
-      CURRENT_THROW(DoubleNotRegularException(x));
+      CURRENT_THROW(DoubleValueNotRegularException(x));
     }
   }
   static ExpressionNode lambda() { return ExpressionNode(ConstructLambdaNode()); }

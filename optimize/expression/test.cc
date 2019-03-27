@@ -345,3 +345,45 @@ TEST(OptimizationExpression, DoubleValuesAsNodes) {
   EXPECT_EQ("1.000000", exp(one + one - 2.0).DebugAsString());
   EXPECT_EQ("0.000000", atan(two - 1.5 - 0.5).DebugAsString());
 }
+
+// See `DoublesUpTo1ePositive77AreRegular` and `DoublesUpTo1eNegative76AreRegular` in `../encoded_double/test.cc`.
+TEST(OptimizationExpression, DoubleValuesMustBeRegular) {
+  using namespace current::expression;
+  value_t const close_to_the_boundary = value_t::FromImmediateDouble(1e76);
+
+  close_to_the_boundary * 10;
+  close_to_the_boundary*(-10);
+  try {
+    close_to_the_boundary * 100;
+    ASSERT_TRUE(false);
+  } catch (DoubleValueNotRegularException const& e) {
+    EXPECT_EQ(
+        "1000000000000000008493621433689702976148869924598760615894999102702796905906176.000000, "
+        "+0x1.145b7e285bf99p+259, 0x502145b7e285bf99",
+        e.OriginalDescription());
+  }
+  try {
+    close_to_the_boundary*(-100);
+    ASSERT_TRUE(false);
+  } catch (DoubleValueNotRegularException const& e) {
+    EXPECT_EQ(
+        "-1000000000000000008493621433689702976148869924598760615894999102702796905906176.000000, "
+        "-0x1.145b7e285bf99p+259, 0xd02145b7e285bf99",
+        e.OriginalDescription());
+  }
+
+  (1.0 / close_to_the_boundary);
+  (-1.0 / close_to_the_boundary);
+  try {
+    (1.0 / close_to_the_boundary) / 10;
+    ASSERT_TRUE(false);
+  } catch (DoubleValueNotRegularException const& e) {
+    EXPECT_EQ("0.000000, +0x1.286d80ec190dcp-256, 0x2ff286d80ec190dc", e.OriginalDescription());
+  }
+  try {
+    (-1.0 / close_to_the_boundary) / 10;
+    ASSERT_TRUE(false);
+  } catch (DoubleValueNotRegularException const& e) {
+    EXPECT_EQ("-0.000000, -0x1.286d80ec190dcp-256, 0xaff286d80ec190dc", e.OriginalDescription());
+  }
+}
