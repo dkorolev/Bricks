@@ -370,7 +370,8 @@ inline void RunOptimizationJITStressTest(size_t dim) {
   VarsMapper input(vars_config);
   EXPECT_EQ(dim, compiled_f(jit_call_context, input.x));
 
-  EXPECT_EQ(23u + 47u * dim, compiled_f.CodeSize());
+  // NOTE(dkorolev): The seemingly-confusing subtraction is because the very first "zero plus ..." is optimized away.
+  EXPECT_EQ(47u * dim - 10u, compiled_f.CodeSize());
 }
 
 TEST(OptimizationJIT, JITStressTest1KExponents) { RunOptimizationJITStressTest(1000u); }

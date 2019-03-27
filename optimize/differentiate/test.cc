@@ -47,13 +47,11 @@ TEST(OptimizationDifferentiate, Operations) {
   EXPECT_EQ("1.000000", Differentiate(x[0] - x[1], 0).DebugAsString());
   EXPECT_EQ("(-1.000000)", Differentiate(x[0] - x[1], 1).DebugAsString());
 
-  EXPECT_EQ("((x[0]{0}*0.000000)+(x[1]{1}*1.000000))", Differentiate(x[0] * x[1], 0).DebugAsString());
-  EXPECT_EQ("((x[0]{0}*1.000000)+(x[1]{1}*0.000000))", Differentiate(x[0] * x[1], 1).DebugAsString());
+  EXPECT_EQ("x[1]{1}", Differentiate(x[0] * x[1], 0).DebugAsString());
+  EXPECT_EQ("x[0]{0}", Differentiate(x[0] * x[1], 1).DebugAsString());
 
-  EXPECT_EQ("(((x[1]{1}*1.000000)-(x[0]{0}*0.000000))/(x[1]{1}*x[1]{1}))",
-            Differentiate(x[0] / x[1], 0).DebugAsString());
-  EXPECT_EQ("(((x[1]{1}*0.000000)-(x[0]{0}*1.000000))/(x[1]{1}*x[1]{1}))",
-            Differentiate(x[0] / x[1], 1).DebugAsString());
+  EXPECT_EQ("(x[1]{1}/(x[1]{1}*x[1]{1}))", Differentiate(x[0] / x[1], 0).DebugAsString());
+  EXPECT_EQ("((0.000000-x[0]{0})/(x[1]{1}*x[1]{1}))", Differentiate(x[0] / x[1], 1).DebugAsString());
 }
 
 TEST(OptimizationDifferentiate, Functions) {
@@ -63,9 +61,9 @@ TEST(OptimizationDifferentiate, Functions) {
   x[0] = 0.0;
   vars_context.ReindexVars();
 
-  EXPECT_EQ("(1.000000*exp(x[0]{0}))", Differentiate(exp(x[0]), 0).DebugAsString());
+  EXPECT_EQ("exp(x[0]{0})", Differentiate(exp(x[0]), 0).DebugAsString());
   EXPECT_EQ("(1.000000/x[0]{0})", Differentiate(log(x[0]), 0).DebugAsString());
-  EXPECT_EQ("(1.000000*cos(x[0]{0}))", Differentiate(sin(x[0]), 0).DebugAsString());
+  EXPECT_EQ("cos(x[0]{0})", Differentiate(sin(x[0]), 0).DebugAsString());
   EXPECT_EQ("((-1.000000)*sin(x[0]{0}))", Differentiate(cos(x[0]), 0).DebugAsString());
   EXPECT_EQ("(1.000000/sqr(cos(x[0]{0})))", Differentiate(tan(x[0]), 0).DebugAsString());
   EXPECT_EQ("(2.000000*x[0]{0})", Differentiate(sqr(x[0]), 0).DebugAsString());
@@ -73,8 +71,8 @@ TEST(OptimizationDifferentiate, Functions) {
   EXPECT_EQ("(1.000000/sqrt((1.000000-sqr(x[0]{0}))))", Differentiate(asin(x[0]), 0).DebugAsString());
   EXPECT_EQ("((-1.000000)/sqrt((1.000000-sqr(x[0]{0}))))", Differentiate(acos(x[0]), 0).DebugAsString());
   EXPECT_EQ("(1.000000/(1.000000+sqr(x[0]{0})))", Differentiate(atan(x[0]), 0).DebugAsString());
-  EXPECT_EQ("(1.000000*unit_step(x[0]{0}))", Differentiate(ramp(x[0]), 0).DebugAsString());
-  EXPECT_EQ("(1.000000*sigmoid((0.000000-x[0]{0})))", Differentiate(log_sigmoid(x[0]), 0).DebugAsString());
+  EXPECT_EQ("unit_step(x[0]{0})", Differentiate(ramp(x[0]), 0).DebugAsString());
+  EXPECT_EQ("sigmoid((0.000000-x[0]{0}))", Differentiate(log_sigmoid(x[0]), 0).DebugAsString());
 }
 
 TEST(OptimizationDifferentiate, ChainRule) {
@@ -330,8 +328,8 @@ TEST(OptimizationDifferentiate, Gradient) {
 
   std::vector<value_t> const g = ComputeGradient(sqr(x[0]) + 2.0 * sqr(x[1]));
   ASSERT_EQ(2u, g.size());
-  EXPECT_EQ("((2.000000*x[0]{0})+((2.000000*(0.000000*x[1]{1}))+(sqr(x[1]{1})*0.000000)))", g[0].DebugAsString());
-  EXPECT_EQ("((0.000000*x[0]{0})+((2.000000*(2.000000*x[1]{1}))+(sqr(x[1]{1})*0.000000)))", g[1].DebugAsString());
+  EXPECT_EQ("(2.000000*x[0]{0})", g[0].DebugAsString());
+  EXPECT_EQ("(2.000000*(2.000000*x[1]{1}))", g[1].DebugAsString());
 }
 
 TEST(OptimizationDifferentiate, DirectionalDerivative) {
@@ -480,22 +478,10 @@ TEST(OptimizationDifferentiate, GradientComponentsAreNullified) {
   std::vector<value_t> const g = ComputeGradient(f);
 
   EXPECT_EQ(dim, g.size());
-  EXPECT_EQ(
-      "((((0.000000+(1.000000*exp(x[0]{0})))+(0.000000*exp(x[1]{1})))+(0.000000*exp(x[2]{2})))+(0.000000*exp(x[3]{3}))"
-      ")",
-      g[0].DebugAsString());
-  EXPECT_EQ(
-      "((((0.000000+(0.000000*exp(x[0]{0})))+(1.000000*exp(x[1]{1})))+(0.000000*exp(x[2]{2})))+(0.000000*exp(x[3]{3}))"
-      ")",
-      g[1].DebugAsString());
-  EXPECT_EQ(
-      "((((0.000000+(0.000000*exp(x[0]{0})))+(0.000000*exp(x[1]{1})))+(1.000000*exp(x[2]{2})))+(0.000000*exp(x[3]{3}))"
-      ")",
-      g[2].DebugAsString());
-  EXPECT_EQ(
-      "((((0.000000+(0.000000*exp(x[0]{0})))+(0.000000*exp(x[1]{1})))+(0.000000*exp(x[2]{2})))+(1.000000*exp(x[3]{3}))"
-      ")",
-      g[3].DebugAsString());
+  EXPECT_EQ("exp(x[0]{0})", g[0].DebugAsString());
+  EXPECT_EQ("exp(x[1]{1})", g[1].DebugAsString());
+  EXPECT_EQ("exp(x[2]{2})", g[2].DebugAsString());
+  EXPECT_EQ("exp(x[3]{3})", g[3].DebugAsString());
 }
 
 inline void RunOptimizationDifferentiateGradientStressTest(size_t dim) {
