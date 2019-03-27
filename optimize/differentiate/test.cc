@@ -459,6 +459,45 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   }
 }
 
+TEST(OptimizationDifferentiate, GradientComponentsAreNullified) {
+  using namespace current::expression;
+
+  size_t const dim = 4;
+
+  VarsContext vars_context;
+
+  for (size_t i = 0; i < dim; ++i) {
+    x[i] = 0.0;
+  }
+
+  value_t f = ExpressionNode::FromImmediateDouble(0.0);
+  for (size_t i = 0; i < dim; ++i) {
+    f += exp(x[i]);
+  }
+
+  vars_context.ReindexVars();
+
+  std::vector<value_t> const g = ComputeGradient(f);
+
+  EXPECT_EQ(dim, g.size());
+  EXPECT_EQ(
+      "((((0.000000+(1.000000*exp(x[0]{0})))+(0.000000*exp(x[1]{1})))+(0.000000*exp(x[2]{2})))+(0.000000*exp(x[3]{3}))"
+      ")",
+      g[0].DebugAsString());
+  EXPECT_EQ(
+      "((((0.000000+(0.000000*exp(x[0]{0})))+(1.000000*exp(x[1]{1})))+(0.000000*exp(x[2]{2})))+(0.000000*exp(x[3]{3}))"
+      ")",
+      g[1].DebugAsString());
+  EXPECT_EQ(
+      "((((0.000000+(0.000000*exp(x[0]{0})))+(0.000000*exp(x[1]{1})))+(1.000000*exp(x[2]{2})))+(0.000000*exp(x[3]{3}))"
+      ")",
+      g[2].DebugAsString());
+  EXPECT_EQ(
+      "((((0.000000+(0.000000*exp(x[0]{0})))+(0.000000*exp(x[1]{1})))+(0.000000*exp(x[2]{2})))+(1.000000*exp(x[3]{3}))"
+      ")",
+      g[3].DebugAsString());
+}
+
 inline void RunOptimizationDifferentiateGradientStressTest(size_t dim) {
   using namespace current::expression;
 
