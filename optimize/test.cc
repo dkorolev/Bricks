@@ -25,6 +25,7 @@ SOFTWARE.
 #include "../3rdparty/gtest/gtest-main-with-dflags.h"
 
 #include "differentiate/test.cc"
+#include "encoded_double/test.cc"
 #include "expression/test.cc"
 #include "jit/test.cc"
 #include "optimizer/line_search/test.cc"
