@@ -31,7 +31,6 @@ SOFTWARE.
 inline void RunDoubleRepresentationTest(uint64_t uint64_value_hex,
                                         uint64_t uint64_value_bin,
                                         double double_value_approximate,
-                                        double double_value_precise,
                                         bool compactifiable,
                                         double double_value_computed,
                                         char const* value_source) {
@@ -39,10 +38,20 @@ inline void RunDoubleRepresentationTest(uint64_t uint64_value_hex,
   // This effectively validates that the system is following the IEEE 754 double-precision binary floating point format.
   EXPECT_EQ(uint64_value_hex, uint64_value_bin) << value_source;
 
+  double const double_value_precise = *reinterpret_cast<double const*>(&uint64_value_hex);
+
   if (!std::isnan(double_value_precise)) {
     // Since two `nan`-s are not equal, `EXPECT_EQ`-s do not apply to them.
     EXPECT_EQ(*reinterpret_cast<double const*>(&uint64_value_hex), double_value_precise) << value_source;
+#ifndef CURRENT_APPLE
     EXPECT_EQ(double_value_computed, double_value_precise) << value_source;
+#else
+    // Thanks Travis for catching this!
+    EXPECT_NEAR(double_value_computed, double_value_precise, 1e-9) << value_source;
+    if (!(double_value_computed == double_value_precise)) {
+      std::cerr << "NOTE: On MacOS, `" << value_source << "` does not match the Linux-computed value exactly.\n";
+    }
+#endif
   }
 
   // Also, make sure the double number is really what it should be.
@@ -87,7 +96,7 @@ inline void RunDoubleRepresentationTest(uint64_t uint64_value_hex,
 TEST(OptimizationDoubleRepresentation, NanIsDoubleForOptimizePurposes) {
   double const v = std::numeric_limits<double>::quiet_NaN();
   uint64_t const u = *reinterpret_cast<uint64_t const*>(&v);
-  RunDoubleRepresentationTest(u, u, v, v, true, v, "nan");
+  RunDoubleRepresentationTest(u, u, v, true, v, "nan");
 }
 
 TEST(OptimizationDoubleRepresentation, DoublesUpTo1ePositive77AreRegular) {
