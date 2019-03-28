@@ -284,20 +284,57 @@ struct DifferentiateByLambdaImpl {
   }
 };
 
-// TODO(dkorolev): Obviously, the `map<>` is about the least effective solution here. Refactor it.
+// The somewhat compactly represented and fast to iterate gradient of a node.
+// TODO(dkorolev): Do get rid of the `map<>`.
+struct GradientPiece {
+  std::map<size_t, ExpressionNodeIndex> data;
+  void Clear() { data.clear(); }
+  void SetOne(size_t i) { data[i] = ExpressionNodeIndex::DoubleOne(); }
+  void ApplyOperation(ExpressionNodeType node_type, value_t a, value_t b, GradientPiece const& db) {
+    for (auto& e : data) {
+      auto const cit = db.data.find(e.first);
+      e.second = DifferentiateOperation(
+          node_type, a, b, e.second, cit != db.data.end() ? cit->second : ExpressionNodeIndex::DoubleZero());
+    }
+    for (auto& e2 : db.data) {
+      if (data.find(e2.first) == data.end()) {
+        data[e2.first] = DifferentiateOperation(node_type, a, b, value_t(ExpressionNodeIndex::DoubleZero()), e2.second);
+      }
+    }
+  }
+  void ApplyFunction(ExpressionNodeType node_type, value_t f, value_t x) {
+    for (auto& v : data) {
+      v.second = DifferentiateFunction(node_type, f, x, v.second);
+    }
+  }
+  std::vector<value_t> FillOutput(size_t dim) const {
+    std::vector<value_t> result(dim);
+    for (size_t i = 0u; i < result.size(); ++i) {
+      auto const cit = data.find(i);
+      if (cit != data.end()) {
+        result[i] = cit->second;
+      } else {
+        result[i] = 0.0;
+      }
+    }
+    return result;
+  }
+};
+
+// TODO(dkorolev): Okay, it's really important to get rid of all those extra copies.
 struct DifferentiateByAllVarsTogetherImpl {
   VarsContext const& vars_context_;
 
   DifferentiateByAllVarsTogetherImpl(VarsContext const& vars_context) : vars_context_(vars_context) {}
 
-  using retval_t = std::map<size_t, ExpressionNodeIndex>;
+  using retval_t = GradientPiece;
 
-  void DoAssignZero(retval_t& placeholder) const { placeholder.clear(); }
+  void DoAssignZero(retval_t& placeholder) const { placeholder.Clear(); }
 
   void DoReturnDerivativeOfVar(size_t var_index, retval_t& placeholder) const {
-    placeholder.clear();
+    placeholder.Clear();
     if (vars_context_.IsVarNotConstant(var_index)) {
-      placeholder[var_index] = ExpressionNodeIndex::DoubleOne();
+      placeholder.SetOne(var_index);
     }
   }
 
@@ -308,32 +345,15 @@ struct DifferentiateByAllVarsTogetherImpl {
   void DoReturnDifferentiatedOperation(
       ExpressionNodeType node_type, value_t a, value_t b, retval_t da, retval_t db, retval_t& placeholder) const {
     // TODO(dkorolev): Obviously, this is to be optimized away to remove all the copies.
-    std::set<size_t> indexes;
-    for (auto const& lhs : da) {
-      indexes.insert(lhs.first);
-    }
-    for (auto const& rhs : db) {
-      indexes.insert(rhs.first);
-    }
-    placeholder.clear();
-    for (size_t const i : indexes) {
-      auto const lhs = da.find(i);
-      auto const rhs = db.find(i);
-      placeholder[i] = DifferentiateOperation(node_type,
-                                              a,
-                                              b,
-                                              lhs != da.end() ? lhs->second : ExpressionNodeIndex::DoubleZero(),
-                                              rhs != db.end() ? rhs->second : ExpressionNodeIndex::DoubleZero());
-    }
+    placeholder = std::move(da);
+    placeholder.ApplyOperation(node_type, a, b, db);
   }
 
   void DoReturnDifferentiatedFunction(
       ExpressionNodeType node_type, value_t f, value_t x, retval_t dx, retval_t& placeholder) const {
     // TODO(dkorolev): Obviously, this is to be optimized away to remove all the copies.
     placeholder = std::move(dx);
-    for (auto& v : placeholder) {
-      v.second = DifferentiateFunction(node_type, f, x, v.second);
-    }
+    placeholder.ApplyFunction(node_type, f, x);
   }
 };
 
@@ -346,18 +366,9 @@ inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_inde
 // The single-pass gradient computer.
 inline std::vector<value_t> ComputeGradient(value_t f) {
   VarsContext const& vars_context = VarsManager::TLS().Active();
-  std::map<size_t, ExpressionNodeIndex> const g =
-      Differentiator<DifferentiateByAllVarsTogetherImpl>(VarsManager::TLS().Active()).Differentiate(f);
-  std::vector<value_t> result(vars_context.NumberOfVars());
-  for (size_t i = 0u; i < result.size(); ++i) {
-    auto const cit = g.find(i);
-    if (cit != g.end()) {
-      result[i] = cit->second;
-    } else {
-      result[i] = 0.0;
-    }
-  }
-  return result;
+  return Differentiator<DifferentiateByAllVarsTogetherImpl>(vars_context)
+      .Differentiate(f)
+      .FillOutput(vars_context.NumberOfVars());
 }
 
 // Given a function and the formulas for its gradient (actually, node indexes for them only),
