@@ -65,6 +65,11 @@ constexpr static uint64_t kBitDouble = (1ull << 61);
 constexpr static uint64_t kCompactifiedIndexValueUninitialized = 0x55555555deadbeef;
 #endif
 
+// Some immediate `uint64_t` values for compactified indexes for the constants.
+constexpr static const uint64_t kExpressionNodeIndexForDoubleZero = 0x2000000000000000;
+constexpr static const uint64_t kExpressionNodeIndexForDoubleNegativeZero = 0xa000000000000000;
+constexpr static const uint64_t kExpressionNodeIndexForDoubleOne = 0x3ff0000000000000;
+
 // The data type for the expression should be defined in this `base.h` header, as the thread-local context
 // for expression management is the same as the thread-local context for variables management.
 //
@@ -102,6 +107,11 @@ class ExpressionNodeIndex {
   ExpressionNodeIndex(ExpressionNodeIndex&&) = default;
   ExpressionNodeIndex& operator=(ExpressionNodeIndex const&) = default;
   ExpressionNodeIndex& operator=(ExpressionNodeIndex&&) = default;
+
+  struct DoubleZero {};
+  struct DoubleOne {};
+  ExpressionNodeIndex(DoubleZero) : compactified_index_(kExpressionNodeIndexForDoubleZero) {}
+  ExpressionNodeIndex(DoubleOne) : compactified_index_(kExpressionNodeIndexForDoubleOne) {}
 
   static ExpressionNodeIndex FromNodeIndex(size_t node_index) {
 #ifndef NDEBUG
@@ -282,14 +292,6 @@ struct ExpressionNodeTypeSelector {};
 // which is defined in `expression/expression.h` and tested in `expression/test.cc`.
 class ExpressionNodeImpl final {
  private:
-  // To manage the below fields.
-  friend class ExpressionNode;
-
-  // To use the below fields.
-  friend class JITCompiler;
-  friend class Differentiator;
-  friend class Build1DFunctionImpl;
-
   uint8_t compact_type_ : 6;
 
   // The logic behind this possible "flipping" is simple:
@@ -326,6 +328,8 @@ class ExpressionNodeImpl final {
   }
 
  public:
+  ExpressionNodeImpl() = default;
+
   ExpressionNodeType Type() const { return static_cast<ExpressionNodeType>(compact_type_); }
   ExpressionNodeIndex ArgumentIndex() const {
     return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(compact_primary_index_);
@@ -338,8 +342,6 @@ class ExpressionNodeImpl final {
     return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(compact_flipped_ ? compact_primary_index_
                                                                                  : compact_secondary_index_);
   }
-
-  ExpressionNodeImpl() = default;
 
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                               \
   ExpressionNodeImpl(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_##name>, \

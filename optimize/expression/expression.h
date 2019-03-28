@@ -49,10 +49,6 @@ struct ExpressionNodeInternalError final : OptimizeException {};
 struct Build1DFunctionRequiresUpToDateVarsIndexes final : OptimizeException {};
 struct Build1DFunctionNumberOfVarsMismatchException final : OptimizeException {};
 
-constexpr static const uint64_t kExpressionNodeIndexForDoubleZero = 0x2000000000000000;
-constexpr static const uint64_t kExpressionNodeIndexForDoubleNegativeZero = 0xa000000000000000;
-constexpr static const uint64_t kExpressionNodeIndexForDoubleOne = 0x3ff0000000000000;
-
 // When `using namespace current::expression`:
 // 1) can use `value_t x = ...` instead of `auto x = ...`.
 // 2) can use math functions, such as `exp()` or `sqr()` or `sigmoid()`, w/o specifying the namespace.

@@ -409,6 +409,11 @@ TEST(OptimizationExpression, ConstantsForInternalRepresentationsAreCorrect) {
 
   EXPECT_EQ(kExpressionNodeIndexForDoubleOne, ExpressionNodeIndex(value_t(1.0)).UnitTestRawCompactifiedIndex())
       << current::strings::Printf("0x%016lx", ExpressionNodeIndex(value_t(1.0)).UnitTestRawCompactifiedIndex());
+
+  EXPECT_EQ(kExpressionNodeIndexForDoubleZero,
+            ExpressionNodeIndex(ExpressionNodeIndex::DoubleZero()).UnitTestRawCompactifiedIndex());
+  EXPECT_EQ(kExpressionNodeIndexForDoubleOne,
+            ExpressionNodeIndex(ExpressionNodeIndex::DoubleOne()).UnitTestRawCompactifiedIndex());
 }
 
 // See `DoublesUpTo1ePositive77AreRegular` and `DoublesUpTo1eNegative76AreRegular` in `../encoded_double/test.cc`.
