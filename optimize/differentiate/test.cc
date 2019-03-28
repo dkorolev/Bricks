@@ -103,8 +103,8 @@ TEST(OptimizationDifferentiate, RegressionTest1DFunctionsExpanded) {
   }();
   value_t const df = Differentiate(f, 0);
 
-  jit::JITCallContext ctx;
-  jit::FunctionReturningVector const compiled = jit::JITCompiler(ctx).Compile({f, df});
+  JITCallContext ctx;
+  JITCompiledFunctionReturningVector const compiled = JITCompiler(ctx).Compile({f, df});
 
   double const delta = 1e-5;
   double const eps = 1e-5;
@@ -151,8 +151,8 @@ TEST(OptimizationDifferentiate, RegressionTest1DFunctions) {
       }                                                                                                               \
     }();                                                                                                              \
     value_t const df = Differentiate(f, 0);                                                                           \
-    jit::JITCallContext ctx;                                                                                          \
-    jit::FunctionReturningVector const compiled = jit::JITCompiler(ctx).Compile({f, df});                             \
+    JITCallContext ctx;                                                                                               \
+    JITCompiledFunctionReturningVector const compiled = JITCompiler(ctx).Compile({f, df});                            \
     std::function<double(double)> const eval_x = [](double x) { return function_of_x; };                              \
     std::vector<double> const test_points_vector test_points_in_parens;                                               \
     for (double const x_value : test_points_vector) {                                                                 \
@@ -229,8 +229,8 @@ TEST(OptimizationDifferentiate, RegressionTest2DFunctions) {
     }();                                                                                                             \
     value_t const df_dx = Differentiate(f, 0);                                                                       \
     value_t const df_dy = Differentiate(f, 1);                                                                       \
-    jit::JITCallContext ctx;                                                                                         \
-    jit::FunctionReturningVector const compiled = jit::JITCompiler(ctx).Compile({f, df_dx, df_dy});                  \
+    JITCallContext ctx;                                                                                              \
+    JITCompiledFunctionReturningVector const compiled = JITCompiler(ctx).Compile({f, df_dx, df_dy});                 \
     std::function<double(double, double)> const eval_x_y = [](double x, double y) { return function_of_x_and_y; };   \
     std::vector<std::pair<double, double>> const test_points_vector_of_pairs test_points_pairs_in_parens;            \
     for (std::pair<double, double> const& x_y_values : test_points_vector_of_pairs) {                                \
@@ -350,15 +350,15 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   value_t const d2 = DifferentiateByLambda(d1);
   value_t const d3 = DifferentiateByLambda(d2);
 
-  jit::JITCallContext ctx;
-  jit::JITCompiler compiler(ctx);
-  jit::Function const compiled_f = compiler.Compile(f);
-  jit::FunctionReturningVector const compiled_g = compiler.Compile(g);
+  JITCallContext ctx;
+  JITCompiler compiler(ctx);
+  JITCompiledFunction const compiled_f = compiler.Compile(f);
+  JITCompiledFunctionReturningVector const compiled_g = compiler.Compile(g);
   // NOTE(dkorolev): In an aggressively optimized code, we may not even need the very `l` compiled. -- D.K.
-  jit::FunctionWithArgument const compiled_l = compiler.CompileFunctionWithArgument(d1);
-  jit::FunctionWithArgument const compiled_d1 = compiler.CompileFunctionWithArgument(d1);
-  jit::FunctionWithArgument const compiled_d2 = compiler.CompileFunctionWithArgument(d2);
-  jit::FunctionWithArgument const compiled_d3 = compiler.CompileFunctionWithArgument(d3);
+  JITCompiledFunctionWithArgument const compiled_l = compiler.CompileFunctionWithArgument(d1);
+  JITCompiledFunctionWithArgument const compiled_d1 = compiler.CompileFunctionWithArgument(d1);
+  JITCompiledFunctionWithArgument const compiled_d2 = compiler.CompileFunctionWithArgument(d2);
+  JITCompiledFunctionWithArgument const compiled_d3 = compiler.CompileFunctionWithArgument(d3);
 
   // Everything is zero at `f(2,4)`, as it is the minumum.
   EXPECT_EQ(0.0, compiled_f(ctx, {2.0, 4.0}));

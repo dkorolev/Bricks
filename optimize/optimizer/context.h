@@ -41,18 +41,18 @@ class LineSearchContext final {
  private:
   friend class LineSearchImpl;
 
-  jit::JITCallContext const& jit_call_context;
+  JITCallContext const& jit_call_context;
   VarsMapper const& vars_mapper;
-  jit::FunctionWithArgument const& l;
-  jit::FunctionWithArgument const& d;
-  std::vector<jit::FunctionWithArgument const*> const& more_ds;
+  JITCompiledFunctionWithArgument const& l;
+  JITCompiledFunctionWithArgument const& d;
+  std::vector<JITCompiledFunctionWithArgument const*> const& more_ds;
 
  public:
-  LineSearchContext(jit::JITCallContext const& jit_call_context,
+  LineSearchContext(JITCallContext const& jit_call_context,
                     VarsMapper const& vars_mapper,
-                    jit::FunctionWithArgument const& l,
-                    jit::FunctionWithArgument const& d,
-                    std::vector<jit::FunctionWithArgument const*> const& more_ds)
+                    JITCompiledFunctionWithArgument const& l,
+                    JITCompiledFunctionWithArgument const& d,
+                    std::vector<JITCompiledFunctionWithArgument const*> const& more_ds)
       : jit_call_context(jit_call_context), vars_mapper(vars_mapper), l(l), d(d), more_ds(more_ds) {}
 };
 
@@ -67,15 +67,15 @@ struct OptimizationContext {
   value_t const l;                // The "line" 1D function f(lambda), to optimize along the gradient.
   std::vector<value_t> const ds;  // The derivatives of the 1D "line" function; one requires, others optional.
 
-  jit::JITCallContext jit_call_context;  // The holder of the RAM block to run the JIT-compiled functions.
-  jit::JITCompiler jit_compiler;         // The JIT compiler, single scope for maximum cache reuse.
+  JITCallContext jit_call_context;  // The holder of the RAM block to run the JIT-compiled functions.
+  JITCompiler jit_compiler;         // The JIT compiler, single scope for maximum cache reuse.
 
   // And the JIT-compiled everything.
-  jit::Function const compiled_f;
-  jit::FunctionReturningVector const compiled_g;
-  jit::FunctionWithArgument const compiled_l;
-  std::vector<std::unique_ptr<jit::FunctionWithArgument>> const compiled_ds;
-  std::vector<jit::FunctionWithArgument const*> const compiled_ds_pointers;
+  JITCompiledFunction const compiled_f;
+  JITCompiledFunctionReturningVector const compiled_g;
+  JITCompiledFunctionWithArgument const compiled_l;
+  std::vector<std::unique_ptr<JITCompiledFunctionWithArgument>> const compiled_ds;
+  std::vector<JITCompiledFunctionWithArgument const*> const compiled_ds_pointers;
 
   static std::vector<size_t> ComputeGI(std::vector<value_t> const& g) {
     std::vector<size_t> result(g.size());
@@ -112,19 +112,20 @@ struct OptimizationContext {
 #endif
   }
 
-  static std::vector<std::unique_ptr<jit::FunctionWithArgument>> CompileDS(jit::JITCompiler& jit_compiler,
-                                                                           std::vector<value_t> const& ds) {
-    std::vector<std::unique_ptr<jit::FunctionWithArgument>> result;
+  static std::vector<std::unique_ptr<JITCompiledFunctionWithArgument>> CompileDS(JITCompiler& jit_compiler,
+                                                                                 std::vector<value_t> const& ds) {
+    std::vector<std::unique_ptr<JITCompiledFunctionWithArgument>> result;
     result.reserve(ds.size());
     for (value_t v : ds) {
-      result.emplace_back(std::make_unique<jit::FunctionWithArgument>(jit_compiler.CompileFunctionWithArgument(v)));
+      result.emplace_back(
+          std::make_unique<JITCompiledFunctionWithArgument>(jit_compiler.CompileFunctionWithArgument(v)));
     }
     return result;
   }
 
-  static std::vector<jit::FunctionWithArgument const*> GetCompiledDSPointers(
-      std::vector<std::unique_ptr<jit::FunctionWithArgument>> const& compiled_ds) {
-    std::vector<jit::FunctionWithArgument const*> result;
+  static std::vector<JITCompiledFunctionWithArgument const*> GetCompiledDSPointers(
+      std::vector<std::unique_ptr<JITCompiledFunctionWithArgument>> const& compiled_ds) {
+    std::vector<JITCompiledFunctionWithArgument const*> result;
     if (!compiled_ds.empty()) {
       result.reserve(compiled_ds.size() - 1u);
       for (size_t i = 1u; i < compiled_ds.size(); ++i) {

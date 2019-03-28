@@ -42,12 +42,12 @@ TEST(OptimizationJIT, SmokeAdd) {
   VarsMapperConfig const vars_config = context.Freeze();
 
   // The constuctor of `JITCallContext` allocates the RAM buffer for the temporary computations.
-  jit::JITCallContext jit_call_context(vars_config);
+  JITCallContext jit_call_context(vars_config);
 
   // The instance of `JITCompiler` can emit one or more compiled functiont, which would all operate on the same
   // instance of `JITCallContext`, so that they, when called in the order of compilation, reuse intermediate results.
-  jit::JITCompiler code_generator(jit_call_context);
-  jit::Function const f = code_generator.Compile(value);
+  JITCompiler code_generator(jit_call_context);
+  JITCompiledFunction const f = code_generator.Compile(value);
 
   VarsMapper input(vars_config);
   EXPECT_EQ(2.0, f(jit_call_context, input.x));
@@ -71,9 +71,9 @@ TEST(OptimizationJIT, SmokeAddConstant) {
   value_t const value = x["b"] + 1.0;
 
   // No need for `context.Freeze()`, it will happen automatically in the default constructor of `JITCallContext`.
-  jit::JITCallContext jit_call_context;
+  JITCallContext jit_call_context;
 
-  jit::Function const f = jit::JITCompiler(jit_call_context).Compile(value);
+  JITCompiledFunction const f = JITCompiler(jit_call_context).Compile(value);
 
   VarsMapper input(jit_call_context.Config());
   EXPECT_EQ(2.0, f(jit_call_context, input.x));
@@ -85,7 +85,7 @@ TEST(OptimizationJIT, SmokeAddConstant) {
   EXPECT_EQ(-1.0, f(jit_call_context, input));
 }
 
-TEST(OptimizationJIT, SmokeFunctionReturningVector) {
+TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
   using namespace current::expression;
 
   VarsContext context;
@@ -94,9 +94,9 @@ TEST(OptimizationJIT, SmokeFunctionReturningVector) {
   x["b"] = 1.0;
   std::vector<value_t> const values({x["a"] + x["b"], x["a"] - x["b"], x["a"] * x["b"], x["a"] / x["b"]});
 
-  jit::JITCallContext jit_call_context;
+  JITCallContext jit_call_context;
 
-  jit::FunctionReturningVector const g = jit::JITCompiler(jit_call_context).Compile(values);
+  JITCompiledFunctionReturningVector const g = JITCompiler(jit_call_context).Compile(values);
 
   {
     VarsMapper input(jit_call_context.Config());
@@ -117,15 +117,15 @@ TEST(OptimizationJIT, Exp) {
   value_t const value = exp(x["c"]);
 
   // No need to provide `context`, the thread-local singleton will be used by default, and it will be `.Freeze()`-ed.
-  jit::JITCallContext jit_call_context;
+  JITCallContext jit_call_context;
 
   // Confirm that the lifetime of `JITCompiler` is not necessary for the functions to be called.
-  std::unique_ptr<jit::JITCompiler> disposable_code_generator = std::make_unique<jit::JITCompiler>(jit_call_context);
+  std::unique_ptr<JITCompiler> disposable_code_generator = std::make_unique<JITCompiler>(jit_call_context);
 
-  jit::Function const f = [&]() {
+  JITCompiledFunction const f = [&]() {
     // Confirm that the very instance of `JITCompiler` does not have to live for the function(s) to be called,
     // it's the lifetime of `JITCallContext` that is important.
-    jit::JITCompiler disposable_code_generator(jit_call_context);
+    JITCompiler disposable_code_generator(jit_call_context);
     return disposable_code_generator.Compile(value);
   }();
 
@@ -175,8 +175,8 @@ TEST(OptimizationJIT, OtherMathFunctions) {
                                     log_sigmoid(p)});
   EXPECT_EQ(static_cast<size_t>(ExpressionFunctionIndex::TotalFunctionsCount), magic.size());
 
-  jit::JITCallContext ctx;
-  jit::FunctionReturningVector const f = jit::JITCompiler(ctx).Compile(magic);
+  JITCallContext ctx;
+  JITCompiledFunctionReturningVector const f = JITCompiler(ctx).Compile(magic);
 
   // Test `1.5` as a random point that makes sense.
   EXPECT_EQ(exp(1.5), f(ctx, {1.5})[0]);
@@ -218,13 +218,13 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
   value_t const b = a + 1.0;
   value_t const c = b + 2.0;
 
-  jit::JITCallContext jit_call_context;
-  jit::JITCompiler compiler(jit_call_context);
+  JITCallContext jit_call_context;
+  JITCompiler compiler(jit_call_context);
 
-  // Same instance of `jit::JITCompiler` should be used for caching to take place.
-  jit::Function const fa = compiler.Compile(a);
-  jit::Function const fb = compiler.Compile(b);
-  jit::Function const fc = compiler.Compile(c);
+  // Same instance of `JITCompiler` should be used for caching to take place.
+  JITCompiledFunction const fa = compiler.Compile(a);
+  JITCompiledFunction const fb = compiler.Compile(b);
+  JITCompiledFunction const fc = compiler.Compile(c);
 
   VarsMapper input(jit_call_context.Config());
 
@@ -253,8 +253,8 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
   EXPECT_EQ(2, fb(jit_call_context, {1.0}));
   EXPECT_EQ(4, fc(jit_call_context, {1.0}));
   jit_call_context.MarkNewPoint();
-  EXPECT_THROW(fb(jit_call_context, {100.0}), FunctionInvokedBeforeItsPrerequisitesException);
-  EXPECT_THROW(fc(jit_call_context, {100.0}), FunctionInvokedBeforeItsPrerequisitesException);
+  EXPECT_THROW(fb(jit_call_context, {100.0}), JITCompiledFunctionInvokedBeforeItsPrerequisitesException);
+  EXPECT_THROW(fc(jit_call_context, {100.0}), JITCompiledFunctionInvokedBeforeItsPrerequisitesException);
   jit_call_context.MarkNewPoint();
   EXPECT_EQ(100, fa(jit_call_context, {100.0}));
   EXPECT_EQ(101, fb(jit_call_context, {100.0}));
@@ -269,8 +269,8 @@ TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
   x["t"] = 0.0;
   value_t const r = x["t"] - sqrt(2.0) + 1.0;
 
-  jit::JITCallContext jit_call_context;
-  jit::Function const f = jit::JITCompiler(jit_call_context).Compile(r);
+  JITCallContext jit_call_context;
+  JITCompiledFunction const f = JITCompiler(jit_call_context).Compile(r);
 
   VarsMapper input(jit_call_context.Config());
 
@@ -284,11 +284,11 @@ TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
 TEST(OptimizationJIT, NeedActiveVarsContext) {
   using namespace current::expression;
 
-  std::unique_ptr<jit::JITCallContext> illegal_jit_context = []() {
+  std::unique_ptr<JITCallContext> illegal_jit_context = []() {
     VarsContext vars_context;
-    return std::make_unique<jit::JITCallContext>(vars_context.Freeze());
+    return std::make_unique<JITCallContext>(vars_context.Freeze());
   }();
-  ASSERT_THROW(jit::JITCompiler illegal_code_generator(*illegal_jit_context), VarsManagementException);
+  ASSERT_THROW(JITCompiler illegal_code_generator(*illegal_jit_context), VarsManagementException);
 }
 
 TEST(OptimizationJIT, NoIntersectingGlobalJITCallContextsAllowed) {
@@ -296,8 +296,8 @@ TEST(OptimizationJIT, NoIntersectingGlobalJITCallContextsAllowed) {
 
   VarsContext context;
 
-  jit::JITCallContext jit_call_context;
-  ASSERT_THROW(jit::JITCallContext illegal_call_context, VarsAlreadyFrozenException);
+  JITCallContext jit_call_context;
+  ASSERT_THROW(JITCallContext illegal_call_context, VarsAlreadyFrozenException);
 }
 
 TEST(OptimizationJIT, JITGeneratorUnfreezesVarsContext) {
@@ -305,11 +305,11 @@ TEST(OptimizationJIT, JITGeneratorUnfreezesVarsContext) {
 
   VarsContext context;
 
-  { jit::JITCallContext call_context_1; }
-  { jit::JITCallContext call_context_2; }
+  { JITCallContext call_context_1; }
+  { JITCallContext call_context_2; }
   {
     context.Freeze();
-    ASSERT_THROW(jit::JITCallContext illegal_call_context, VarsAlreadyFrozenException);
+    ASSERT_THROW(JITCallContext illegal_call_context, VarsAlreadyFrozenException);
   }
 }
 
@@ -322,9 +322,9 @@ TEST(OptimizationJIT, FunctionWithArgument) {
   value_t const lambda = value_t::lambda();
   value_t const formula = x["a"] + lambda;
 
-  jit::JITCallContext jit_call_context;
-  jit::JITCompiler code_generator(jit_call_context);
-  jit::FunctionWithArgument const f = code_generator.CompileFunctionWithArgument(formula);
+  JITCallContext jit_call_context;
+  JITCompiler code_generator(jit_call_context);
+  JITCompiledFunctionWithArgument const f = code_generator.CompileFunctionWithArgument(formula);
 
   EXPECT_EQ(0.0, f(jit_call_context, {0.0}, 0.0));
   EXPECT_EQ(1.0, f(jit_call_context, {1.0}, 0.0));
@@ -340,9 +340,9 @@ TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
   VarsContext context;
   value_t const lambda = value_t::lambda();
 
-  jit::JITCallContext jit_call_context;
-  jit::JITCompiler code_generator(jit_call_context);
-  jit::FunctionWithArgument const f = code_generator.CompileFunctionWithArgument(lambda);
+  JITCallContext jit_call_context;
+  JITCompiler code_generator(jit_call_context);
+  JITCompiledFunctionWithArgument const f = code_generator.CompileFunctionWithArgument(lambda);
 
   EXPECT_EQ(0.0, f(jit_call_context, {}, 0.0));
   EXPECT_EQ(0.5, f(jit_call_context, {}, 0.5));
@@ -364,8 +364,8 @@ inline void RunOptimizationJITStressTest(size_t dim) {
   }
 
   VarsMapperConfig const vars_config = vars_context.Freeze();
-  jit::JITCallContext jit_call_context(vars_config);
-  jit::Function const compiled_f = jit::JITCompiler(jit_call_context).Compile(f);
+  JITCallContext jit_call_context(vars_config);
+  JITCompiledFunction const compiled_f = JITCompiler(jit_call_context).Compile(f);
 
   VarsMapper input(vars_config);
   EXPECT_EQ(dim, compiled_f(jit_call_context, input.x));

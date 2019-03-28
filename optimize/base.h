@@ -280,16 +280,13 @@ struct ExpressionNodeTypeSelector {};
 // The class `ExpressionNodeImpl` is a thin wrapper of what is stored in the thread-local context. The actual
 // expression buliding, including managing the fields of this very class, is implemented in class `ExpressionNode`,
 // which is defined in `expression/expression.h` and tested in `expression/test.cc`.
-namespace jit {
-class JITCompiler;
-}  // namespace current::expression::jit
 class ExpressionNodeImpl final {
  private:
   // To manage the below fields.
   friend class ExpressionNode;
 
   // To use the below fields.
-  friend class jit::JITCompiler;
+  friend class JITCompiler;
   friend class Differentiator;
   friend class Build1DFunctionImpl;
 

@@ -40,13 +40,11 @@ SOFTWARE.
 namespace current {
 namespace expression {
 
-struct FunctionInvokedBeforeItsPrerequisitesException final : OptimizeException {};
-
-namespace jit {
+struct JITCompiledFunctionInvokedBeforeItsPrerequisitesException final : OptimizeException {};
 
 static_assert(sizeof(double) == 8u, "The System V JIT is designed for 8-byte `double`-s.");
 
-struct JITFunctionCallContextMismatchException final : OptimizeException {};
+struct JITCompiledFunctionCallContextMismatchException final : OptimizeException {};
 
 struct JITNotEnoughExtraNodesAllocatedInJITCallContext final : OptimizeException {};
 
@@ -90,9 +88,9 @@ class JITCallContext final {
 
   mutable std::vector<double> ram_;  // The temporary buffer that must be allocated to run JIT functions of this config.
 
-  friend class FunctionImpl;
-  friend class FunctionReturningVectorImpl;
-  friend class FunctionWithArgumentImpl;
+  friend class JITCompiledFunctionImpl;
+  friend class JITCompiledFunctionReturningVectorImpl;
+  friend class JITCompiledFunctionWithArgumentImpl;
   friend class JITCompiler;
 
   double* RAMPointer() const { return &ram_[0]; }
@@ -133,7 +131,7 @@ class JITCallContext final {
   void MarkFunctionComputedOrThrowIfPrerequisitesNotMet(size_t current_function_index) const {
     if (current_function_index > next_legal_function_index_to_compute_) {
       // Effectively, the user has to "climb this ladder" of computed functions step by step, one function at a time.
-      CURRENT_THROW(FunctionInvokedBeforeItsPrerequisitesException());
+      CURRENT_THROW(JITCompiledFunctionInvokedBeforeItsPrerequisitesException());
     } else {
       next_legal_function_index_to_compute_ =
           std::max(next_legal_function_index_to_compute_, current_function_index + 1u);
@@ -145,20 +143,20 @@ class JITCallContext final {
   std::vector<ExpressionNodeIndex>& EnsureNodeComputedManualStack() const { return ensure_node_computed_manual_stack_; }
 };
 
-class FunctionImpl final {
+class JITCompiledFunctionImpl final {
  private:
   JITCallContext const& call_context_;
   size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
   size_t const code_size_;
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
 
-  FunctionImpl(FunctionImpl const&) = delete;
-  FunctionImpl(FunctionImpl&&) = delete;
-  FunctionImpl& operator=(FunctionImpl const&) = delete;
-  FunctionImpl& operator=(FunctionImpl&&) = delete;
+  JITCompiledFunctionImpl(JITCompiledFunctionImpl const&) = delete;
+  JITCompiledFunctionImpl(JITCompiledFunctionImpl&&) = delete;
+  JITCompiledFunctionImpl& operator=(JITCompiledFunctionImpl const&) = delete;
+  JITCompiledFunctionImpl& operator=(JITCompiledFunctionImpl&&) = delete;
 
  public:
-  FunctionImpl(JITCallContext& call_context, std::vector<uint8_t> code)
+  JITCompiledFunctionImpl(JITCallContext& call_context, std::vector<uint8_t> code)
       : call_context_(call_context),
         this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
         code_size_(code.size()),
@@ -166,7 +164,7 @@ class FunctionImpl final {
 
   double CallFunction(JITCallContext const& call_context, double const* x) const {
     if (&call_context != &call_context_) {
-      CURRENT_THROW(JITFunctionCallContextMismatchException());
+      CURRENT_THROW(JITCompiledFunctionCallContextMismatchException());
     }
     call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
     return f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
@@ -175,13 +173,13 @@ class FunctionImpl final {
   size_t CodeSize() const { return code_size_; }
 };
 
-class Function final {
+class JITCompiledFunction final {
  private:
-  std::unique_ptr<FunctionImpl> f_;
+  std::unique_ptr<JITCompiledFunctionImpl> f_;
 
   friend class JITCompiler;
-  Function(JITCallContext& call_context, std::vector<uint8_t> code)
-      : f_(std::make_unique<FunctionImpl>(call_context, code)) {}
+  JITCompiledFunction(JITCallContext& call_context, std::vector<uint8_t> code)
+      : f_(std::make_unique<JITCompiledFunctionImpl>(call_context, code)) {}
 
  public:
   double operator()(JITCallContext const& call_context, double const* x) const {
@@ -196,7 +194,7 @@ class Function final {
   size_t CodeSize() const { return f_->CodeSize(); }
 };
 
-class FunctionReturningVectorImpl final {
+class JITCompiledFunctionReturningVectorImpl final {
  private:
   JITCallContext const& call_context_;
   size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
@@ -204,15 +202,15 @@ class FunctionReturningVectorImpl final {
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
   std::vector<ExpressionNodeIndex> const output_node_indexes_;
 
-  FunctionReturningVectorImpl(FunctionReturningVectorImpl const&) = delete;
-  FunctionReturningVectorImpl(FunctionReturningVectorImpl&&) = delete;
-  FunctionReturningVectorImpl& operator=(FunctionReturningVectorImpl const&) = delete;
-  FunctionReturningVectorImpl& operator=(FunctionReturningVectorImpl&&) = delete;
+  JITCompiledFunctionReturningVectorImpl(JITCompiledFunctionReturningVectorImpl const&) = delete;
+  JITCompiledFunctionReturningVectorImpl(JITCompiledFunctionReturningVectorImpl&&) = delete;
+  JITCompiledFunctionReturningVectorImpl& operator=(JITCompiledFunctionReturningVectorImpl const&) = delete;
+  JITCompiledFunctionReturningVectorImpl& operator=(JITCompiledFunctionReturningVectorImpl&&) = delete;
 
  public:
-  FunctionReturningVectorImpl(JITCallContext& call_context,
-                              std::vector<uint8_t> code,
-                              std::vector<ExpressionNodeIndex> output_node_indexes)
+  JITCompiledFunctionReturningVectorImpl(JITCallContext& call_context,
+                                         std::vector<uint8_t> code,
+                                         std::vector<ExpressionNodeIndex> output_node_indexes)
       : call_context_(call_context),
         this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
         code_size_(code.size()),
@@ -221,7 +219,7 @@ class FunctionReturningVectorImpl final {
 
   std::vector<double> CallFunctionReturningVector(JITCallContext const& call_context, double const* x) const {
     if (&call_context != &call_context_) {
-      CURRENT_THROW(JITFunctionCallContextMismatchException());
+      CURRENT_THROW(JITCompiledFunctionCallContextMismatchException());
     }
     call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
     std::vector<double> result(output_node_indexes_.size());
@@ -233,7 +231,7 @@ class FunctionReturningVectorImpl final {
           [&](double value) -> double { return value; },
           [&]() -> double {
             // No `lambda`-s should be encountered when the gradient is being evaluated,
-            // because the lambdas are the territory of `FunctionWithArgument`.
+            // because the lambdas are the territory of `JITCompiledFunctionWithArgument`.
             CURRENT_THROW(JITInternalErrorException());
           });
     }
@@ -243,15 +241,16 @@ class FunctionReturningVectorImpl final {
   size_t CodeSize() const { return code_size_; }
 };
 
-class FunctionReturningVector final {
+class JITCompiledFunctionReturningVector final {
  private:
-  std::unique_ptr<FunctionReturningVectorImpl> f_;
+  std::unique_ptr<JITCompiledFunctionReturningVectorImpl> f_;
 
   friend class JITCompiler;
-  FunctionReturningVector(JITCallContext& call_context,
-                          std::vector<uint8_t> code,
-                          std::vector<ExpressionNodeIndex> output_node_indexes)
-      : f_(std::make_unique<FunctionReturningVectorImpl>(call_context, code, std::move(output_node_indexes))) {}
+  JITCompiledFunctionReturningVector(JITCallContext& call_context,
+                                     std::vector<uint8_t> code,
+                                     std::vector<ExpressionNodeIndex> output_node_indexes)
+      : f_(std::make_unique<JITCompiledFunctionReturningVectorImpl>(
+            call_context, code, std::move(output_node_indexes))) {}
 
  public:
   std::vector<double> operator()(JITCallContext const& call_context, double const* x) const {
@@ -266,20 +265,20 @@ class FunctionReturningVector final {
   size_t CodeSize() const { return f_->CodeSize(); }
 };
 
-class FunctionWithArgumentImpl final {
+class JITCompiledFunctionWithArgumentImpl final {
  private:
   JITCallContext const& call_context_;
   size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
   size_t const code_size_;
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
 
-  FunctionWithArgumentImpl(FunctionWithArgumentImpl const&) = delete;
-  FunctionWithArgumentImpl(FunctionWithArgumentImpl&&) = delete;
-  FunctionWithArgumentImpl& operator=(FunctionWithArgumentImpl const&) = delete;
-  FunctionWithArgumentImpl& operator=(FunctionWithArgumentImpl&&) = delete;
+  JITCompiledFunctionWithArgumentImpl(JITCompiledFunctionWithArgumentImpl const&) = delete;
+  JITCompiledFunctionWithArgumentImpl(JITCompiledFunctionWithArgumentImpl&&) = delete;
+  JITCompiledFunctionWithArgumentImpl& operator=(JITCompiledFunctionWithArgumentImpl const&) = delete;
+  JITCompiledFunctionWithArgumentImpl& operator=(JITCompiledFunctionWithArgumentImpl&&) = delete;
 
  public:
-  FunctionWithArgumentImpl(JITCallContext& call_context, std::vector<uint8_t> code)
+  JITCompiledFunctionWithArgumentImpl(JITCallContext& call_context, std::vector<uint8_t> code)
       : call_context_(call_context),
         this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
         code_size_(code.size()),
@@ -287,7 +286,7 @@ class FunctionWithArgumentImpl final {
 
   double CallFunctionWithArgument(JITCallContext const& call_context, double const* x, double p) const {
     if (&call_context != &call_context_) {
-      CURRENT_THROW(JITFunctionCallContextMismatchException());
+      CURRENT_THROW(JITCompiledFunctionCallContextMismatchException());
     }
     call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
     call_context_.RAMPointer()[call_context_.config_.total_nodes] = p;
@@ -297,13 +296,13 @@ class FunctionWithArgumentImpl final {
   size_t CodeSize() const { return code_size_; }
 };
 
-class FunctionWithArgument final {
+class JITCompiledFunctionWithArgument final {
  private:
-  std::unique_ptr<FunctionWithArgumentImpl> f_;
+  std::unique_ptr<JITCompiledFunctionWithArgumentImpl> f_;
 
   friend class JITCompiler;
-  FunctionWithArgument(JITCallContext& call_context, std::vector<uint8_t> code)
-      : f_(std::make_unique<FunctionWithArgumentImpl>(call_context, code)) {}
+  JITCompiledFunctionWithArgument(JITCallContext& call_context, std::vector<uint8_t> code)
+      : f_(std::make_unique<JITCompiledFunctionWithArgumentImpl>(call_context, code)) {}
 
  public:
   double operator()(JITCallContext const& call_context, double const* x, double p) const {
@@ -455,7 +454,7 @@ class JITCompiler final {
 
   VarsMapperConfig const& Config() const { return context_.Config(); }
 
-  Function Compile(value_t node) {
+  JITCompiledFunction Compile(value_t node) {
     using namespace current::fncas::x64_native_jit;
 
     // TODO(dkorolev): Inplace code generation.
@@ -485,10 +484,10 @@ class JITCompiler final {
         });
     opcodes::ret(code);
 
-    return Function(context_, std::move(code));
+    return JITCompiledFunction(context_, std::move(code));
   }
 
-  FunctionReturningVector Compile(std::vector<value_t> const& nodes) {
+  JITCompiledFunctionReturningVector Compile(std::vector<value_t> const& nodes) {
     using namespace current::fncas::x64_native_jit;
 
     // TODO(dkorolev): Inplace code generation.
@@ -522,10 +521,10 @@ class JITCompiler final {
     opcodes::pop_rbx(code);
     opcodes::ret(code);
 
-    return FunctionReturningVector(context_, std::move(code), std::move(output_node_indexes));
+    return JITCompiledFunctionReturningVector(context_, std::move(code), std::move(output_node_indexes));
   }
 
-  FunctionWithArgument CompileFunctionWithArgument(value_t node) {
+  JITCompiledFunctionWithArgument CompileFunctionWithArgument(value_t node) {
     using namespace current::fncas::x64_native_jit;
 
     // TODO(dkorolev): Inplace code generation.
@@ -557,11 +556,10 @@ class JITCompiler final {
         });
     opcodes::ret(code);
 
-    return FunctionWithArgument(context_, std::move(code));
+    return JITCompiledFunctionWithArgument(context_, std::move(code));
   }
 };
 
-}  // namespace current::expression::jit
 }  // namespace current::expression
 }  // namespace current
 
