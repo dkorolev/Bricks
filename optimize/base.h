@@ -75,13 +75,12 @@ constexpr static uint64_t kCompactifiedIndexValueUninitialized = 0x55555555deadb
 class ExpressionNodeIndex {
  private:
   // Expression nodes indexes:
-  // - Have a "lambda" bit dedicated to them, to save space in the expression tree RAM.
-  // - When not lambda, can be an expression node index or an expression var index. The flag for whether an "index"
+  // - Can store 2^63 different double values, which are all we need for optimization purposes.
+  // - Have a "special" bit dedicated to them, for "manual" "recursion" stack tracking. It's the very MSB.
+  // - Have a special "lambda" bit dedicated to them, to save space in the expression tree RAM.
+  // - When not the above, can be an expression node index or an expression var index. The flag for whether an "index"
   //   is a node index or a var index is (1ull << 54), the 2nd most significant bit of the 2nd most significant byte.
-  // - They have a "special" bit dedicated to them, for "manual" "recursion" stack tracking. It's the very MSB.
-  // - [TBD]: They can store _some_ double values (actually, 2^63 double values)!
-  // - They are 8 bytes large, and that's it.
-  //   TODO(dkorolev): Implement the TBDs.
+  // - All the above fits 8 bytes, and that's it for the size of `ExpressionNodeIndex`.
   uint64_t compactified_index_;
 
   friend class ExpressionNodeImpl;
@@ -305,16 +304,9 @@ class ExpressionNodeImpl final {
   //   left hand side one or the right hand side one, of the first bit-packed byte one bit holds the "flipped" flag.
   // * It makes more sense to "declare" the "secondary" index first, as it's the one chopped to seven bytes.
   //   For functions (i.e., `exp`), not operators (i.e. `+`), it is easier to retrieve the index of its argument.
-  //
-  // TODO(dkorolev): What if the result of some operation on immediates does not fit the 63-bit "regular" double? Test.
   bool compact_flipped_ : 1;
   uint64_t compact_secondary_index_ : (8 * 7);
-
-  union {
-    // TODO(dkorolev): The very `compact_double_` is going away!
-    uint64_t compact_primary_index_;
-    double compact_double_;
-  };
+  uint64_t compact_primary_index_;
 
   void InitArgument(ExpressionNodeIndex argument) { compact_primary_index_ = argument.RawCompactifiedIndex(); }
 
@@ -338,7 +330,6 @@ class ExpressionNodeImpl final {
 
  public:
   ExpressionNodeType Type() const { return static_cast<ExpressionNodeType>(compact_type_); }
-  double Value() const { return compact_double_; }
   ExpressionNodeIndex ArgumentIndex() const {
     return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(compact_primary_index_);
   }

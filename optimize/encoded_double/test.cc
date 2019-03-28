@@ -56,7 +56,7 @@ inline void RunDoubleRepresentationTest(uint64_t uint64_value_hex,
 
   // Also, make sure the double number is really what it should be.
   // NOTE(dkorolev): The test condition is excessively strict, but it should work on *nix-style `printf()`-s.
-  // TODO(dkorolev): Revisit, and, likely, remove, or at least substantially relax this test if the next line fails.
+  // NOTE(dkorolev): Must revisit, and likely remove, or at least substantially relax this test if the next line fails.
   EXPECT_EQ(current::ToString(double_value_precise), current::ToString(double_value_approximate)) << value_source;
 
   // Now, make sure the very `current/optimize/double.h` logic is being followed.

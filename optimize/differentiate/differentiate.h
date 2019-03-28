@@ -119,7 +119,6 @@ class Differentiator final {
   value_t DerivativeOfVar(size_t var_index) const {
     if (!differentiate_by_lambda_) {
       // So, the derivative is zero or one.
-      // TODO(dkorolev): Do not, of course, allocate independent expression nodes for every single zero and one.
       return vars_context_.LeafDerivativeZeroOrOne(var_index, derivative_per_finalized_var_index_);
     } else {
       // When differentiating by lambda, the derivative by each variable is zero.

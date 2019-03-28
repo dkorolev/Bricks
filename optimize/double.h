@@ -81,7 +81,6 @@ inline double UnpackDouble(uint64_t u) {
   }
 }
 
-// TODO(dkorolev): Check in the large unit test that exposes the internals of the `double` representation?
 // TODO(dkorolev): Introduce constants, at least for the values used by the differentiator, `0`, `1`, `2`, `4`, `0.5`?
 
 }  // namespace current::expression

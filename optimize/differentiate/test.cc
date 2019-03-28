@@ -25,8 +25,6 @@ SOFTWARE.
 #include "../jit/jit.h"
 #include "differentiate.h"
 
-// TODO(dkorolev): Simplify the gradients, of course, as part of other refactoring. Once it works end-to-end.
-
 #include "../../3rdparty/gtest/gtest-main.h"
 
 TEST(OptimizationDifferentiate, Operations) {
