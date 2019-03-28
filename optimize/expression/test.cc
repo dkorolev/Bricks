@@ -400,15 +400,15 @@ TEST(OptimizationExpression, DoubleValuesAsNodes) {
 TEST(OptimizationExpression, ConstantsForInternalRepresentationsAreCorrect) {
   using namespace current::expression;
 
-  EXPECT_EQ(kExpressionNodeIndexForDoubleZero, ExpressionNodeIndex(ExpressionNode(0.0)).UnitTestRawCompactifiedIndex())
-      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(ExpressionNode(0.0)).UnitTestRawCompactifiedIndex());
+  EXPECT_EQ(kExpressionNodeIndexForDoubleZero, ExpressionNodeIndex(value_t(0.0)).UnitTestRawCompactifiedIndex())
+      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(value_t(0.0)).UnitTestRawCompactifiedIndex());
 
   EXPECT_EQ(kExpressionNodeIndexForDoubleNegativeZero,
-            ExpressionNodeIndex(ExpressionNode(-0.0)).UnitTestRawCompactifiedIndex())
-      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(ExpressionNode(-0.0)).UnitTestRawCompactifiedIndex());
+            ExpressionNodeIndex(value_t(-0.0)).UnitTestRawCompactifiedIndex())
+      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(value_t(-0.0)).UnitTestRawCompactifiedIndex());
 
-  EXPECT_EQ(kExpressionNodeIndexForDoubleOne, ExpressionNodeIndex(ExpressionNode(1.0)).UnitTestRawCompactifiedIndex())
-      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(ExpressionNode(1.0)).UnitTestRawCompactifiedIndex());
+  EXPECT_EQ(kExpressionNodeIndexForDoubleOne, ExpressionNodeIndex(value_t(1.0)).UnitTestRawCompactifiedIndex())
+      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(value_t(1.0)).UnitTestRawCompactifiedIndex());
 }
 
 // See `DoublesUpTo1ePositive77AreRegular` and `DoublesUpTo1eNegative76AreRegular` in `../encoded_double/test.cc`.

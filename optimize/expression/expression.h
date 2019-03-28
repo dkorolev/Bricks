@@ -53,9 +53,12 @@ constexpr static const uint64_t kExpressionNodeIndexForDoubleZero = 0x2000000000
 constexpr static const uint64_t kExpressionNodeIndexForDoubleNegativeZero = 0xa000000000000000;
 constexpr static const uint64_t kExpressionNodeIndexForDoubleOne = 0x3ff0000000000000;
 
-class ExpressionNode final {
+// When `using namespace current::expression`:
+// 1) can use `value_t x = ...` instead of `auto x = ...`.
+// 2) can use math functions, such as `exp()` or `sqr()` or `sigmoid()`, w/o specifying the namespace.
+class value_t final {
  private:
-  ExpressionNodeIndex index_;  // Copyable and assignable; `ExpressionNode` is a lightweight object.
+  ExpressionNodeIndex index_;  // Copyable and assignable; `value_t` is a lightweight object.
 
   static ExpressionNodeIndex IndexFromVarNodeOrThrow(VarNode const& var_node) {
     if (var_node.type == VarNodeType::Value) {
@@ -67,7 +70,7 @@ class ExpressionNode final {
   }
 
   struct ConstructLambdaNode {};
-  ExpressionNode(ConstructLambdaNode) : index_(ExpressionNodeIndex::LambdaNodeIndex()) {}
+  value_t(ConstructLambdaNode) : index_(ExpressionNodeIndex::LambdaNodeIndex()) {}
 
   static ExpressionNodeIndex IndexFromDoubleOrThrow(double x) {
     if (IsRegularDouble(x)) {
@@ -80,10 +83,10 @@ class ExpressionNode final {
   }
 
  public:
-  ExpressionNode() = default;
-  ExpressionNode(double x) : index_(IndexFromDoubleOrThrow(x)) {}
-  ExpressionNode(ExpressionNodeIndex index) : index_(index) {}
-  ExpressionNode(VarNode const& var_node) : index_(IndexFromVarNodeOrThrow(var_node)) {}
+  value_t() = default;
+  value_t(double x) : index_(IndexFromDoubleOrThrow(x)) {}
+  value_t(ExpressionNodeIndex index) : index_(index) {}
+  value_t(VarNode const& var_node) : index_(IndexFromVarNodeOrThrow(var_node)) {}
 
   // No cast into `bool` for performance reasons. -- D.K.
   uint64_t IsImmediateDouble() const { return index_.IsIndexImmediateDouble(); }
@@ -103,8 +106,8 @@ class ExpressionNode final {
   }
   bool IsOne() const { return index_.RawCompactifiedIndexEquals(kExpressionNodeIndexForDoubleOne); }
 
-  static ExpressionNode FromNodeIndex(size_t node_index) { return ExpressionNodeIndex::FromNodeIndex(node_index); }
-  static ExpressionNode lambda() { return ExpressionNode(ConstructLambdaNode()); }
+  static value_t FromNodeIndex(size_t node_index) { return ExpressionNodeIndex::FromNodeIndex(node_index); }
+  static value_t lambda() { return value_t(ConstructLambdaNode()); }
 
   operator ExpressionNodeIndex() const { return index_; }
 
@@ -120,17 +123,16 @@ class ExpressionNode final {
           ExpressionNodeImpl const& node = VarsManager::TLS().Active()[node_index];
           ExpressionNodeType const type = node.Type();
           if (false) {
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                 \
-  }                                                                      \
-  else if (type == ExpressionNodeType::Operation_##name) {               \
-    return "(" + ExpressionNode(node.LHSIndex()).DebugAsString() + #op + \
-           ExpressionNode(node.RHSIndex()).DebugAsString() + ')';
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)   \
+  }                                                        \
+  else if (type == ExpressionNodeType::Operation_##name) { \
+    return "(" + value_t(node.LHSIndex()).DebugAsString() + #op + value_t(node.RHSIndex()).DebugAsString() + ')';
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn)            \
   }                                                     \
   else if (type == ExpressionNodeType::Function_##fn) { \
-    return #fn "(" + ExpressionNode(node.ArgumentIndex()).DebugAsString() + ')';
+    return #fn "(" + value_t(node.ArgumentIndex()).DebugAsString() + ')';
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
           } else {
@@ -148,10 +150,10 @@ class ExpressionNode final {
         [&]() -> std::string { return "lambda"; });
   }
 };
-static_assert(sizeof(ExpressionNode) == 8u, "The `ExpressionNode` type is meant to be ultra-lightweight.");
+static_assert(sizeof(value_t) == 8u, "The `value_t` type is meant to be ultra-lightweight.");
 
 // The four mathematical operations are explicitly spelled out so that basic optimizations can be applied.
-inline ExpressionNode operator+(ExpressionNode lhs, ExpressionNode rhs) {
+inline value_t operator+(value_t lhs, value_t rhs) {
   if (lhs.IsImmediateDouble() && rhs.IsImmediateDouble()) {
     return lhs.GetImmediateDouble() + rhs.GetImmediateDouble();
   } else if (rhs.IsZero()) {
@@ -159,32 +161,30 @@ inline ExpressionNode operator+(ExpressionNode lhs, ExpressionNode rhs) {
   } else if (lhs.IsZero()) {
     return rhs;
   } else {
-    return ExpressionNode::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
+    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
         ExpressionNodeTypeSelector<ExpressionNodeType::Operation_add>(),
         ExpressionNodeIndex(lhs),
         ExpressionNodeIndex(rhs)));
   }
 }
 
-inline ExpressionNode operator-(ExpressionNode lhs, ExpressionNode rhs) {
+inline value_t operator-(value_t lhs, value_t rhs) {
   if (lhs.IsImmediateDouble() && rhs.IsImmediateDouble()) {
     return lhs.GetImmediateDouble() - rhs.GetImmediateDouble();
   } else if (rhs.IsZero()) {
     return lhs;
   } else if (lhs.IsZero()) {
-    return ExpressionNode::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
-        ExpressionNodeTypeSelector<ExpressionNodeType::Operation_sub>(),
-        ExpressionNode(0.0),
-        ExpressionNodeIndex(rhs)));
+    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
+        ExpressionNodeTypeSelector<ExpressionNodeType::Operation_sub>(), value_t(0.0), ExpressionNodeIndex(rhs)));
   } else {
-    return ExpressionNode::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
+    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
         ExpressionNodeTypeSelector<ExpressionNodeType::Operation_sub>(),
         ExpressionNodeIndex(lhs),
         ExpressionNodeIndex(rhs)));
   }
 }
 
-inline ExpressionNode operator*(ExpressionNode lhs, ExpressionNode rhs) {
+inline value_t operator*(value_t lhs, value_t rhs) {
   if (lhs.IsImmediateDouble() && rhs.IsImmediateDouble()) {
     return lhs.GetImmediateDouble() * rhs.GetImmediateDouble();
   } else if (lhs.IsZero() || rhs.IsZero()) {
@@ -194,14 +194,14 @@ inline ExpressionNode operator*(ExpressionNode lhs, ExpressionNode rhs) {
   } else if (lhs.IsOne()) {
     return rhs;
   } else {
-    return ExpressionNode::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
+    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
         ExpressionNodeTypeSelector<ExpressionNodeType::Operation_mul>(),
         ExpressionNodeIndex(lhs),
         ExpressionNodeIndex(rhs)));
   }
 }
 
-inline ExpressionNode operator/(ExpressionNode lhs, ExpressionNode rhs) {
+inline value_t operator/(value_t lhs, value_t rhs) {
   if (lhs.IsImmediateDouble() && rhs.IsImmediateDouble()) {
     return lhs.GetImmediateDouble() / rhs.GetImmediateDouble();
   } else if (lhs.IsZero()) {
@@ -211,52 +211,42 @@ inline ExpressionNode operator/(ExpressionNode lhs, ExpressionNode rhs) {
   } else if (rhs.IsOne()) {
     return lhs;
   } else {
-    return ExpressionNode::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
+    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
         ExpressionNodeTypeSelector<ExpressionNodeType::Operation_div>(),
         ExpressionNodeIndex(lhs),
         ExpressionNodeIndex(rhs)));
   }
 }
 
+inline value_t operator+(value_t op) { return op; }
+inline value_t operator+(VarNode const& op) { return op; }
+inline value_t operator-(value_t op) { return (0.0 - op); }
+inline value_t operator-(VarNode const& op) { return (0.0 - op); }
+
 // NOTE(dkorolev): Contrary to the C++ convention of returning `Value&` from `operator+=` and the like,
 //                 returning the `Value const&` by design, to prevent various `a += b += c;` madness.
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                              \
-  inline ExpressionNode operator op(ExpressionNode lhs, VarNode const& rhs) {                                         \
-    return operator op(lhs, ExpressionNode(rhs));                                                                     \
-  }                                                                                                                   \
-  inline ExpressionNode operator op(VarNode const& lhs, ExpressionNode rhs) {                                         \
-    return operator op(ExpressionNode(lhs), rhs);                                                                     \
-  }                                                                                                                   \
-  inline ExpressionNode operator op(VarNode const& lhs, VarNode const& rhs) {                                         \
-    return operator op(ExpressionNode(lhs), ExpressionNode(rhs));                                                     \
-  }                                                                                                                   \
-  inline ExpressionNode operator op(ExpressionNode lhs, double rhs) { return operator op(lhs, ExpressionNode(rhs)); } \
-  inline ExpressionNode operator op(double lhs, ExpressionNode rhs) { return operator op(ExpressionNode(lhs), rhs); } \
-  inline ExpressionNode operator op(VarNode const& lhs, double rhs) {                                                 \
-    return operator op(ExpressionNode(lhs), ExpressionNode(rhs));                                                     \
-  }                                                                                                                   \
-  inline ExpressionNode operator op(double lhs, VarNode const& rhs) {                                                 \
-    return operator op(ExpressionNode(lhs), ExpressionNode(rhs));                                                     \
-  }                                                                                                                   \
-  inline ExpressionNode const& operator op2(ExpressionNode& lhs, ExpressionNode rhs) {                                \
-    lhs = lhs op rhs;                                                                                                 \
-    return lhs;                                                                                                       \
-  }                                                                                                                   \
-  inline ExpressionNode const& operator op2(ExpressionNode& lhs, VarNode const& rhs) {                                \
-    lhs = lhs op rhs;                                                                                                 \
-    return lhs;                                                                                                       \
-  }                                                                                                                   \
-  inline ExpressionNode const& operator op2(ExpressionNode& lhs, double rhs) {                                        \
-    lhs = lhs op rhs;                                                                                                 \
-    return lhs;                                                                                                       \
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                 \
+  inline value_t operator op(value_t lhs, VarNode const& rhs) { return operator op(lhs, +rhs); }         \
+  inline value_t operator op(VarNode const& lhs, value_t rhs) { return operator op(+lhs, rhs); }         \
+  inline value_t operator op(VarNode const& lhs, VarNode const& rhs) { return operator op(+lhs, +rhs); } \
+  inline value_t operator op(value_t lhs, double rhs) { return operator op(lhs, value_t(rhs)); }         \
+  inline value_t operator op(double lhs, value_t rhs) { return operator op(value_t(lhs), rhs); }         \
+  inline value_t operator op(VarNode const& lhs, double rhs) { return operator op(+lhs, value_t(rhs)); } \
+  inline value_t operator op(double lhs, VarNode const& rhs) { return operator op(value_t(lhs), +rhs); } \
+  inline value_t const& operator op2(value_t& lhs, value_t rhs) {                                        \
+    lhs = lhs op rhs;                                                                                    \
+    return lhs;                                                                                          \
+  }                                                                                                      \
+  inline value_t const& operator op2(value_t& lhs, VarNode const& rhs) {                                 \
+    lhs = lhs op rhs;                                                                                    \
+    return lhs;                                                                                          \
+  }                                                                                                      \
+  inline value_t const& operator op2(value_t& lhs, double rhs) {                                         \
+    lhs = lhs op rhs;                                                                                    \
+    return lhs;                                                                                          \
   }
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
-
-inline ExpressionNode operator+(ExpressionNode op) { return op; }
-inline ExpressionNode operator+(VarNode const& op) { return op; }
-inline ExpressionNode operator-(ExpressionNode op) { return (0.0 - op); }
-inline ExpressionNode operator-(VarNode const& op) { return (0.0 - op); }
 
 namespace functions {
 using std::exp;
@@ -292,23 +282,19 @@ inline double log_sigmoid(double x) {
   }
 }
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                                \
-  inline ExpressionNode fn(ExpressionNode argument) {                                                       \
+  inline value_t fn(value_t argument) {                                                                     \
     if (argument.IsImmediateDouble()) {                                                                     \
       return fn(argument.GetImmediateDouble());                                                             \
     } else {                                                                                                \
-      return ExpressionNode::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(               \
+      return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(                      \
           ExpressionNodeTypeSelector<ExpressionNodeType::Function_##fn>(), ExpressionNodeIndex(argument))); \
     }                                                                                                       \
   }                                                                                                         \
-  inline ExpressionNode fn(VarNode const& argument) { return fn(ExpressionNode(argument)); }
+  inline value_t fn(VarNode const& argument) { return fn(value_t(argument)); }
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
 }  // namespace current::expression::functions
 
-// When `using namespace current::expression`:
-// 1) can use `value_t x = ...` instead of `auto x = ...`.
-// 2) can use math functions, such as `exp()` or `sqr()` or `sigmoid()`, w/o specifying the namespace.
-using value_t = ExpressionNode;
 using namespace current::expression::functions;
 
 // A helper method to generate a one-dimensional function from a multi-dimensional one,
@@ -342,13 +328,13 @@ class Build1DFunctionImpl {
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)   \
   }                                                        \
   else if (type == ExpressionNodeType::Operation_##name) { \
-    return DoBuild1DFunction(ExpressionNode(node.LHSIndex())) op DoBuild1DFunction(ExpressionNode(node.RHSIndex()));
+    return DoBuild1DFunction(value_t(node.LHSIndex())) op DoBuild1DFunction(value_t(node.RHSIndex()));
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn)            \
   }                                                     \
   else if (type == ExpressionNodeType::Function_##fn) { \
-    return fn(DoBuild1DFunction(ExpressionNode(node.ArgumentIndex())));
+    return fn(DoBuild1DFunction(value_t(node.ArgumentIndex())));
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
           } else {

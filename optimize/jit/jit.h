@@ -455,7 +455,7 @@ class JITCompiler final {
 
   VarsMapperConfig const& Config() const { return context_.Config(); }
 
-  Function Compile(ExpressionNode node) {
+  Function Compile(value_t node) {
     using namespace current::fncas::x64_native_jit;
 
     // TODO(dkorolev): Inplace code generation.
@@ -488,7 +488,7 @@ class JITCompiler final {
     return Function(context_, std::move(code));
   }
 
-  FunctionReturningVector Compile(std::vector<ExpressionNode> const& nodes) {
+  FunctionReturningVector Compile(std::vector<value_t> const& nodes) {
     using namespace current::fncas::x64_native_jit;
 
     // TODO(dkorolev): Inplace code generation.
@@ -525,7 +525,7 @@ class JITCompiler final {
     return FunctionReturningVector(context_, std::move(code), std::move(output_node_indexes));
   }
 
-  FunctionWithArgument CompileFunctionWithArgument(ExpressionNode node) {
+  FunctionWithArgument CompileFunctionWithArgument(value_t node) {
     using namespace current::fncas::x64_native_jit;
 
     // TODO(dkorolev): Inplace code generation.
