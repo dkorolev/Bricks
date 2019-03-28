@@ -625,6 +625,27 @@ class VarsContext final : public VarsContextInterface {
     allocated_var_is_constant_[var_internal_index] = true;
   }
 
+  bool IsVarNotConstant(size_t var_internal_index) const {
+    ConfirmSelfActiveIfInDebugMode();
+#ifndef NDEBUG
+    if (frozen_) {
+      CURRENT_THROW(
+          VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` when the vars context is frozen."));
+    }
+    if (!(var_internal_index < dense_index_.size())) {
+      CURRENT_THROW(VarIndexOutOfBoundsException());
+    }
+    if (dense_index_[var_internal_index] == static_cast<size_t>(-1)) {
+      CURRENT_THROW(
+          VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` on unidexed vars, run `ReindexVars()`."));
+    }
+    if (dense_index_.size() != allocated_var_is_constant_.size()) {
+      CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `LeafDerivativeZeroOrOne()`."));
+    }
+#endif
+    return !allocated_var_is_constant_[var_internal_index];
+  }
+
   bool IsVarTheNonConstantOneBeingDifferentiatedBy(size_t var_internal_index,
                                                    size_t derivative_per_finalized_var_index) const {
     ConfirmSelfActiveIfInDebugMode();

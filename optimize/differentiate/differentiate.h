@@ -112,7 +112,7 @@ class Differentiator final {
       // Stack element index to return the value. It is multiplied by two, and the LSB is the LHS/RHS bit.
       size_t return_value_index_times2;
     };
-    static_assert(sizeof(Entry) == 32, "`Entry` should be 32 bytes.");
+    // static_assert(sizeof(Entry) == 32, "`Entry` should be 32 bytes.");
 
    private:
     std::vector<Entry> call_stack_;
@@ -164,7 +164,7 @@ class Differentiator final {
     index.Dispatch(
         [&](size_t) { stack_.DoPush(index, return_value_index_times2); },
         [&](size_t var_index) { stack_.DoReturnValue(impl_.DerivativeOfVar(var_index), return_value_index_times2); },
-        [&](double) { stack_.DoReturnValue(ExpressionNodeIndex::DoubleZero(), return_value_index_times2); },
+        [&](double) { stack_.DoReturnValue(impl_.Zero(), return_value_index_times2); },
         [&]() { stack_.DoReturnValue(impl_.DerivativeOfLambda(), return_value_index_times2); });
   }
 
@@ -241,6 +241,8 @@ struct DifferentiateBySingleVarImpl {
 
   using retval_t = ExpressionNodeIndex;
 
+  retval_t Zero() const { return ExpressionNodeIndex::DoubleZero(); }
+
   retval_t DerivativeOfVar(size_t var_index) const {
     if (vars_context_.IsVarTheNonConstantOneBeingDifferentiatedBy(var_index, var_index_)) {
       return ExpressionNodeIndex::DoubleOne();
@@ -265,8 +267,8 @@ struct DifferentiateByLambdaImpl {
 
   using retval_t = ExpressionNodeIndex;
 
+  retval_t Zero() const { return ExpressionNodeIndex::DoubleZero(); }
   retval_t DerivativeOfVar(size_t) const { return ExpressionNodeIndex::DoubleZero(); }
-
   retval_t DerivativeOfLambda() const { return ExpressionNodeIndex::DoubleOne(); }
 
   retval_t DoDifferentiateOperation(ExpressionNodeType node_type, value_t a, value_t b, value_t da, value_t db) const {
@@ -278,6 +280,58 @@ struct DifferentiateByLambdaImpl {
   }
 };
 
+// TODO(dkorolev): Obviously, the `map<>` is about the least effective solution here. Refactor it.
+struct DifferentiateByAllVarsTogetherImpl {
+  VarsContext const& vars_context_;
+
+  DifferentiateByAllVarsTogetherImpl(VarsContext const& vars_context) : vars_context_(vars_context) {}
+
+  using retval_t = std::map<size_t, ExpressionNodeIndex>;
+
+  retval_t Zero() const { return retval_t(); }
+
+  retval_t DerivativeOfVar(size_t var_index) const {
+    retval_t result;
+    if (vars_context_.IsVarNotConstant(var_index)) {
+      result[var_index] = ExpressionNodeIndex::DoubleOne();
+    }
+    return result;
+  }
+
+  retval_t DerivativeOfLambda() const { CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException()); }
+
+  retval_t DoDifferentiateOperation(
+      ExpressionNodeType node_type, value_t a, value_t b, retval_t da, retval_t db) const {
+    // TODO(dkorolev): Obviously, this is to be optimized away to remove all the copies.
+    std::set<size_t> indexes;
+    for (auto const& lhs : da) {
+      indexes.insert(lhs.first);
+    }
+    for (auto const& rhs : db) {
+      indexes.insert(rhs.first);
+    }
+    retval_t result;
+    for (size_t const i : indexes) {
+      auto const lhs = da.find(i);
+      auto const rhs = db.find(i);
+      result[i] = DifferentiateOperation(node_type,
+                                         a,
+                                         b,
+                                         lhs != da.end() ? lhs->second : ExpressionNodeIndex::DoubleZero(),
+                                         rhs != db.end() ? rhs->second : ExpressionNodeIndex::DoubleZero());
+    }
+    return result;
+  }
+
+  retval_t DoDifferentiateFunction(ExpressionNodeType node_type, value_t f, value_t x, retval_t dx) const {
+    // TODO(dkorolev): Obviously, this is to be optimized away to remove all the copies.
+    for (auto& v : dx) {
+      v.second = DifferentiateFunction(node_type, f, x, v.second);
+    }
+    return dx;
+  }
+};
+
 // The per-variable differentiator.
 inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_index) {
   return Differentiator<DifferentiateBySingleVarImpl>(VarsManager::TLS().Active(), derivative_per_finalized_var_index)
@@ -285,11 +339,28 @@ inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_inde
 }
 
 // Gradient computer, well, generator. "Simply" differentiates the provided function by each variable.
-inline std::vector<value_t> ComputeGradient(value_t f) {
+inline std::vector<value_t> OldSchoolComputeGradient(value_t f) {
   VarsContext const& vars_context = VarsManager::TLS().Active();
   std::vector<value_t> result(vars_context.NumberOfVars());
   for (size_t i = 0u; i < result.size(); ++i) {
     result[i] = Differentiator<DifferentiateBySingleVarImpl>(vars_context, i).Differentiate(f);
+  }
+  return result;
+}
+
+// The single-pass gradient computer.
+inline std::vector<value_t> ComputeGradient(value_t f) {
+  VarsContext const& vars_context = VarsManager::TLS().Active();
+  std::map<size_t, ExpressionNodeIndex> const g =
+      Differentiator<DifferentiateByAllVarsTogetherImpl>(VarsManager::TLS().Active()).Differentiate(f);
+  std::vector<value_t> result(vars_context.NumberOfVars());
+  for (size_t i = 0u; i < result.size(); ++i) {
+    auto const cit = g.find(i);
+    if (cit != g.end()) {
+      result[i] = cit->second;
+    } else {
+      result[i] = 0.0;
+    }
   }
   return result;
 }
