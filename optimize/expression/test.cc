@@ -48,6 +48,20 @@ TEST(OptimizationExpression, SimpleVarsAddition) {
   EXPECT_EQ("(x[0]+x[1])", (v0 + x[1]).DebugAsString());
   EXPECT_EQ("(x[0]+x[1])", (x[0] + v1).DebugAsString());
   EXPECT_EQ("(x[0]+x[1])", (x[0] + x[1]).DebugAsString());
+
+  // Make sure the internal "flippped" trick is tested through.
+  EXPECT_EQ("(x[0]+1.000000)", (v0 + 1.0).DebugAsString());
+  EXPECT_EQ("(2.000000+x[0])", (2.0 + v0).DebugAsString());
+  EXPECT_EQ("(x[0]-3.000000)", (v0 - 3.0).DebugAsString());
+  EXPECT_EQ("(4.000000-x[0])", (4.0 - v0).DebugAsString());
+  EXPECT_EQ("(x[1]*5.000000)", (v1 * 5.0).DebugAsString());
+  EXPECT_EQ("(6.000000*x[1])", (6.0 * v1).DebugAsString());
+  EXPECT_EQ("(x[1]/7.000000)", (v1 / 7.0).DebugAsString());
+  EXPECT_EQ("(8.000000/x[1])", (8.0 / v1).DebugAsString());
+  EXPECT_EQ("(0.000000-x[0])", (-v0).DebugAsString());
+  EXPECT_EQ("(lambda+9.000000)", (value_t::lambda() + 9.0).DebugAsString());
+  EXPECT_EQ("(9.000000/lambda)", (9.0 / value_t::lambda()).DebugAsString());
+  EXPECT_EQ("(0.000000-lambda)", (-value_t::lambda()).DebugAsString());
 }
 
 TEST(OptimizationExpression, AddingImmediatesToVars) {
