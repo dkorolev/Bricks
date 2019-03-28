@@ -285,37 +285,65 @@ struct DifferentiateByLambdaImpl {
 };
 
 // The somewhat compactly represented and fast to iterate gradient of a node.
-// TODO(dkorolev): Do get rid of the `map<>`.
 struct GradientPiece {
-  std::map<size_t, ExpressionNodeIndex> data;
-  void Clear() { data.clear(); }
-  void SetOne(size_t i) { data[i] = ExpressionNodeIndex::DoubleOne(); }
+  std::vector<ExpressionNodeIndex> elements;
+  std::vector<bool> nonzero_indexes_bitset;
+  std::vector<size_t> nonzero_indexes_list;
+
+  GradientPiece()
+      : elements(VarsManager::TLS().Active().NumberOfVars()),
+        nonzero_indexes_bitset(VarsManager::TLS().Active().NumberOfVars()) {}
+
+  void Clear() {
+    std::vector<bool>(VarsManager::TLS().Active().NumberOfVars()).swap(nonzero_indexes_bitset);
+    nonzero_indexes_list.clear();
+  }
+
+  void SetOne(size_t i) {
+#ifdef NDEBUG
+    if (nonzero_indexes_bitset[i]) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    nonzero_indexes_bitset[i] = true;
+    nonzero_indexes_list.push_back(i);
+    elements[i] = ExpressionNodeIndex::DoubleOne();
+  }
+
   void ApplyOperation(ExpressionNodeType node_type, value_t a, value_t b, GradientPiece const& db) {
-    for (auto& e : data) {
-      auto const cit = db.data.find(e.first);
-      e.second = DifferentiateOperation(
-          node_type, a, b, e.second, cit != db.data.end() ? cit->second : ExpressionNodeIndex::DoubleZero());
-    }
-    for (auto& e2 : db.data) {
-      if (data.find(e2.first) == data.end()) {
-        data[e2.first] = DifferentiateOperation(node_type, a, b, value_t(ExpressionNodeIndex::DoubleZero()), e2.second);
-      }
-    }
-  }
-  void ApplyFunction(ExpressionNodeType node_type, value_t f, value_t x) {
-    for (auto& v : data) {
-      v.second = DifferentiateFunction(node_type, f, x, v.second);
-    }
-  }
-  std::vector<value_t> FillOutput(size_t dim) const {
-    std::vector<value_t> result(dim);
-    for (size_t i = 0u; i < result.size(); ++i) {
-      auto const cit = data.find(i);
-      if (cit != data.end()) {
-        result[i] = cit->second;
+    for (size_t const i : nonzero_indexes_list) {
+      if (db.nonzero_indexes_bitset[i]) {
+        elements[i] = DifferentiateOperation(node_type, a, b, elements[i], db.elements[i]);
       } else {
-        result[i] = 0.0;
+        elements[i] = DifferentiateOperation(node_type, a, b, elements[i], 0.0);
       }
+    }
+    for (size_t const j : db.nonzero_indexes_list) {
+      if (!nonzero_indexes_bitset[j]) {
+        elements[j] = DifferentiateOperation(node_type, a, b, 0.0, db.elements[j]);
+        if (!elements[j].IsIndexDoubleZero()) {
+          nonzero_indexes_bitset[j] = true;
+          nonzero_indexes_list.push_back(j);
+        }
+      }
+    }
+  }
+
+  void ApplyFunction(ExpressionNodeType node_type, value_t f, value_t x) {
+    for (size_t const i : nonzero_indexes_list) {
+      elements[i] = DifferentiateFunction(node_type, f, x, elements[i]);
+    }
+  }
+
+  std::vector<value_t> FillOutput(size_t dim) const {
+#ifndef NDEBUG
+    if (dim != nonzero_indexes_bitset.size()) {
+      CURRENT_THROW(OptimizeException("Internal error."));
+    }
+#endif
+    std::vector<value_t> result(dim);
+    for (size_t i = 0u; i < dim; ++i) {
+      result[i] = nonzero_indexes_bitset[i] ? value_t(elements[i]) : 0.0;
     }
     return result;
   }

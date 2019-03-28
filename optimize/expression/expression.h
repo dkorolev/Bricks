@@ -98,11 +98,8 @@ class value_t final {
     return index_.GetImmediateDoubleFromIndex();
   }
 
-  bool IsZero() const {
-    return index_.RawCompactifiedIndexEquals(kExpressionNodeIndexForDoubleZero) ||
-           index_.RawCompactifiedIndexEquals(kExpressionNodeIndexForDoubleNegativeZero);
-  }
-  bool IsOne() const { return index_.RawCompactifiedIndexEquals(kExpressionNodeIndexForDoubleOne); }
+  bool IsZero() const { return index_.IsIndexDoubleZero(); }
+  bool IsOne() const { return index_.IsIndexDoubleOne(); }
 
   template <typename... ARGS>
   static value_t Emplace(ARGS&&... args) {

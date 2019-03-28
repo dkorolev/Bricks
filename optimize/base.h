@@ -112,6 +112,11 @@ class ExpressionNodeIndex {
   struct DoubleOne {};
   ExpressionNodeIndex(DoubleZero) : compactified_index_(kExpressionNodeIndexForDoubleZero) {}
   ExpressionNodeIndex(DoubleOne) : compactified_index_(kExpressionNodeIndexForDoubleOne) {}
+  bool IsIndexDoubleZero() const {
+    return compactified_index_ == kExpressionNodeIndexForDoubleZero ||
+           compactified_index_ == kExpressionNodeIndexForDoubleNegativeZero;
+  }
+  bool IsIndexDoubleOne() const { return compactified_index_ == kExpressionNodeIndexForDoubleOne; }
 
   static ExpressionNodeIndex FromNodeIndex(size_t node_index) {
 #ifndef NDEBUG
