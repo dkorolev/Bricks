@@ -538,6 +538,12 @@ class VarsContext final : public VarsContextInterface {
   std::vector<size_t> dense_reverse_index_;  // `node index => var index` mapping, always valid.
   std::vector<ExpressionNodeImpl> expression_nodes_;
 
+  void ConfirmSelfActiveIfInDebugMode() const {
+#ifndef NDEBUG
+    VarsManager::TLS().ConfirmActive(this, this);
+#endif
+  }
+
  public:
   VarsContext() { VarsManager::TLS().SetActive(this, this); }
   ~VarsContext() { VarsManager::TLS().ClearActive(this, this); }
@@ -548,17 +554,17 @@ class VarsContext final : public VarsContextInterface {
   std::string const& VarNameByOriginalIndex(size_t i) const { return var_name_[dense_reverse_index_[i]]; }
 
   VarNode& RootNode() {
-    VarsManager::TLS().ConfirmActive(this, this);
+    ConfirmSelfActiveIfInDebugMode();
     return root_;
   }
 
   bool IsFrozen() const override {
-    VarsManager::TLS().ConfirmActive(this, this);
+    ConfirmSelfActiveIfInDebugMode();
     return frozen_;
   }
 
   VarsMapperConfig ReindexVars() override {
-    VarsManager::TLS().ConfirmActive(this, this);
+    ConfirmSelfActiveIfInDebugMode();
     size_t const vars_count = allocated_var_is_constant_.size();
     VarNode::FrozenVariablesSetBeingPopulated state(vars_count);
     root_.DSFStampDenseIndexesForJIT(state);
@@ -586,7 +592,7 @@ class VarsContext final : public VarsContextInterface {
   }
 
   void Unfreeze() override {
-    VarsManager::TLS().ConfirmActive(this, this);
+    ConfirmSelfActiveIfInDebugMode();
     if (!frozen_) {
       CURRENT_THROW(VarsNotFrozenException());
     } else {
@@ -595,7 +601,7 @@ class VarsContext final : public VarsContextInterface {
   }
 
   uint32_t AllocateVar(std::string var_name) override {
-    VarsManager::TLS().ConfirmActive(this, this);
+    ConfirmSelfActiveIfInDebugMode();
     if (frozen_) {
       CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after the vars context is frozen."));
     } else {
@@ -609,7 +615,7 @@ class VarsContext final : public VarsContextInterface {
   }
 
   void MarkVarAsConstant(size_t var_internal_index) override {
-    VarsManager::TLS().ConfirmActive(this, this);
+    ConfirmSelfActiveIfInDebugMode();
     if (frozen_) {
       CURRENT_THROW(VarsManagementException("Attempted to `MarkVarAsConstant()` after the vars context is frozen."));
     }
@@ -620,7 +626,7 @@ class VarsContext final : public VarsContextInterface {
   }
 
   double LeafDerivativeZeroOrOne(size_t var_internal_index, size_t derivative_per_finalized_var_index) const {
-    VarsManager::TLS().ConfirmActive(this, this);
+    ConfirmSelfActiveIfInDebugMode();
     if (frozen_) {
       CURRENT_THROW(
           VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` when the vars context is frozen."));
@@ -643,7 +649,7 @@ class VarsContext final : public VarsContextInterface {
 
   template <typename... ARGS>
   size_t EmplaceExpressionNode(ARGS&&... args) {
-    VarsManager::TLS().ConfirmActive(this, this);
+    ConfirmSelfActiveIfInDebugMode();
     if (frozen_) {
       CURRENT_THROW(
           VarsManagementException("Attempted to `EmplaceExpressionNode()` after the vars context is frozen."));

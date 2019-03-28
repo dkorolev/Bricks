@@ -257,7 +257,9 @@ TEST(OptimizationExpression, IndexesAreNonFinalizedIndexes) {
   EXPECT_EQ("x[2]{2}", v2.DebugAsString());  // The allocated frozen index for `x[2]` has changed.
 }
 
-TEST(OptimizationExpression, MustBeWithinContext) {
+#ifndef NDEBUG
+
+TEST(OptimizationExpression, MustBeWithinContextInDEBUGMode) {
   using namespace current::expression;
   std::vector<value_t> const v = []() {
     VarsContext vars_context;
@@ -268,10 +270,45 @@ TEST(OptimizationExpression, MustBeWithinContext) {
     values.push_back(0.0);
     return values;
   }();
+  ASSERT_EQ(3u, v.size());
   ASSERT_THROW(v[0].DebugAsString(), VarsManagementException);
   ASSERT_THROW(v[1].DebugAsString(), VarsManagementException);
   ASSERT_THROW(v[2].DebugAsString(), VarsManagementException);
+
+  try {
+    value_t().DebugAsString();
+    ASSERT_TRUE(false);
+  } catch (VarsManagementException const& e) {
+    EXPECT_EQ("The variables context is required.", e.OriginalDescription());
+  }
 }
+
+TEST(OptimizationExpression, ValuesAreUninitializedInDEBUGMode) {
+  using namespace current::expression;
+
+  {
+    VarsContext vars_context;
+    EXPECT_EQ("Uninitialized", value_t().DebugAsString());
+  }
+}
+
+#else
+
+TEST(OptimizationExpression, VarsContextIsNotRequiredForValuesInNDEBUGMode) {
+  using namespace current::expression;
+
+  // Values and simple opeations over them, as well as lambdas, should work w/o the vars context.
+  // Creating expression nodes w/o a valid vars context in scope would most likely cause a segfault in NDEBUG mode.
+  EXPECT_EQ("2.000000", value_t(2.0).DebugAsString());
+  EXPECT_EQ("3.000000", (value_t(1.0) + value_t(2.0)).DebugAsString());
+  EXPECT_EQ("1.000000", exp(value_t(0.0)).DebugAsString());
+  EXPECT_EQ("lambda", value_t::lambda().DebugAsString());
+
+  // Creating expression nodes w/o a valid vars context in scope would most likely cause a segfault in NDEBUG mode.
+  // So, do not "test" it. -- D.K.
+}
+
+#endif
 
 TEST(OptimizationExpression, FreezePreventsNodesCreation) {
   using namespace current::expression;

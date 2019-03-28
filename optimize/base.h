@@ -60,6 +60,11 @@ constexpr static uint64_t kBitSpecial = (1ull << 63);
 // are packed into the very 8-byte `ExpressionNodeIndex` to save on RAM for nodes. See `double.h` for more details.
 constexpr static uint64_t kBitDouble = (1ull << 61);
 
+#ifndef NDEBUG
+// In `!NDEBUG` mode a value is also reserved to indicate that the index was not initialized.
+constexpr static uint64_t kCompactifiedIndexValueUninitialized = 0x55555555deadbeef;
+#endif
+
 // The data type for the expression should be defined in this `base.h` header, as the thread-local context
 // for expression management is the same as the thread-local context for variables management.
 //
@@ -88,7 +93,12 @@ class ExpressionNodeIndex {
   }
 
  public:
+#ifndef NDEBUG
+  ExpressionNodeIndex() : compactified_index_(kCompactifiedIndexValueUninitialized) {}
+  bool IsUninitialized() const { return compactified_index_ == kCompactifiedIndexValueUninitialized; }
+#else
   ExpressionNodeIndex() = default;
+#endif
   ExpressionNodeIndex(ExpressionNodeIndex const&) = default;
   ExpressionNodeIndex(ExpressionNodeIndex&&) = default;
   ExpressionNodeIndex& operator=(ExpressionNodeIndex const&) = default;
@@ -163,6 +173,9 @@ class ExpressionNodeIndex {
     } else {
 #ifndef NDEBUG
       // Important: The "special" bit is "allowed" to be set in case of `double` values.
+      if (compactified_index_ == kCompactifiedIndexValueUninitialized) {
+        CURRENT_THROW(OptimizeException("Internal error."));
+      }
       if (compactified_index_ & kBitSpecial) {
         CURRENT_THROW(OptimizeException("Internal error."));
       }
@@ -229,8 +242,6 @@ class ExpressionNodeIndex {
 static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be 8 bytes.");
 
 enum class ExpressionNodeType {
-  Uninitialized,
-
   MarkerOperationsBeginAfterThisIndex,
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name) Operation_##name,
 #include "math_operations.inl"

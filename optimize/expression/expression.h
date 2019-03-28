@@ -109,13 +109,17 @@ class ExpressionNode final {
   operator ExpressionNodeIndex() const { return index_; }
 
   std::string DebugAsString() const {
-    VarsContext const& vars_context = VarsManager::TLS().Active();
+#ifndef NDEBUG
+    VarsManager::TLS().Active();  // This will throw in `!NDEBUG` mode if there is no active context.
+    if (index_.IsUninitialized()) {
+      return "Uninitialized";
+    }
+#endif
     return index_.template Dispatch<std::string>(
         [&](size_t node_index) -> std::string {
-          ExpressionNodeImpl const& node = vars_context[node_index];
+          ExpressionNodeImpl const& node = VarsManager::TLS().Active()[node_index];
           ExpressionNodeType const type = node.Type();
-          if (type == ExpressionNodeType::Uninitialized) {
-            return "<Uninitialized>";
+          if (false) {
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                 \
   }                                                                      \
   else if (type == ExpressionNodeType::Operation_##name) {               \
@@ -133,7 +137,7 @@ class ExpressionNode final {
             CURRENT_THROW(ExpressionNodeInternalError());
           }
         },
-        [&](size_t var_index) -> std::string { return vars_context.VarNameByOriginalIndex(var_index); },
+        [&](size_t var_index) -> std::string { return VarsManager::TLS().Active().VarNameByOriginalIndex(var_index); },
         [](double value) -> std::string {
           if (value >= 0) {
             return current::ToString(value);
@@ -334,8 +338,7 @@ class Build1DFunctionImpl {
         [&](size_t node_index) -> value_t {
           ExpressionNodeImpl const& node = vars_context_[node_index];
           ExpressionNodeType const type = node.Type();
-          if (type == ExpressionNodeType::Uninitialized) {
-            CURRENT_THROW(ExpressionNodeInternalError());
+          if (false) {
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)   \
   }                                                        \
   else if (type == ExpressionNodeType::Operation_##name) { \
