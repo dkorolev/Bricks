@@ -148,9 +148,8 @@ class Differentiator final {
 
     Entry const& DoPop() { return call_stack_[--actual_size_]; }
 
-    // TODO(dkorolev): Optimize away any possible copying here, in favor of swaps, etc.
-    void DoReturnValue(typename IMPL::retval_t value, size_t return_value_index_times2) {
-      call_stack_[return_value_index_times2 >> 1].return_value[return_value_index_times2 & 1] = std::move(value);
+    typename IMPL::retval_t& Ref(size_t return_value_index_times2) {
+      return call_stack_[return_value_index_times2 >> 1].return_value[return_value_index_times2 & 1];
     }
 
     typename IMPL::retval_t const& ExtractReturnValue() const { return call_stack_[0].return_value[0]; }
@@ -163,9 +162,9 @@ class Differentiator final {
   void PushToStack(ExpressionNodeIndex index, size_t return_value_index_times2) const {
     index.Dispatch(
         [&](size_t) { stack_.DoPush(index, return_value_index_times2); },
-        [&](size_t var_index) { stack_.DoReturnValue(impl_.DerivativeOfVar(var_index), return_value_index_times2); },
-        [&](double) { stack_.DoReturnValue(impl_.Zero(), return_value_index_times2); },
-        [&]() { stack_.DoReturnValue(impl_.DerivativeOfLambda(), return_value_index_times2); });
+        [&](size_t var_index) { impl_.DoReturnDerivativeOfVar(var_index, stack_.Ref(return_value_index_times2)); },
+        [&](double) { impl_.DoAssignZero(stack_.Ref(return_value_index_times2)); },
+        [&]() { impl_.DoReturnDerivativeOfLambda(stack_.Ref(return_value_index_times2)); });
   }
 
  public:
@@ -206,9 +205,12 @@ class Differentiator final {
           PushToStack(a, dfs_call_return_value_index * 2u);
         } else {
           // Going up, the { lhs, rhs } are already differentiated.
-          stack_.DoReturnValue(
-              impl_.DoDifferentiateOperation(node_type, a, b, element.return_value[0], element.return_value[1]),
-              element.return_value_index_times2);
+          impl_.DoReturnDifferentiatedOperation(node_type,
+                                                a,
+                                                b,
+                                                element.return_value[0],
+                                                element.return_value[1],
+                                                stack_.Ref(element.return_value_index_times2));
         }
       } else if (IsFunctionNode(node_type)) {
         ExpressionNodeIndex const x = short_lived_node.ArgumentIndex();
@@ -219,9 +221,11 @@ class Differentiator final {
           PushToStack(x, dfs_call_return_value_index * 2u);
         } else {
           // Going up, the argument is already differentiated.
-          stack_.DoReturnValue(
-              impl_.DoDifferentiateFunction(node_type, value_t(index), value_t(x), element.return_value[0]),
-              element.return_value_index_times2);
+          impl_.DoReturnDifferentiatedFunction(node_type,
+                                               value_t(index),
+                                               value_t(x),
+                                               element.return_value[0],
+                                               stack_.Ref(element.return_value_index_times2));
         }
       } else {
         CURRENT_THROW(DifferentiatorForThisNodeTypeNotImplementedException());
@@ -241,24 +245,24 @@ struct DifferentiateBySingleVarImpl {
 
   using retval_t = ExpressionNodeIndex;
 
-  retval_t Zero() const { return ExpressionNodeIndex::DoubleZero(); }
-
-  retval_t DerivativeOfVar(size_t var_index) const {
+  void DoAssignZero(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
+  void DoReturnDerivativeOfVar(size_t var_index, retval_t& placeholder) const {
     if (vars_context_.IsVarTheNonConstantOneBeingDifferentiatedBy(var_index, var_index_)) {
-      return ExpressionNodeIndex::DoubleOne();
+      placeholder = ExpressionNodeIndex::DoubleOne();
     } else {
-      return ExpressionNodeIndex::DoubleZero();
+      placeholder = ExpressionNodeIndex::DoubleZero();
     }
   }
-
-  retval_t DerivativeOfLambda() const { CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException()); }
-
-  retval_t DoDifferentiateOperation(ExpressionNodeType node_type, value_t a, value_t b, value_t da, value_t db) const {
-    return DifferentiateOperation(node_type, a, b, da, db);
+  void DoReturnDerivativeOfLambda(retval_t&) const {
+    CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
   }
-
-  retval_t DoDifferentiateFunction(ExpressionNodeType node_type, value_t f, value_t x, value_t dx) const {
-    return DifferentiateFunction(node_type, f, x, dx);
+  void DoReturnDifferentiatedOperation(
+      ExpressionNodeType node_type, value_t a, value_t b, value_t da, value_t db, retval_t& placeholder) const {
+    placeholder = DifferentiateOperation(node_type, a, b, da, db);
+  }
+  void DoReturnDifferentiatedFunction(
+      ExpressionNodeType node_type, value_t f, value_t x, value_t dx, retval_t& placeholder) const {
+    placeholder = DifferentiateFunction(node_type, f, x, dx);
   }
 };
 
@@ -267,16 +271,16 @@ struct DifferentiateByLambdaImpl {
 
   using retval_t = ExpressionNodeIndex;
 
-  retval_t Zero() const { return ExpressionNodeIndex::DoubleZero(); }
-  retval_t DerivativeOfVar(size_t) const { return ExpressionNodeIndex::DoubleZero(); }
-  retval_t DerivativeOfLambda() const { return ExpressionNodeIndex::DoubleOne(); }
-
-  retval_t DoDifferentiateOperation(ExpressionNodeType node_type, value_t a, value_t b, value_t da, value_t db) const {
-    return DifferentiateOperation(node_type, a, b, da, db);
+  void DoAssignZero(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
+  void DoReturnDerivativeOfVar(size_t, retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
+  void DoReturnDerivativeOfLambda(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleOne(); }
+  void DoReturnDifferentiatedOperation(
+      ExpressionNodeType node_type, value_t a, value_t b, value_t da, value_t db, retval_t& placeholder) const {
+    placeholder = DifferentiateOperation(node_type, a, b, da, db);
   }
-
-  retval_t DoDifferentiateFunction(ExpressionNodeType node_type, value_t f, value_t x, value_t dx) const {
-    return DifferentiateFunction(node_type, f, x, dx);
+  void DoReturnDifferentiatedFunction(
+      ExpressionNodeType node_type, value_t f, value_t x, value_t dx, retval_t& placeholder) const {
+    placeholder = DifferentiateFunction(node_type, f, x, dx);
   }
 };
 
@@ -288,20 +292,21 @@ struct DifferentiateByAllVarsTogetherImpl {
 
   using retval_t = std::map<size_t, ExpressionNodeIndex>;
 
-  retval_t Zero() const { return retval_t(); }
+  void DoAssignZero(retval_t& placeholder) const { placeholder.clear(); }
 
-  retval_t DerivativeOfVar(size_t var_index) const {
-    retval_t result;
+  void DoReturnDerivativeOfVar(size_t var_index, retval_t& placeholder) const {
+    placeholder.clear();
     if (vars_context_.IsVarNotConstant(var_index)) {
-      result[var_index] = ExpressionNodeIndex::DoubleOne();
+      placeholder[var_index] = ExpressionNodeIndex::DoubleOne();
     }
-    return result;
   }
 
-  retval_t DerivativeOfLambda() const { CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException()); }
+  void DoReturnDerivativeOfLambda(retval_t&) const {
+    CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
+  }
 
-  retval_t DoDifferentiateOperation(
-      ExpressionNodeType node_type, value_t a, value_t b, retval_t da, retval_t db) const {
+  void DoReturnDifferentiatedOperation(
+      ExpressionNodeType node_type, value_t a, value_t b, retval_t da, retval_t db, retval_t& placeholder) const {
     // TODO(dkorolev): Obviously, this is to be optimized away to remove all the copies.
     std::set<size_t> indexes;
     for (auto const& lhs : da) {
@@ -310,25 +315,25 @@ struct DifferentiateByAllVarsTogetherImpl {
     for (auto const& rhs : db) {
       indexes.insert(rhs.first);
     }
-    retval_t result;
+    placeholder.clear();
     for (size_t const i : indexes) {
       auto const lhs = da.find(i);
       auto const rhs = db.find(i);
-      result[i] = DifferentiateOperation(node_type,
-                                         a,
-                                         b,
-                                         lhs != da.end() ? lhs->second : ExpressionNodeIndex::DoubleZero(),
-                                         rhs != db.end() ? rhs->second : ExpressionNodeIndex::DoubleZero());
+      placeholder[i] = DifferentiateOperation(node_type,
+                                              a,
+                                              b,
+                                              lhs != da.end() ? lhs->second : ExpressionNodeIndex::DoubleZero(),
+                                              rhs != db.end() ? rhs->second : ExpressionNodeIndex::DoubleZero());
     }
-    return result;
   }
 
-  retval_t DoDifferentiateFunction(ExpressionNodeType node_type, value_t f, value_t x, retval_t dx) const {
+  void DoReturnDifferentiatedFunction(
+      ExpressionNodeType node_type, value_t f, value_t x, retval_t dx, retval_t& placeholder) const {
     // TODO(dkorolev): Obviously, this is to be optimized away to remove all the copies.
-    for (auto& v : dx) {
+    placeholder = std::move(dx);
+    for (auto& v : placeholder) {
       v.second = DifferentiateFunction(node_type, f, x, v.second);
     }
-    return dx;
   }
 };
 
