@@ -648,11 +648,10 @@ class VarsContext final : public VarsContextInterface {
   }
 
   template <typename... ARGS>
-  size_t EmplaceExpressionNode(ARGS&&... args) {
+  size_t DoEmplace(ARGS&&... args) {
     ConfirmSelfActiveIfInDebugMode();
     if (frozen_) {
-      CURRENT_THROW(
-          VarsManagementException("Attempted to `EmplaceExpressionNode()` after the vars context is frozen."));
+      CURRENT_THROW(VarsManagementException("Attempted to `DoEmplace()` after the vars context is frozen."));
     }
     size_t const new_node_index = expression_nodes_.size();
     expression_nodes_.emplace_back(std::forward<ARGS>(args)...);

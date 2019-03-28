@@ -88,6 +88,8 @@ class value_t final {
   value_t(ExpressionNodeIndex index) : index_(index) {}
   value_t(VarNode const& var_node) : index_(IndexFromVarNodeOrThrow(var_node)) {}
 
+  static value_t lambda() { return value_t(ConstructLambdaNode()); }
+
   // No cast into `bool` for performance reasons. -- D.K.
   uint64_t IsImmediateDouble() const { return index_.IsIndexImmediateDouble(); }
 
@@ -106,8 +108,10 @@ class value_t final {
   }
   bool IsOne() const { return index_.RawCompactifiedIndexEquals(kExpressionNodeIndexForDoubleOne); }
 
-  static value_t FromNodeIndex(size_t node_index) { return ExpressionNodeIndex::FromNodeIndex(node_index); }
-  static value_t lambda() { return value_t(ConstructLambdaNode()); }
+  template <typename... ARGS>
+  static value_t Emplace(ARGS&&... args) {
+    return ExpressionNodeIndex::FromNodeIndex(VarsManager::TLS().Active().DoEmplace(std::forward<ARGS>(args)...));
+  }
 
   operator ExpressionNodeIndex() const { return index_; }
 
@@ -161,10 +165,7 @@ inline value_t operator+(value_t lhs, value_t rhs) {
   } else if (lhs.IsZero()) {
     return rhs;
   } else {
-    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
-        ExpressionNodeTypeSelector<ExpressionNodeType::Operation_add>(),
-        ExpressionNodeIndex(lhs),
-        ExpressionNodeIndex(rhs)));
+    return value_t::Emplace(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_add>(), lhs, rhs);
   }
 }
 
@@ -174,13 +175,9 @@ inline value_t operator-(value_t lhs, value_t rhs) {
   } else if (rhs.IsZero()) {
     return lhs;
   } else if (lhs.IsZero()) {
-    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
-        ExpressionNodeTypeSelector<ExpressionNodeType::Operation_sub>(), value_t(0.0), ExpressionNodeIndex(rhs)));
+    return value_t::Emplace(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_sub>(), value_t(0.0), rhs);
   } else {
-    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
-        ExpressionNodeTypeSelector<ExpressionNodeType::Operation_sub>(),
-        ExpressionNodeIndex(lhs),
-        ExpressionNodeIndex(rhs)));
+    return value_t::Emplace(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_sub>(), lhs, rhs);
   }
 }
 
@@ -194,10 +191,7 @@ inline value_t operator*(value_t lhs, value_t rhs) {
   } else if (lhs.IsOne()) {
     return rhs;
   } else {
-    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
-        ExpressionNodeTypeSelector<ExpressionNodeType::Operation_mul>(),
-        ExpressionNodeIndex(lhs),
-        ExpressionNodeIndex(rhs)));
+    return value_t::Emplace(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_mul>(), lhs, rhs);
   }
 }
 
@@ -211,10 +205,7 @@ inline value_t operator/(value_t lhs, value_t rhs) {
   } else if (rhs.IsOne()) {
     return lhs;
   } else {
-    return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(
-        ExpressionNodeTypeSelector<ExpressionNodeType::Operation_div>(),
-        ExpressionNodeIndex(lhs),
-        ExpressionNodeIndex(rhs)));
+    return value_t::Emplace(ExpressionNodeTypeSelector<ExpressionNodeType::Operation_div>(), lhs, rhs);
   }
 }
 
@@ -281,15 +272,14 @@ inline double log_sigmoid(double x) {
     return -log(1.0 + exp(-x));
   }
 }
-#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                                \
-  inline value_t fn(value_t argument) {                                                                     \
-    if (argument.IsImmediateDouble()) {                                                                     \
-      return fn(argument.GetImmediateDouble());                                                             \
-    } else {                                                                                                \
-      return value_t::FromNodeIndex(VarsManager::TLS().Active().EmplaceExpressionNode(                      \
-          ExpressionNodeTypeSelector<ExpressionNodeType::Function_##fn>(), ExpressionNodeIndex(argument))); \
-    }                                                                                                       \
-  }                                                                                                         \
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                              \
+  inline value_t fn(value_t argument) {                                                                   \
+    if (argument.IsImmediateDouble()) {                                                                   \
+      return fn(argument.GetImmediateDouble());                                                           \
+    } else {                                                                                              \
+      return value_t::Emplace(ExpressionNodeTypeSelector<ExpressionNodeType::Function_##fn>(), argument); \
+    }                                                                                                     \
+  }                                                                                                       \
   inline value_t fn(VarNode const& argument) { return fn(value_t(argument)); }
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
