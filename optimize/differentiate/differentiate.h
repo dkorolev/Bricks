@@ -98,7 +98,7 @@ class Differentiator final {
   // The stack for differentiation is manual to avoid overflowing the "native" stack during recursion.
   // NOTE(dkorolev): I'm still undecided whether balancing the expression tree, or constructing it in a balanced way,
   // might well be a better way.
-  class ManualStack {
+  class ManualStack final {
    public:
     struct Entry {
       // The manual stack stores the "indexes" of the nodes to work with, with the special bit used to tell whether

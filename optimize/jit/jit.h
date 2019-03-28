@@ -357,7 +357,6 @@ class JITCompiler final {
     while (!manual_stack.empty()) {
       ExpressionNodeIndex current_node_full_index = manual_stack.back();
       manual_stack.pop_back();
-      // size_t current_node_index;
       bool const ready_to_compute = current_node_full_index.ClearSpecialBitAndReturnWhatItWas();
 
       current_node_full_index.Dispatch(
