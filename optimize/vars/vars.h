@@ -625,8 +625,10 @@ class VarsContext final : public VarsContextInterface {
     allocated_var_is_constant_[var_internal_index] = true;
   }
 
-  double LeafDerivativeZeroOrOne(size_t var_internal_index, size_t derivative_per_finalized_var_index) const {
+  bool IsVarTheNonConstantOneBeingDifferentiatedBy(size_t var_internal_index,
+                                                   size_t derivative_per_finalized_var_index) const {
     ConfirmSelfActiveIfInDebugMode();
+#ifndef NDEBUG
     if (frozen_) {
       CURRENT_THROW(
           VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` when the vars context is frozen."));
@@ -641,10 +643,9 @@ class VarsContext final : public VarsContextInterface {
     if (dense_index_.size() != allocated_var_is_constant_.size()) {
       CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `LeafDerivativeZeroOrOne()`."));
     }
+#endif
     return (dense_index_[var_internal_index] == derivative_per_finalized_var_index &&
-            !allocated_var_is_constant_[var_internal_index])
-               ? 1.0
-               : 0.0;
+            !allocated_var_is_constant_[var_internal_index]);
   }
 
   template <typename... ARGS>
