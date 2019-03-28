@@ -338,16 +338,6 @@ inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_inde
       .Differentiate(f);
 }
 
-// Gradient computer, well, generator. "Simply" differentiates the provided function by each variable.
-inline std::vector<value_t> OldSchoolComputeGradient(value_t f) {
-  VarsContext const& vars_context = VarsManager::TLS().Active();
-  std::vector<value_t> result(vars_context.NumberOfVars());
-  for (size_t i = 0u; i < result.size(); ++i) {
-    result[i] = Differentiator<DifferentiateBySingleVarImpl>(vars_context, i).Differentiate(f);
-  }
-  return result;
-}
-
 // The single-pass gradient computer.
 inline std::vector<value_t> ComputeGradient(value_t f) {
   VarsContext const& vars_context = VarsManager::TLS().Active();
