@@ -325,7 +325,14 @@ class Build1DFunctionImpl {
             CURRENT_THROW(ExpressionNodeInternalError());
           }
         },
-        [&](size_t var_index) -> value_t { return substitute_[var_index]; },
+        [&](size_t var_index) -> value_t {
+#ifndef NDEBUG
+          if (!(var_index < substitute_.size())) {
+            TriggerSegmentationFault();
+          }
+#endif
+          return substitute_[var_index];
+        },
         [&](double) -> value_t { return f; },
         [&]() -> value_t {
           // No `lambda` support here. `DoBuild1DFunction` introduces `lambda`-s, not uses them.

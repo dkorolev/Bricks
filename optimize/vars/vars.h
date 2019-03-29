@@ -691,10 +691,20 @@ class VarsContext final : public VarsContextInterface {
   }
 
   ExpressionNodeImpl const& operator[](size_t expression_node_index) const {
+#ifndef NDEBUG
+    if (!(expression_node_index < expression_nodes_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
     return expression_nodes_[expression_node_index];
   }
 
   ExpressionNodeImpl& MutableNodeByIndex(size_t expression_node_index) {
+#ifndef NDEBUG
+    if (!(expression_node_index < expression_nodes_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
     return expression_nodes_[expression_node_index];
   }
 };
