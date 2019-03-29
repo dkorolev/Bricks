@@ -27,12 +27,16 @@ SOFTWARE.
 
 #include "../base.h"
 #include "../expression/expression.h"
+#include "../tree_balancer/tree_balancer.h"
 #include "../vars/vars.h"
 
 #include <cmath>
 
 namespace current {
 namespace expression {
+
+constexpr static const size_t kNodeHeightCutoffIndicatingUnbalancedExpression = 1000;
+struct DifferentiatorRequiresBalancedTreeException final : OptimizeException {};
 
 struct DifferentiatorForThisNodeTypeNotImplementedException final : OptimizeException {};
 
@@ -172,7 +176,13 @@ class Differentiator final {
   Differentiator(VarsContext const& vars_context, ARGS&&... args)
       : vars_context_(vars_context), impl_(vars_context, std::forward<ARGS>(args)...) {}
 
-  typename IMPL::retval_t const& Differentiate(value_t value_to_differentiate) const {
+  typename IMPL::retval_t const& DoDifferentiate(value_t value_to_differentiate) const {
+    size_t const node_height = ExpressionTreeHeight(value_to_differentiate);
+    if (node_height > kNodeHeightCutoffIndicatingUnbalancedExpression) {
+      // For most practical purposes, running `BalanceExpressionTree(cost_function)` would do the job.
+      CURRENT_THROW(DifferentiatorRequiresBalancedTreeException());
+    }
+
     ExpressionNodeIndex const index_to_differentiate = value_to_differentiate;
 
     PushToStack(index_to_differentiate, 0u);
@@ -388,14 +398,14 @@ struct DifferentiateByAllVarsTogetherImpl {
 // The per-variable differentiator.
 inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_index) {
   return Differentiator<DifferentiateBySingleVarImpl>(VarsManager::TLS().Active(), derivative_per_finalized_var_index)
-      .Differentiate(f);
+      .DoDifferentiate(f);
 }
 
 // The single-pass gradient computer.
 inline std::vector<value_t> ComputeGradient(value_t f) {
   VarsContext const& vars_context = VarsManager::TLS().Active();
   return Differentiator<DifferentiateByAllVarsTogetherImpl>(vars_context)
-      .Differentiate(f)
+      .DoDifferentiate(f)
       .FillOutput(vars_context.NumberOfVars());
 }
 
@@ -412,7 +422,7 @@ inline value_t GenerateLineSearchFunction(VarsMapperConfig const& config, value_
 
 // The caller for the differentiator by the lambda, not by a specific variable.
 inline value_t DifferentiateByLambda(value_t f) {
-  return Differentiator<DifferentiateByLambdaImpl>(VarsManager::TLS().Active()).Differentiate(f);
+  return Differentiator<DifferentiateByLambdaImpl>(VarsManager::TLS().Active()).DoDifferentiate(f);
 }
 
 }  // namespace current::expression

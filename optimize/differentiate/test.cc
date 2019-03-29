@@ -482,6 +482,31 @@ TEST(OptimizationDifferentiate, GradientComponentsAreNullified) {
   EXPECT_EQ("exp(x[3]{3})", g[3].DebugAsString());
 }
 
+TEST(OptimizationDifferentiate, NeedBalancedExpressionTree) {
+  using namespace current::expression;
+
+  VarsContext vars_context;
+
+  value_t f = 0.0;
+  for (size_t i = 0; i < 2000; ++i) {
+    x[i] = 0.0;
+    f += sqr(x[i] - i);
+  }
+
+  vars_context.ReindexVars();
+
+  // Without `BalanceExpressionTree(f)` the next line should throw. Depth of 2K+ is too much.
+  try {
+    ComputeGradient(f);
+    ASSERT_TRUE(false);
+  } catch (DifferentiatorRequiresBalancedTreeException const&) {
+  }
+
+  // With `BalanceExpressionTree(f)` it's good to go.
+  BalanceExpressionTree(f);
+  ComputeGradient(f);
+}
+
 inline void RunOptimizationDifferentiateGradientStressTest(size_t dim) {
   using namespace current::expression;
 
@@ -498,6 +523,8 @@ inline void RunOptimizationDifferentiateGradientStressTest(size_t dim) {
 
   vars_context.ReindexVars();
 
+  BalanceExpressionTree(f);
+
   ComputeGradient(f);
 }
 
@@ -505,10 +532,14 @@ TEST(OptimizationDifferentiate, GradientStressTest100Exponents) {
   RunOptimizationDifferentiateGradientStressTest(100u);
 }
 
-TEST(OptimizationDifferentiate, GradientStressTest1000Exponents) {
+TEST(OptimizationDifferentiate, GradientStressTest1KExponents) {
   RunOptimizationDifferentiateGradientStressTest(1000u);
 }
 
-TEST(OptimizationDifferentiate, GradientStressTest2500Exponents) {
-  RunOptimizationDifferentiateGradientStressTest(2500u);
+TEST(OptimizationDifferentiate, GradientStressTest3KExponents) {
+  RunOptimizationDifferentiateGradientStressTest(3000u);
+}
+
+TEST(OptimizationDifferentiate, GradientStressTest10KExponents) {
+  RunOptimizationDifferentiateGradientStressTest(10000u);
 }
