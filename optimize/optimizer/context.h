@@ -63,7 +63,6 @@ struct OptimizationContext {
   VarsMapper vars_mapper;         // The holder of the starting point, and then the point being optimized.
 
   std::vector<value_t> const g;   // The gradient.
-  std::vector<size_t> const gi;   // The RAM indexes of the gradient, to move the point along them.
   value_t const l;                // The "line" 1D function f(lambda), to optimize along the gradient.
   std::vector<value_t> const ds;  // The derivatives of the 1D "line" function; one requires, others optional.
 
@@ -76,29 +75,6 @@ struct OptimizationContext {
   JITCompiledFunctionWithArgument const compiled_l;
   std::vector<std::unique_ptr<JITCompiledFunctionWithArgument>> const compiled_ds;
   std::vector<JITCompiledFunctionWithArgument const*> const compiled_ds_pointers;
-
-  static std::vector<size_t> ComputeGI(std::vector<value_t> const& g) {
-    std::vector<size_t> result(g.size());
-    for (size_t i = 0; i < g.size(); ++i) {
-      result[i] = ExpressionNodeIndex(g[i]).template CheckedDispatch<size_t>(
-          [](size_t node_index) { return static_cast<size_t>(node_index); },
-          [](size_t) {
-            // TODO(dkorolev): Add a test where the component of a gradient would just be a var.
-            // The test should also move the point by it.
-            CURRENT_THROW(OptimizeException("FIXME: internal error, gradient component is not a node."));
-            return static_cast<size_t>(-1);
-          },
-          [](double) {
-            CURRENT_THROW(OptimizeException("A double value appeared where it should not. Pls let @dkorolev know."));
-            return static_cast<size_t>(-1);
-          },
-          []() {
-            CURRENT_THROW(OptimizeException("A lambda has appeared where it's not expected. Pls let @dkorolev know."));
-            return static_cast<size_t>(-1);
-          });
-    }
-    return result;
-  }
 
   static std::vector<value_t> ComputeDS(value_t l) {
     // TODO(dkorolev): The number of the derivatives to take should be a parameter.
@@ -140,7 +116,6 @@ struct OptimizationContext {
         config(vars_context.ReindexVars()),
         vars_mapper(config),
         g(ComputeGradient(f)),
-        gi(ComputeGI(g)),
         l(GenerateLineSearchFunction(config, f, g)),
         ds(ComputeDS(l)),
         jit_call_context(),
@@ -158,7 +133,7 @@ struct OptimizationContext {
   double ComputeCurrentObjectiveFunctionValue() const { return compiled_f(jit_call_context, vars_mapper); }
 
   void MovePointAlongGradient(double gradient_k) {
-    vars_mapper.MovePoint(jit_call_context.ConstRAMPointer(), gi, gradient_k);
+    vars_mapper.MovePoint(jit_call_context.ConstRAMPointer(), g, gradient_k);
   }
 
   operator LineSearchContext() const {

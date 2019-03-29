@@ -79,6 +79,7 @@ struct VarsMapperWrongVarException final : VarsMapperException {};
 struct VarsMapperNodeNotVarException final : VarsMapperException {};
 struct VarsMapperVarIsConstant final : VarsMapperException {};
 struct VarsMapperMovePointDimensionsMismatchException final : VarsMapperException {};
+struct VarsMapperMovePointUnexpectedLambda final : VarsMapperException {};
 
 namespace json {
 // Short names to save on space in these JSONs.
@@ -225,13 +226,22 @@ class VarsMapper final {
   AccessorNode operator[](size_t i) const { return root_[i]; }
   AccessorNode operator[](std::string const& s) const { return root_[s]; }
 
-  void MovePoint(double const* ram, std::vector<size_t> const& direction_indexes, double step_size) {
+  // This method is `template`-d to accept both `std::vector<ExpressionNodeIndex>` and `std::vector<value_t>`.
+  // The latter type, `value_t`, is not introduced when building `vars.h`.
+  template <typename T>
+  void MovePoint(double const* ram, T const& direction_indexes, double step_size) {
     if (direction_indexes.size() != value_.size()) {
       CURRENT_THROW(VarsMapperMovePointDimensionsMismatchException());
     }
+    std::vector<double> new_value(value_);
     for (size_t i = 0; i < direction_indexes.size(); ++i) {
-      value_[i] += ram[direction_indexes[i]] * step_size;
+      ExpressionNodeIndex(direction_indexes[i])
+          .CheckedDispatch([&](size_t node_index) { new_value[i] += ram[node_index] * step_size; },
+                           [&](size_t var_index) { new_value[i] += value_[var_index] * step_size; },
+                           [&](double x) { new_value[i] += x * step_size; },
+                           []() { CURRENT_THROW(VarsMapperMovePointUnexpectedLambda()); });
     }
+    value_ = std::move(new_value);
   }
 };
 
