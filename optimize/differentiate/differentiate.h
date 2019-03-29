@@ -299,73 +299,120 @@ struct DifferentiateByLambdaImpl {
   }
 };
 
-// The somewhat compactly represented and fast to iterate gradient of a node.
-struct GradientPiece {
-  std::vector<ExpressionNodeIndex> elements;
-  std::vector<bool> nonzero_indexes_bitset;
-  std::vector<size_t> nonzero_indexes_list;
-
-  GradientPiece()
-      : elements(VarsManager::TLS().Active().NumberOfVars()),
-        nonzero_indexes_bitset(VarsManager::TLS().Active().NumberOfVars()) {}
-
-  void Clear() {
-    std::vector<bool>(VarsManager::TLS().Active().NumberOfVars()).swap(nonzero_indexes_bitset);
-    nonzero_indexes_list.clear();
-  }
-
-  void SetOne(size_t i) {
-#ifdef NDEBUG
-    if (nonzero_indexes_bitset[i]) {
-      CURRENT_THROW(OptimizeException("Internal error."));
-    }
+struct DifferentiateByAllVarsTogetherImpl {
+  // The somewhat compactly represented and fast to iterate gradient of a node.
+  class GradientPiece {
+   private:
+#ifndef NDEBUG
+    size_t m_;  // The number of components.
 #endif
-    nonzero_indexes_bitset[i] = true;
-    nonzero_indexes_list.push_back(i);
-    elements[i] = ExpressionNodeIndex::DoubleOne();
-  }
+    size_t current_epoch_ = 0u;  // The current epoch index, to save on `memset`-s when clearing.
+    std::vector<ExpressionNodeIndex> components_;
+    std::vector<uint64_t> nonzero_index_epoch_version_;
+    std::vector<uint32_t> nonzero_indexes_list_;
+    size_t nonzero_indexes_count_ = 0;
 
-  void ApplyOperation(ExpressionNodeType node_type, value_t a, value_t b, GradientPiece const& db) {
-    for (size_t const i : nonzero_indexes_list) {
-      if (db.nonzero_indexes_bitset[i]) {
-        elements[i] = DifferentiateOperation(node_type, a, b, elements[i], db.elements[i]);
-      } else {
-        elements[i] = DifferentiateOperation(node_type, a, b, elements[i], 0.0);
-      }
+    std::vector<uint32_t> removal_candidates_;  // A pre-allocated array to nullify gradient components that became 0.
+
+   public:
+    GradientPiece()
+#ifndef NDEBUG
+        : m_(VarsManager::TLS().Active().NumberOfVars()),
+          components_(VarsManager::TLS().Active().NumberOfVars()),
+#else
+        : components_(VarsManager::TLS().Active().NumberOfVars()),
+#endif
+          nonzero_index_epoch_version_(VarsManager::TLS().Active().NumberOfVars()),
+          nonzero_indexes_list_(VarsManager::TLS().Active().NumberOfVars()),
+          removal_candidates_(VarsManager::TLS().Active().NumberOfVars()) {
     }
-    for (size_t const j : db.nonzero_indexes_list) {
-      if (!nonzero_indexes_bitset[j]) {
-        elements[j] = DifferentiateOperation(node_type, a, b, 0.0, db.elements[j]);
-        if (!elements[j].IsIndexDoubleZero()) {
-          nonzero_indexes_bitset[j] = true;
-          nonzero_indexes_list.push_back(j);
+
+    void Clear() {
+      ++current_epoch_;
+      nonzero_indexes_count_ = 0u;
+    }
+
+    bool Has(size_t i) const { return nonzero_index_epoch_version_[i] == current_epoch_; }
+
+    void SetOne(size_t i) {
+#ifndef NDEBUG
+      if (Has(i)) {
+        CURRENT_THROW(OptimizeException("Internal error."));
+      }
+      if (nonzero_indexes_count_ >= m_) {
+        CURRENT_THROW(OptimizeException("Internal error."));
+      }
+#endif
+      components_[i] = ExpressionNodeIndex::DoubleOne();
+      nonzero_index_epoch_version_[i] = current_epoch_;
+      nonzero_indexes_list_[nonzero_indexes_count_++] = i;
+    }
+
+    void ApplyOperation(ExpressionNodeType node_type, value_t a, value_t b, GradientPiece const& rhs) {
+      size_t removal_candidates_count = 0u;
+      for (size_t lhs_index = 0u; lhs_index < nonzero_indexes_count_; ++lhs_index) {
+        uint32_t const i = nonzero_indexes_list_[lhs_index];
+        if (rhs.Has(i)) {
+          components_[i] = DifferentiateOperation(node_type, a, b, components_[i], rhs.components_[i]);
+        } else {
+          components_[i] = DifferentiateOperation(node_type, a, b, components_[i], 0.0);
+        }
+        if (components_[i].IsIndexDoubleZero()) {
+          removal_candidates_[removal_candidates_count++] = lhs_index;
         }
       }
-    }
-  }
-
-  void ApplyFunction(ExpressionNodeType node_type, value_t f, value_t x) {
-    for (size_t const i : nonzero_indexes_list) {
-      elements[i] = DifferentiateFunction(node_type, f, x, elements[i]);
-    }
-  }
-
-  std::vector<value_t> FillOutput(size_t dim) const {
+      for (size_t rhs_index = 0u; rhs_index < rhs.nonzero_indexes_count_; ++rhs_index) {
+        uint32_t const j = rhs.nonzero_indexes_list_[rhs_index];
+        if (!Has(j)) {
+          components_[j] = DifferentiateOperation(node_type, a, b, 0.0, rhs.components_[j]);
+          if (!components_[j].IsIndexDoubleZero()) {
 #ifndef NDEBUG
-    if (dim != nonzero_indexes_bitset.size()) {
-      CURRENT_THROW(OptimizeException("Internal error."));
-    }
+            if (nonzero_indexes_count_ >= m_) {
+              CURRENT_THROW(OptimizeException("Internal error."));
+            }
 #endif
-    std::vector<value_t> result(dim);
-    for (size_t i = 0u; i < dim; ++i) {
-      result[i] = nonzero_indexes_bitset[i] ? value_t(elements[i]) : 0.0;
+            nonzero_index_epoch_version_[j] = current_epoch_;
+            nonzero_indexes_list_[nonzero_indexes_count_++] = j;
+          }
+        }
+      }
+      for (size_t index = 0; index < removal_candidates_count; ++index) {
+        uint32_t const i = removal_candidates_[index];
+        nonzero_index_epoch_version_[nonzero_indexes_list_[i]] = current_epoch_ - 1u;
+        nonzero_indexes_list_[i] = nonzero_indexes_list_[--nonzero_indexes_count_];
+      }
     }
-    return result;
-  }
-};
 
-// TODO(dkorolev): Okay, it's really important to get rid of all those extra copies.
-struct DifferentiateByAllVarsTogetherImpl {
+    void ApplyFunction(ExpressionNodeType node_type, value_t f, value_t x) {
+      size_t removal_candidates_count = 0u;
+      for (size_t index = 0u; index < nonzero_indexes_count_; ++index) {
+        uint32_t const i = nonzero_indexes_list_[index];
+        components_[i] = DifferentiateFunction(node_type, f, x, components_[i]);
+        if (components_[i].IsIndexDoubleZero()) {
+          removal_candidates_[removal_candidates_count++] = index;
+        }
+      }
+      for (size_t index = 0; index < removal_candidates_count; ++index) {
+        uint32_t const i = removal_candidates_[index];
+        nonzero_index_epoch_version_[nonzero_indexes_list_[i]] = current_epoch_ - 1u;
+        nonzero_indexes_list_[i] = nonzero_indexes_list_[--nonzero_indexes_count_];
+      }
+    }
+
+    std::vector<value_t> FillOutput(size_t dim) const {
+#ifndef NDEBUG
+      if (dim != nonzero_indexes_bitset.size()) {
+        CURRENT_THROW(OptimizeException("Internal error."));
+      }
+#endif
+      std::vector<value_t> result(dim);
+      for (size_t i = 0u; i < dim; ++i) {
+        result[i] = Has(i) ? value_t(components_[i]) : 0.0;
+      }
+      return result;
+    }
+  };
+
   VarsContext const& vars_context_;
 
   DifferentiateByAllVarsTogetherImpl(VarsContext const& vars_context) : vars_context_(vars_context) {}
@@ -385,16 +432,20 @@ struct DifferentiateByAllVarsTogetherImpl {
     CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
   }
 
-  void DoReturnDifferentiatedOperation(
-      ExpressionNodeType node_type, value_t a, value_t b, GradientPiece& da, GradientPiece& db, GradientPiece& placeholder) const {
-    // TODO(dkorolev): Obviously, `std::swap()` is not the best solution in the world. But it lets me move forward.
+  void DoReturnDifferentiatedOperation(ExpressionNodeType node_type,
+                                       value_t a,
+                                       value_t b,
+                                       GradientPiece& da,
+                                       GradientPiece& db,
+                                       GradientPiece& placeholder) const {
+    // TODO(dkorolev): This `std::swap()` is already fast, but perhaps we can do better?
     std::swap(placeholder, da);
     placeholder.ApplyOperation(node_type, a, b, db);
   }
 
   void DoReturnDifferentiatedFunction(
       ExpressionNodeType node_type, value_t f, value_t x, GradientPiece& dx, GradientPiece& placeholder) const {
-    // TODO(dkorolev): Obviously, `std::swap()` is not the best solution in the world. But it lets me move forward.
+    // TODO(dkorolev): This `std::swap()` is already fast, but perhaps we can do better?
     std::swap(placeholder, dx);
     placeholder.ApplyFunction(node_type, f, x);
   }
@@ -415,7 +466,7 @@ inline std::vector<value_t> ComputeGradient(value_t f) {
   VarsContext const& vars_context = VarsManager::TLS().Active();
   std::vector<value_t> result;
   Differentiator<DifferentiateByAllVarsTogetherImpl>::DoDifferentiate(
-      vars_context, f, [&result, &vars_context](GradientPiece const& retval) {
+      vars_context, f, [&result, &vars_context](DifferentiateByAllVarsTogetherImpl::GradientPiece const& retval) {
         result = retval.FillOutput(vars_context.NumberOfVars());
       });
   return result;
