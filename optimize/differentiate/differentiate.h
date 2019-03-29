@@ -113,9 +113,10 @@ class Differentiator final {
       // The results of the execution of the "recursive" calls down the stack. For `lhs` and `rhs` respectively.
       typename IMPL::retval_t return_value[2];
 
-      // Stack element index to return the value. It is multiplied by two, and the LSB is the LHS/RHS bit.
-      size_t return_value_index_times2;
+      // Stack index to return the value. stack[i].return_value[0], if the MSB is 0, stack[~i].return_value[1], if 1.
+      size_t return_value_index;
     };
+    // TODO(dkorolev): This `static_assert` is obsolete, but the logic must be preserved.
     // static_assert(sizeof(Entry) == 32, "`Entry` should be 32 bytes.");
 
    private:
@@ -143,18 +144,20 @@ class Differentiator final {
 
     bool NotEmpty() const { return actual_size_ > 1u; }
 
-    size_t DoPush(ExpressionNodeIndex index, size_t return_value_index_times2) {
+    size_t DoPush(ExpressionNodeIndex index, size_t return_value_index) {
       GrowIfNecessary();
       call_stack_[actual_size_].index_with_special_bit = index;
-      call_stack_[actual_size_].return_value_index_times2 = return_value_index_times2;
+      call_stack_[actual_size_].return_value_index = return_value_index;
       return actual_size_++;
     }
     size_t CurrentStackIndex() const { return actual_size_ - 1u; }
     Entry& MutableTop() { return call_stack_[actual_size_ - 1u]; }
     void DoPop() { --actual_size_; }
 
-    typename IMPL::retval_t& Ref(size_t return_value_index_times2) {
-      return call_stack_[return_value_index_times2 >> 1].return_value[return_value_index_times2 & 1];
+    typename IMPL::retval_t& Ref(size_t return_value_index_lhs) {
+      size_t const return_value_index_rhs = ~return_value_index_lhs;
+      return return_value_index_lhs < return_value_index_rhs ? call_stack_[return_value_index_lhs].return_value[0]
+                                                             : call_stack_[return_value_index_rhs].return_value[1];
     }
 
     typename IMPL::retval_t const& ExtractReturnValue() const { return call_stack_[0].return_value[0]; }
@@ -164,12 +167,11 @@ class Differentiator final {
   IMPL const impl_;
   mutable ManualStack stack_;
 
-  void PushToStack(ExpressionNodeIndex index, size_t return_value_index_times2) const {
-    index.Dispatch(
-        [&](size_t) { stack_.DoPush(index, return_value_index_times2); },
-        [&](size_t var_index) { impl_.DoReturnDerivativeOfVar(var_index, stack_.Ref(return_value_index_times2)); },
-        [&](double) { impl_.DoAssignZero(stack_.Ref(return_value_index_times2)); },
-        [&]() { impl_.DoReturnDerivativeOfLambda(stack_.Ref(return_value_index_times2)); });
+  void PushToStack(ExpressionNodeIndex index, size_t return_value_index) const {
+    index.Dispatch([&](size_t) { stack_.DoPush(index, return_value_index); },
+                   [&](size_t var_index) { impl_.DoReturnDerivativeOfVar(var_index, stack_.Ref(return_value_index)); },
+                   [&](double) { impl_.DoAssignZero(stack_.Ref(return_value_index)); },
+                   [&]() { impl_.DoReturnDerivativeOfLambda(stack_.Ref(return_value_index)); });
   }
 
  public:
@@ -212,9 +214,9 @@ class Differentiator final {
           // Going down. Need to differentiate the dependencies of this node first. Use special bits. Flip LHS ad RHS.
           element.index_with_special_bit.SetSpecialTwoBitsValue(phase + 1);
           if (phase == 0) {
-            PushToStack(b, current_stack_index * 2u + 1u);
+            PushToStack(b, ~current_stack_index);  // Two's complement to return the value into `return_value[1]`.
           } else {
-            PushToStack(a, current_stack_index * 2u);
+            PushToStack(a, current_stack_index);
           }
         } else {
           // Going up, the { lhs, rhs } are already differentiated.
@@ -223,7 +225,7 @@ class Differentiator final {
                                                 b,
                                                 element.return_value[0],
                                                 element.return_value[1],
-                                                stack_.Ref(element.return_value_index_times2));
+                                                stack_.Ref(element.return_value_index));
           stack_.DoPop();
         }
       } else if (IsFunctionNode(node_type)) {
@@ -231,14 +233,14 @@ class Differentiator final {
         if (phase == 0) {
           // Going down. Need to differentiate the argument of this call first. Use the lowest special bit.
           element.index_with_special_bit.SetSpecialTwoBitsValue(1);
-          PushToStack(x, current_stack_index * 2u);
+          PushToStack(x, current_stack_index);
         } else {
           // Going up, the argument is already differentiated.
           impl_.DoReturnDifferentiatedFunction(node_type,
                                                value_t(element.index_with_special_bit),
                                                value_t(x),
                                                element.return_value[0],
-                                               stack_.Ref(element.return_value_index_times2));
+                                               stack_.Ref(element.return_value_index));
           stack_.DoPop();
         }
       } else {
