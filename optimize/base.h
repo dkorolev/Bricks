@@ -53,7 +53,9 @@ static_assert(kFirstIllegalNodeOrVarIndex - 1ull == 0x3fffffffffffffull,
 
 // The "special" bit is the MSB.
 // It is used for manual stack in the "recursive" calls to differentiate the node or to JIT-compile it.
-constexpr static uint64_t kBitSpecial = (1ull << 63);
+constexpr static uint64_t kBitSpecial1 = (1ull << 63);
+constexpr static uint64_t kBitSpecial2 = (1ull << 62);
+constexpr static uint64_t kBitSpecial1OrSpecial2 = kBitSpecial1 | kBitSpecial2;
 
 // The "this is actually a double value" bit is the 3rd most significant bit, `(1ull << 61)`.
 // TL;DR: `2^63` double values, which are the vast, vast majority of what is ever used in ML,
@@ -149,15 +151,19 @@ class ExpressionNodeIndex {
 
   bool RawCompactifiedIndexEquals(uint64_t value) const { return compactified_index_ == value; }
 
-  void SetSpecialBit() { compactified_index_ |= kBitSpecial; }
-  uint64_t GetSpecialBit() const { return compactified_index_ & kBitSpecial; }  // No cast for performance reasons.
-  bool ClearSpecialBitAndReturnWhatItWas() {
-    if (compactified_index_ & kBitSpecial) {
-      compactified_index_ ^= kBitSpecial;
-      return true;
-    } else {
-      return false;
+  void SetSpecialTwoBitsValue(uint64_t v) {
+#ifndef DENBUG
+    if (!(v < 4)) {
+      CURRENT_THROW(OptimizeException("Internal error."));
     }
+#endif
+    compactified_index_ |= (v << 62);
+  }
+  uint64_t GetSpecialTwoBitsValue() const { return compactified_index_ >> 62; }
+  uint64_t ClearSpecialTwoBitsAndReturnWhatTheyWere() {
+    uint64_t const result = compactified_index_ >> 62;
+    compactified_index_ &= ((1ull << 62) - 1);
+    return result;
   }
 
   // No cast into `bool` for performance reasons. -- D.K.
@@ -190,7 +196,7 @@ class ExpressionNodeIndex {
       if (compactified_index_ == kCompactifiedIndexValueUninitialized) {
         CURRENT_THROW(OptimizeException("Internal error."));
       }
-      if (compactified_index_ & kBitSpecial) {
+      if (compactified_index_ & kBitSpecial1OrSpecial2) {
         CURRENT_THROW(OptimizeException("Internal error."));
       }
 #endif

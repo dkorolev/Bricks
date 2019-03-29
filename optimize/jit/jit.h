@@ -336,7 +336,7 @@ class JITCompiler final {
           [&](size_t node_index) {
             if (!node_computed_[node_index]) {
               if (ready_to_compute_flag) {
-                index.SetSpecialBit();
+                index.SetSpecialTwoBitsValue(1);
               }
               manual_stack.push_back(index);
             }
@@ -357,7 +357,7 @@ class JITCompiler final {
     while (!manual_stack.empty()) {
       ExpressionNodeIndex current_node_full_index = manual_stack.back();
       manual_stack.pop_back();
-      bool const ready_to_compute = current_node_full_index.ClearSpecialBitAndReturnWhatItWas();
+      bool const ready_to_compute = current_node_full_index.ClearSpecialTwoBitsAndReturnWhatTheyWere();
 
       current_node_full_index.Dispatch(
           [&](size_t current_node_index) {

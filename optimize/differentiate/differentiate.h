@@ -191,7 +191,7 @@ class Differentiator final {
       typename ManualStack::Entry const& element = stack_.DoPop();
 
       ExpressionNodeIndex index = element.index_with_special_bit;
-      bool const ready_to_differentiate = index.ClearSpecialBitAndReturnWhatItWas();
+      uint64_t const phase = index.ClearSpecialTwoBitsAndReturnWhatTheyWere();
 
       // The node is `short-lived`, as the const reference to it can and will be invalidated as more nodes are added
       // to the tree. Thus, all the relevant pieces of data must be extracted from this node before adding the new ones.
@@ -206,13 +206,17 @@ class Differentiator final {
       if (IsOperationNode(node_type)) {
         value_t const a = short_lived_node.LHSIndex();
         value_t const b = short_lived_node.RHSIndex();
-        if (!ready_to_differentiate) {
+        if (phase < 2) {
           // Going down. Need to differentiate the dependencies of this node first. Use the special bit. Push this node
           // before its arguments for it to be evaluated after. Then push { rhs, lhs }, so their order is { lhs, rhs }.
-          index.SetSpecialBit();
+          // NOTE(dkorolev): DO NOT POP FROM THE STACK JUST YET!
+          index.SetSpecialTwoBitsValue(phase + 1);
           size_t const dfs_call_return_value_index = stack_.DoPush(index, element.return_value_index_times2);
-          PushToStack(b, dfs_call_return_value_index * 2u + 1u);
-          PushToStack(a, dfs_call_return_value_index * 2u);
+          if (phase == 0) {
+            PushToStack(b, dfs_call_return_value_index * 2u + 1u);
+          } else {
+            PushToStack(a, dfs_call_return_value_index * 2u);
+          }
         } else {
           // Going up, the { lhs, rhs } are already differentiated.
           impl_.DoReturnDifferentiatedOperation(node_type,
@@ -224,9 +228,9 @@ class Differentiator final {
         }
       } else if (IsFunctionNode(node_type)) {
         ExpressionNodeIndex const x = short_lived_node.ArgumentIndex();
-        if (!ready_to_differentiate) {
+        if (phase == 0) {
           // Going down. Need to differentiate the argument of this call first. Use the special bit.
-          index.SetSpecialBit();
+          index.SetSpecialTwoBitsValue(1);
           size_t const dfs_call_return_value_index = stack_.DoPush(index, element.return_value_index_times2);
           PushToStack(x, dfs_call_return_value_index * 2u);
         } else {
