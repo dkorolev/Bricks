@@ -105,7 +105,7 @@ class Differentiator final {
   class ManualStack final {
    public:
     struct Entry {
-      // The manual stack stores the "indexes" of the nodes to work with, with the special bit used to tell whether
+      // The manual stack stores the "indexes" of the nodes to work with, with the special bits used to tell whether
       // during the "recursive" call the node being considered does already or does not yet have its dependencies ready.
       // Effectively, it's the flag to tell whether the "recursive" call is seeing this node on the way "down" or "up".
       ExpressionNodeIndex index_with_special_bit;
@@ -149,8 +149,9 @@ class Differentiator final {
       call_stack_[actual_size_].return_value_index_times2 = return_value_index_times2;
       return actual_size_++;
     }
-
-    Entry const& DoPop() { return call_stack_[--actual_size_]; }
+    size_t CurrentStackIndex() const { return actual_size_ - 1u; }
+    Entry& MutableTop() { return call_stack_[actual_size_ - 1u]; }
+    void DoPop() { --actual_size_; }
 
     typename IMPL::retval_t& Ref(size_t return_value_index_times2) {
       return call_stack_[return_value_index_times2 >> 1].return_value[return_value_index_times2 & 1];
@@ -188,34 +189,32 @@ class Differentiator final {
     PushToStack(index_to_differentiate, 0u);
 
     while (stack_.NotEmpty()) {
-      typename ManualStack::Entry const& element = stack_.DoPop();
+      size_t const current_stack_index = stack_.CurrentStackIndex();
+      typename ManualStack::Entry& element = stack_.MutableTop();
 
-      ExpressionNodeIndex index = element.index_with_special_bit;
-      uint64_t const phase = index.ClearSpecialTwoBitsAndReturnWhatTheyWere();
+      uint64_t const phase = element.index_with_special_bit.ClearSpecialTwoBitsAndReturnWhatTheyWere();
 
       // The node is `short-lived`, as the const reference to it can and will be invalidated as more nodes are added
       // to the tree. Thus, all the relevant pieces of data must be extracted from this node before adding the new ones.
       // TODO(dkorolev): In `NDEBUG` mode this would just be an unchecked node index extraction.
-      ExpressionNodeImpl const& short_lived_node = index.template Dispatch<ExpressionNodeImpl const&>(
-          [this](size_t node_index) -> ExpressionNodeImpl const& { return vars_context_[node_index]; },
-          [](size_t) -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); },
-          [](double) -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); },
-          []() -> ExpressionNodeImpl const& { CURRENT_THROW(OptimizeException("Internal error.")); });
+      size_t const node_index = element.index_with_special_bit.template Dispatch<size_t>(
+          [](size_t node_index) -> size_t { return node_index; },
+          [](size_t) -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); },
+          [](double) -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); },
+          []() -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); });
+      ExpressionNodeImpl const& short_lived_node = vars_context_[node_index];
       ExpressionNodeType const node_type = short_lived_node.Type();
 
       if (IsOperationNode(node_type)) {
         value_t const a = short_lived_node.LHSIndex();
         value_t const b = short_lived_node.RHSIndex();
         if (phase < 2) {
-          // Going down. Need to differentiate the dependencies of this node first. Use the special bit. Push this node
-          // before its arguments for it to be evaluated after. Then push { rhs, lhs }, so their order is { lhs, rhs }.
-          // NOTE(dkorolev): DO NOT POP FROM THE STACK JUST YET!
-          index.SetSpecialTwoBitsValue(phase + 1);
-          size_t const dfs_call_return_value_index = stack_.DoPush(index, element.return_value_index_times2);
+          // Going down. Need to differentiate the dependencies of this node first. Use special bits. Flip LHS ad RHS.
+          element.index_with_special_bit.SetSpecialTwoBitsValue(phase + 1);
           if (phase == 0) {
-            PushToStack(b, dfs_call_return_value_index * 2u + 1u);
+            PushToStack(b, current_stack_index * 2u + 1u);
           } else {
-            PushToStack(a, dfs_call_return_value_index * 2u);
+            PushToStack(a, current_stack_index * 2u);
           }
         } else {
           // Going up, the { lhs, rhs } are already differentiated.
@@ -225,21 +224,22 @@ class Differentiator final {
                                                 element.return_value[0],
                                                 element.return_value[1],
                                                 stack_.Ref(element.return_value_index_times2));
+          stack_.DoPop();
         }
       } else if (IsFunctionNode(node_type)) {
         ExpressionNodeIndex const x = short_lived_node.ArgumentIndex();
         if (phase == 0) {
-          // Going down. Need to differentiate the argument of this call first. Use the special bit.
-          index.SetSpecialTwoBitsValue(1);
-          size_t const dfs_call_return_value_index = stack_.DoPush(index, element.return_value_index_times2);
-          PushToStack(x, dfs_call_return_value_index * 2u);
+          // Going down. Need to differentiate the argument of this call first. Use the lowest special bit.
+          element.index_with_special_bit.SetSpecialTwoBitsValue(1);
+          PushToStack(x, current_stack_index * 2u);
         } else {
           // Going up, the argument is already differentiated.
           impl_.DoReturnDifferentiatedFunction(node_type,
-                                               value_t(index),
+                                               value_t(element.index_with_special_bit),
                                                value_t(x),
                                                element.return_value[0],
                                                stack_.Ref(element.return_value_index_times2));
+          stack_.DoPop();
         }
       } else {
         CURRENT_THROW(DifferentiatorForThisNodeTypeNotImplementedException());
