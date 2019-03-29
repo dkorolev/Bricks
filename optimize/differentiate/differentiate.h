@@ -35,7 +35,8 @@ SOFTWARE.
 namespace current {
 namespace expression {
 
-constexpr static const size_t kNodeHeightCutoffIndicatingUnbalancedExpression = 1000;
+// For large expressions, `BalanceExpressionTree()` still does miracles, and 200 is way above any reasonable number.
+constexpr static const size_t kNodeHeightCutoffIndicatingUnbalancedExpression = 200;
 struct DifferentiatorRequiresBalancedTreeException final : OptimizeException {};
 
 struct DifferentiatorForThisNodeTypeNotImplementedException final : OptimizeException {};
@@ -123,16 +124,11 @@ class Differentiator final {
     std::vector<Entry> call_stack_;
 
     size_t actual_size_;
-    size_t allocated_size_;
+    size_t const allocated_size_;
 
     void GrowIfNecessary() {
       if (actual_size_ == allocated_size_) {
-        allocated_size_ = std::max(static_cast<size_t>(256u), allocated_size_ * 2u);
-        size_t const nodes_count = VarsManager::TLS().Active().NumberOfNodes();
-        if (nodes_count > allocated_size_) {
-          allocated_size_ = allocated_size_ + (nodes_count - allocated_size_) / 4u;
-        }
-        call_stack_.resize(allocated_size_);
+        CURRENT_THROW(OptimizeException("Internal error."));
       }
     }
 
@@ -140,7 +136,8 @@ class Differentiator final {
     // The default size of the stack is one, and it never gets to zero.
     // This is to not make an exception for the generic case of the "ultimate return value". This ultimate return value
     // of the derivative will just be placed into `call_stack_[0].return_value[0]`, where it is up for grabs.
-    ManualStack() : call_stack_(1u), actual_size_(1u), allocated_size_(1u) {}
+    explicit ManualStack(size_t max_depth)
+        : call_stack_(max_depth + 1), actual_size_(1u), allocated_size_(max_depth + 1) {}
 
     bool NotEmpty() const { return actual_size_ > 1u; }
 
@@ -154,45 +151,47 @@ class Differentiator final {
     Entry& MutableTop() { return call_stack_[actual_size_ - 1u]; }
     void DoPop() { --actual_size_; }
 
-    typename IMPL::retval_t& Ref(size_t return_value_index_lhs) {
+    typename IMPL::retval_t& RetvalPlaceholder(size_t return_value_index_lhs) {
       size_t const return_value_index_rhs = ~return_value_index_lhs;
       return return_value_index_lhs < return_value_index_rhs ? call_stack_[return_value_index_lhs].return_value[0]
                                                              : call_stack_[return_value_index_rhs].return_value[1];
     }
 
-    typename IMPL::retval_t const& ExtractReturnValue() const { return call_stack_[0].return_value[0]; }
+    template <typename F>
+    void CollectReturnValue(F&& f) const {
+      f(call_stack_[0].return_value[0]);
+    }
   };
 
-  VarsContext const& vars_context_;
-  IMPL const impl_;
-  mutable ManualStack stack_;
-
-  void PushToStack(ExpressionNodeIndex index, size_t return_value_index) const {
-    index.Dispatch([&](size_t) { stack_.DoPush(index, return_value_index); },
-                   [&](size_t var_index) { impl_.DoReturnDerivativeOfVar(var_index, stack_.Ref(return_value_index)); },
-                   [&](double) { impl_.DoAssignZero(stack_.Ref(return_value_index)); },
-                   [&]() { impl_.DoReturnDerivativeOfLambda(stack_.Ref(return_value_index)); });
-  }
-
  public:
-  template <typename... ARGS>
-  Differentiator(VarsContext const& vars_context, ARGS&&... args)
-      : vars_context_(vars_context), impl_(vars_context, std::forward<ARGS>(args)...) {}
-
-  typename IMPL::retval_t const& DoDifferentiate(value_t value_to_differentiate) const {
-    size_t const node_height = ExpressionTreeHeight(value_to_differentiate);
-    if (node_height > kNodeHeightCutoffIndicatingUnbalancedExpression) {
+  template <typename F, typename... ARGS>
+  static void DoDifferentiate(VarsContext const& vars_context, value_t value_to_differentiate, F&& f, ARGS&&... args) {
+    size_t const max_stack_depth = ExpressionTreeHeight(value_to_differentiate);
+    if (max_stack_depth > kNodeHeightCutoffIndicatingUnbalancedExpression) {
       // For most practical purposes, running `BalanceExpressionTree(cost_function)` would do the job.
       CURRENT_THROW(DifferentiatorRequiresBalancedTreeException());
     }
 
-    ExpressionNodeIndex const index_to_differentiate = value_to_differentiate;
+    IMPL const impl(vars_context, std::forward<ARGS>(args)...);
 
-    PushToStack(index_to_differentiate, 0u);
+    ManualStack stack(max_stack_depth);
 
-    while (stack_.NotEmpty()) {
-      size_t const current_stack_index = stack_.CurrentStackIndex();
-      typename ManualStack::Entry& element = stack_.MutableTop();
+    std::function<void(ExpressionNodeIndex, size_t)> const PushToStack = [&stack, &impl](ExpressionNodeIndex index,
+                                                                                         size_t return_value_index) {
+      index.Dispatch([&](size_t) { stack.DoPush(index, return_value_index); },
+                     [&](size_t var_index) {
+                       impl.DoReturnDerivativeOfVar(var_index, stack.RetvalPlaceholder(return_value_index));
+                     },
+                     [&](double) { impl.DoAssignZero(stack.RetvalPlaceholder(return_value_index)); },
+                     [&]() { impl.DoReturnDerivativeOfLambda(stack.RetvalPlaceholder(return_value_index)); });
+    };
+
+    PushToStack(value_to_differentiate, 0u);
+
+    while (stack.NotEmpty()) {
+      size_t const current_stack_index = stack.CurrentStackIndex();
+
+      typename ManualStack::Entry& element = stack.MutableTop();
 
       uint64_t const phase = element.index_with_special_bit.ClearSpecialTwoBitsAndReturnWhatTheyWere();
 
@@ -204,7 +203,7 @@ class Differentiator final {
           [](size_t) -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); },
           [](double) -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); },
           []() -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); });
-      ExpressionNodeImpl const& short_lived_node = vars_context_[node_index];
+      ExpressionNodeImpl const& short_lived_node = vars_context[node_index];
       ExpressionNodeType const node_type = short_lived_node.Type();
 
       if (IsOperationNode(node_type)) {
@@ -220,13 +219,13 @@ class Differentiator final {
           }
         } else {
           // Going up, the { lhs, rhs } are already differentiated.
-          impl_.DoReturnDifferentiatedOperation(node_type,
-                                                a,
-                                                b,
-                                                element.return_value[0],
-                                                element.return_value[1],
-                                                stack_.Ref(element.return_value_index));
-          stack_.DoPop();
+          impl.DoReturnDifferentiatedOperation(node_type,
+                                               a,
+                                               b,
+                                               element.return_value[0],
+                                               element.return_value[1],
+                                               stack.RetvalPlaceholder(element.return_value_index));
+          stack.DoPop();
         }
       } else if (IsFunctionNode(node_type)) {
         ExpressionNodeIndex const x = short_lived_node.ArgumentIndex();
@@ -236,18 +235,18 @@ class Differentiator final {
           PushToStack(x, current_stack_index);
         } else {
           // Going up, the argument is already differentiated.
-          impl_.DoReturnDifferentiatedFunction(node_type,
-                                               value_t(element.index_with_special_bit),
-                                               value_t(x),
-                                               element.return_value[0],
-                                               stack_.Ref(element.return_value_index));
-          stack_.DoPop();
+          impl.DoReturnDifferentiatedFunction(node_type,
+                                              value_t(element.index_with_special_bit),
+                                              value_t(x),
+                                              element.return_value[0],
+                                              stack.RetvalPlaceholder(element.return_value_index));
+          stack.DoPop();
         }
       } else {
         CURRENT_THROW(DifferentiatorForThisNodeTypeNotImplementedException());
       }
     }
-    return stack_.ExtractReturnValue();
+    stack.CollectReturnValue(std::forward<F>(f));
   }
 };
 
@@ -373,46 +372,53 @@ struct DifferentiateByAllVarsTogetherImpl {
 
   using retval_t = GradientPiece;
 
-  void DoAssignZero(retval_t& placeholder) const { placeholder.Clear(); }
+  void DoAssignZero(GradientPiece& placeholder) const { placeholder.Clear(); }
 
-  void DoReturnDerivativeOfVar(size_t var_index, retval_t& placeholder) const {
+  void DoReturnDerivativeOfVar(size_t var_index, GradientPiece& placeholder) const {
     placeholder.Clear();
     if (vars_context_.IsVarNotConstant(var_index)) {
       placeholder.SetOne(var_index);
     }
   }
 
-  void DoReturnDerivativeOfLambda(retval_t&) const {
+  void DoReturnDerivativeOfLambda(GradientPiece&) const {
     CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
   }
 
   void DoReturnDifferentiatedOperation(
-      ExpressionNodeType node_type, value_t a, value_t b, retval_t da, retval_t db, retval_t& placeholder) const {
-    // TODO(dkorolev): Obviously, this is to be optimized away to remove all the copies.
-    placeholder = std::move(da);
+      ExpressionNodeType node_type, value_t a, value_t b, GradientPiece& da, GradientPiece& db, GradientPiece& placeholder) const {
+    // TODO(dkorolev): Obviously, `std::swap()` is not the best solution in the world. But it lets me move forward.
+    std::swap(placeholder, da);
     placeholder.ApplyOperation(node_type, a, b, db);
   }
 
   void DoReturnDifferentiatedFunction(
-      ExpressionNodeType node_type, value_t f, value_t x, retval_t dx, retval_t& placeholder) const {
-    // TODO(dkorolev): Obviously, this is to be optimized away to remove all the copies.
-    placeholder = std::move(dx);
+      ExpressionNodeType node_type, value_t f, value_t x, GradientPiece& dx, GradientPiece& placeholder) const {
+    // TODO(dkorolev): Obviously, `std::swap()` is not the best solution in the world. But it lets me move forward.
+    std::swap(placeholder, dx);
     placeholder.ApplyFunction(node_type, f, x);
   }
 };
 
 // The per-variable differentiator.
 inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_index) {
-  return Differentiator<DifferentiateBySingleVarImpl>(VarsManager::TLS().Active(), derivative_per_finalized_var_index)
-      .DoDifferentiate(f);
+  value_t result;
+  Differentiator<DifferentiateBySingleVarImpl>::DoDifferentiate(VarsManager::TLS().Active(),
+                                                                f,
+                                                                [&result](value_t retval) { result = retval; },
+                                                                derivative_per_finalized_var_index);
+  return result;
 }
 
 // The single-pass gradient computer.
 inline std::vector<value_t> ComputeGradient(value_t f) {
   VarsContext const& vars_context = VarsManager::TLS().Active();
-  return Differentiator<DifferentiateByAllVarsTogetherImpl>(vars_context)
-      .DoDifferentiate(f)
-      .FillOutput(vars_context.NumberOfVars());
+  std::vector<value_t> result;
+  Differentiator<DifferentiateByAllVarsTogetherImpl>::DoDifferentiate(
+      vars_context, f, [&result, &vars_context](GradientPiece const& retval) {
+        result = retval.FillOutput(vars_context.NumberOfVars());
+      });
+  return result;
 }
 
 // Given a function and the formulas for its gradient (actually, node indexes for them only),
@@ -428,7 +434,10 @@ inline value_t GenerateLineSearchFunction(VarsMapperConfig const& config, value_
 
 // The caller for the differentiator by the lambda, not by a specific variable.
 inline value_t DifferentiateByLambda(value_t f) {
-  return Differentiator<DifferentiateByLambdaImpl>(VarsManager::TLS().Active()).DoDifferentiate(f);
+  value_t result;
+  Differentiator<DifferentiateByLambdaImpl>::DoDifferentiate(
+      VarsManager::TLS().Active(), f, [&result](value_t retval) { result = retval; });
+  return result;
 }
 
 }  // namespace current::expression
