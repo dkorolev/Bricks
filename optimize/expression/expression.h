@@ -44,8 +44,6 @@ struct ExpressionNodeDivisionByZeroDetected final : OptimizeException {};
 
 struct ExpressionVarNodeBoxingException final : OptimizeException {};
 
-struct ExpressionNodeInternalError final : OptimizeException {};
-
 struct Build1DFunctionRequiresUpToDateVarsIndexes final : OptimizeException {};
 struct Build1DFunctionNumberOfVarsMismatchException final : OptimizeException {};
 
@@ -92,7 +90,7 @@ class value_t final {
   double GetImmediateDouble() const {
 #ifndef NDEBUG
     if (!IsImmediateDouble()) {
-      CURRENT_THROW(ExpressionNodeInternalError());
+      TriggerSegmentationFault();
     }
 #endif
     return index_.GetImmediateDoubleFromIndex();
@@ -133,7 +131,12 @@ class value_t final {
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
           } else {
-            CURRENT_THROW(ExpressionNodeInternalError());
+#ifndef NDEBUG
+            TriggerSegmentationFault();
+            throw false;
+#else
+            return "<InternalError>";
+#endif
           }
         },
         [&](size_t var_index) -> std::string { return VarsManager::TLS().Active().VarNameByOriginalIndex(var_index); },
@@ -322,7 +325,12 @@ class Build1DFunctionImpl {
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
           } else {
-            CURRENT_THROW(ExpressionNodeInternalError());
+#ifndef NDEBUG
+            TriggerSegmentationFault();
+            throw false;
+#else
+            return 0.0;
+#endif
           }
         },
         [&](size_t var_index) -> value_t {
@@ -335,8 +343,13 @@ class Build1DFunctionImpl {
         },
         [&](double) -> value_t { return f; },
         [&]() -> value_t {
-          // No `lambda` support here. `DoBuild1DFunction` introduces `lambda`-s, not uses them.
-          CURRENT_THROW(ExpressionNodeInternalError());
+// No `lambda` support here. `DoBuild1DFunction` introduces `lambda`-s, not uses them.
+#ifndef NDEBUG
+          TriggerSegmentationFault();
+          throw false;
+#else
+          return 0.0;
+#endif
         });
   }
 };

@@ -42,7 +42,12 @@ inline size_t UnitTestRecursiveExpressionTreeHeight(ExpressionNodeIndex index,
         } else if (IsFunctionNode(node_type)) {
           return 1u + UnitTestRecursiveExpressionTreeHeight(node.ArgumentIndex(), vars_context);
         } else {
-          CURRENT_THROW(OptimizeException("Internal error."));
+#ifndef NDEBUG
+          TriggerSegmentationFault();
+          throw false;
+#else
+          return static_cast<size_t>(1e30);
+#endif
         }
       },
       [](size_t) -> size_t { return 1u; },

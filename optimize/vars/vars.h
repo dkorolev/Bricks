@@ -287,7 +287,11 @@ class VarsManager final {
   void ClearActive(VarsContext const* ptr1, VarsContextInterface const* ptr2) {
     if (!(active_context_ == ptr1 && active_context_interface_ == ptr2)) {
       std::cerr << "Internal error when deleting variables context." << std::endl;
+#ifndef NDEBUG
+      TriggerSegmentationFault();
+#else
       std::exit(-1);
+#endif
     }
     active_context_ = nullptr;
     active_context_interface_ = nullptr;
@@ -580,7 +584,11 @@ class VarsContext final : public VarsContextInterface {
     root_.DSFStampDenseIndexesForJIT(state);
     if (state.dense_index.size() != vars_count || state.x0.size() != vars_count || state.name.size() != vars_count ||
         state.is_constant.size() != vars_count) {
+#ifndef NDEBUG
+      TriggerSegmentationFault();
+#else
       CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `ReindexVars()`."));
+#endif
     }
     var_name_ = state.name;
     dense_index_ = state.dense_index;
@@ -650,7 +658,7 @@ class VarsContext final : public VarsContextInterface {
           VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` on unidexed vars, run `ReindexVars()`."));
     }
     if (dense_index_.size() != allocated_var_is_constant_.size()) {
-      CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `LeafDerivativeZeroOrOne()`."));
+      TriggerSegmentationFault();
     }
 #endif
     return !allocated_var_is_constant_[var_internal_index];
@@ -672,7 +680,7 @@ class VarsContext final : public VarsContextInterface {
           VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` on unidexed vars, run `ReindexVars()`."));
     }
     if (dense_index_.size() != allocated_var_is_constant_.size()) {
-      CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `LeafDerivativeZeroOrOne()`."));
+      TriggerSegmentationFault();
     }
 #endif
     return (dense_index_[var_internal_index] == derivative_per_finalized_var_index &&

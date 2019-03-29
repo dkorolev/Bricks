@@ -76,7 +76,9 @@ inline size_t ExpressionTreeHeight(ExpressionNodeIndex index,
     } else if (IsFunctionNode(node_type)) {
       PushToStack(node.ArgumentIndex(), current_depth + 1u);
     } else {
-      CURRENT_THROW(OptimizeException("Internal error."));
+#ifndef NDEBUG
+      TriggerSegmentationFault();
+#endif
     }
   }
 
@@ -154,13 +156,13 @@ class NodesCluster {
   void DoRecursiveRebalance(size_t node_begin, size_t node_end, size_t leaf_begin, size_t leaf_end) {
 #ifndef NDEBUG
     if (!(node_end > node_begin)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
     if (!(leaf_end > leaf_begin)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
     if (!((node_end - node_begin) + 1u == (leaf_end - leaf_begin))) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     // Never called on an empty set of nodes.
@@ -192,7 +194,7 @@ class NodesCluster {
     leaves_.clear();
 #ifndef NDEBUG
     if (!IsOperationNode(desired_node_type)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     DoBuild(index, desired_node_type, 1u);
@@ -209,7 +211,7 @@ class NodesCluster {
 #ifndef NDEBUG
   void AssertFirstNodeIs(size_t first_node) {
     if (!(!nodes_.empty() && nodes_.front() == first_node)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
   }
 #endif
@@ -217,7 +219,7 @@ class NodesCluster {
   void Rebalance() {
 #ifndef NDEBUG
     if (!(leaves_.size() == nodes_.size() + 1u)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     DoRecursiveRebalance(0u, nodes_.size(), 0u, leaves_.size());
@@ -263,7 +265,9 @@ inline void BalanceExpressionTree(ExpressionNodeIndex index, VarsContext& vars_c
     } else if (IsFunctionNode(node_type)) {
       PushToStack(node.ArgumentIndex());
     } else {
-      CURRENT_THROW(OptimizeException("Internal error."));
+#ifndef NDEBUG
+      TriggerSegmentationFault();
+#endif
     }
   }
 }

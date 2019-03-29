@@ -48,8 +48,6 @@ struct JITCompiledFunctionCallContextMismatchException final : OptimizeException
 
 struct JITNotEnoughExtraNodesAllocatedInJITCallContext final : OptimizeException {};
 
-struct JITInternalErrorException final : OptimizeException {};
-
 struct JITCallContextFunctionPointers {
   std::vector<double (*)(double x)> fns;
   JITCallContextFunctionPointers() {
@@ -230,9 +228,14 @@ class JITCompiledFunctionReturningVectorImpl final {
           [&](size_t var_index) -> double { return x[var_index]; },
           [&](double value) -> double { return value; },
           [&]() -> double {
-            // No `lambda`-s should be encountered when the gradient is being evaluated,
-            // because the lambdas are the territory of `JITCompiledFunctionWithArgument`.
-            CURRENT_THROW(JITInternalErrorException());
+// No `lambda`-s should be encountered when the gradient is being evaluated,
+// because the lambdas are the territory of `JITCompiledFunctionWithArgument`.
+#ifndef NDEBUG
+            TriggerSegmentationFault();
+            throw false;
+#else
+            return 0.0;
+#endif
           });
     }
     return result;
@@ -327,7 +330,7 @@ class JITCompiler final {
 
 #ifndef NDEBUG
     if (!manual_stack.empty()) {
-      CURRENT_THROW(JITInternalErrorException());
+      TriggerSegmentationFault();
     }
 #endif
 
@@ -376,7 +379,7 @@ class JITCompiler final {
         size_t const current_node_index = current_node_full_index.UncheckedNodeIndex();
 #ifndef NDEBUG
         if (!(current_node_index < node_computed_.size())) {
-          CURRENT_THROW(JITInternalErrorException());
+          TriggerSegmentationFault();
         }
 #endif
         if (!node_computed_[current_node_index]) {
@@ -439,13 +442,17 @@ class JITCompiler final {
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
           } else {
-            CURRENT_THROW(JITInternalErrorException());
+#ifndef NDEBUG
+            TriggerSegmentationFault();
+#endif
           }
         }
       } else {
-        // Seeing a var node, a double value node, or a lambda node.
-        // The stack should only contain indexes that are expression nodes.
-        CURRENT_THROW(JITInternalErrorException());
+// Seeing a var node, a double value node, or a lambda node.
+// The stack should only contain indexes that are expression nodes.
+#ifndef NDEBUG
+        TriggerSegmentationFault();
+#endif
       }
     }
   }

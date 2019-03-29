@@ -58,7 +58,12 @@ inline value_t DifferentiateOperation(ExpressionNodeType node_type, value_t a, v
   } else if (node_type == ExpressionNodeType::Operation_div) {
     return (b * da - a * db) / (b * b);
   } else {
-    CURRENT_THROW(OptimizeException("Internal error."));
+#ifndef NDEBUG
+    TriggerSegmentationFault();
+    throw false;
+#else
+    return 0.0;
+#endif
   }
 }
 
@@ -92,7 +97,12 @@ inline value_t DifferentiateFunction(ExpressionNodeType node_type, value_t f, va
   } else if (node_type == ExpressionNodeType::Function_log_sigmoid) {
     return dx * sigmoid(-x);
   } else {
-    CURRENT_THROW(OptimizeException("Internal error."));
+#ifndef NDEBUG
+    TriggerSegmentationFault();
+    throw false;
+#else
+    return 0.0;
+#endif
   }
 }
 
@@ -126,12 +136,6 @@ class Differentiator final {
     size_t actual_size_;
     size_t const allocated_size_;
 
-    void GrowIfNecessary() {
-      if (actual_size_ == allocated_size_) {
-        CURRENT_THROW(OptimizeException("Internal error."));
-      }
-    }
-
    public:
     // The default size of the stack is one, and it never gets to zero.
     // This is to not make an exception for the generic case of the "ultimate return value". This ultimate return value
@@ -142,7 +146,11 @@ class Differentiator final {
     bool NotEmpty() const { return actual_size_ > 1u; }
 
     size_t DoPush(ExpressionNodeIndex index, size_t return_value_index) {
-      GrowIfNecessary();
+#ifndef NDEBUG
+      if (actual_size_ == allocated_size_) {
+        TriggerSegmentationFault();
+      }
+#endif
       call_stack_[actual_size_].index_with_special_bit = index;
       call_stack_[actual_size_].return_value_index = return_value_index;
       return actual_size_++;
@@ -203,9 +211,18 @@ class Differentiator final {
       // TODO(dkorolev): In `NDEBUG` mode this would just be an unchecked node index extraction.
       size_t const node_index = element.index_with_special_bit.template CheckedDispatch<size_t>(
           [](size_t node_index) -> size_t { return node_index; },
-          [](size_t) -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); },
-          [](double) -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); },
-          []() -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); });
+          [](size_t) -> size_t {
+            TriggerSegmentationFault();
+            throw false;
+          },
+          [](double) -> size_t {
+            TriggerSegmentationFault();
+            throw false;
+          },
+          []() -> size_t {
+            TriggerSegmentationFault();
+            throw false;
+          });
 #endif
       ExpressionNodeImpl const& short_lived_node = vars_context[node_index];
       ExpressionNodeType const node_type = short_lived_node.Type();
@@ -341,10 +358,10 @@ struct DifferentiateByAllVarsTogetherImpl {
     void SetOne(size_t i) {
 #ifndef NDEBUG
       if (Has(i)) {
-        CURRENT_THROW(OptimizeException("Internal error."));
+        TriggerSegmentationFault();
       }
       if (nonzero_indexes_count_ >= m_) {
-        CURRENT_THROW(OptimizeException("Internal error."));
+        TriggerSegmentationFault();
       }
 #endif
       components_[i] = ExpressionNodeIndex::DoubleOne();
@@ -372,7 +389,7 @@ struct DifferentiateByAllVarsTogetherImpl {
           if (!components_[j].IsIndexDoubleZero()) {
 #ifndef NDEBUG
             if (nonzero_indexes_count_ >= m_) {
-              CURRENT_THROW(OptimizeException("Internal error."));
+              TriggerSegmentationFault();
             }
 #endif
             nonzero_index_epoch_version_[j] = current_epoch_;

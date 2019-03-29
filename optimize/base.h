@@ -124,7 +124,7 @@ class ExpressionNodeIndex {
   static ExpressionNodeIndex FromNodeIndex(size_t node_index) {
 #ifndef NDEBUG
     if (!(node_index < kFirstIllegalNodeOrVarIndex)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     return FromRawAlreadyCompactifiedIndex(static_cast<uint64_t>(node_index));
@@ -133,7 +133,7 @@ class ExpressionNodeIndex {
   static ExpressionNodeIndex FromVarIndex(size_t var_index) {
 #ifndef NDEBUG
     if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     return FromRawAlreadyCompactifiedIndex(static_cast<uint64_t>(var_index) | kBitCompactIndexIsVar);
@@ -142,7 +142,7 @@ class ExpressionNodeIndex {
   static ExpressionNodeIndex FromRegularDouble(double x) {
 #ifndef NDEBUG
     if (!IsRegularDouble(x)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     return FromRawAlreadyCompactifiedIndex(PackDouble(x));
@@ -153,9 +153,9 @@ class ExpressionNodeIndex {
   bool RawCompactifiedIndexEquals(uint64_t value) const { return compactified_index_ == value; }
 
   void SetSpecialTwoBitsValue(uint64_t v) {
-#ifndef DENBUG
+#ifndef NDEBUG
     if (!(v < 4)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     compactified_index_ |= (v << 62);
@@ -172,7 +172,7 @@ class ExpressionNodeIndex {
   double GetImmediateDoubleFromIndex() const {
 #ifndef NDEBUG
     if (!IsIndexImmediateDouble()) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     return UnpackDouble(compactified_index_);
@@ -196,7 +196,7 @@ class ExpressionNodeIndex {
 #ifndef NDEBUG
       if (!IsUInt64PackedDouble(compactified_index_)) {
         // NOTE(dkorolev): This test will always pass unless the code in `double.h` is altered substantially.
-        CURRENT_THROW(OptimizeException("Internal error."));
+        TriggerSegmentationFault();
       }
 #endif
       return f_double(UnpackDouble(compactified_index_));
@@ -204,10 +204,10 @@ class ExpressionNodeIndex {
 #ifndef NDEBUG
       // Important: The "special" bit is "allowed" to be set in case of `double` values.
       if (compactified_index_ == kCompactifiedIndexValueUninitialized) {
-        CURRENT_THROW(OptimizeException("Internal error."));
+        TriggerSegmentationFault();
       }
       if (compactified_index_ & kBitSpecial1OrSpecial2) {
-        CURRENT_THROW(OptimizeException("Internal error."));
+        TriggerSegmentationFault();
       }
 #endif
       if (compactified_index_ & kBitLambda) {
@@ -216,14 +216,14 @@ class ExpressionNodeIndex {
         uint64_t const var_index = compactified_index_ ^ kBitCompactIndexIsVar;
 #ifndef NDEBUG
         if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
-          CURRENT_THROW(OptimizeException("Internal error."));
+          TriggerSegmentationFault();
         }
 #endif
         return f_var(static_cast<size_t>(var_index));
       } else {
 #ifndef NDEBUG
         if (!(compactified_index_ < kFirstIllegalNodeOrVarIndex)) {
-          CURRENT_THROW(OptimizeException("Internal error."));
+          TriggerSegmentationFault();
         }
 #endif
         return f_node(static_cast<size_t>(compactified_index_));
@@ -248,13 +248,13 @@ class ExpressionNodeIndex {
   size_t UnitTestNodeIndex() const {
 #ifndef NDEBUG
     if (!UnitTestIsNodeIndex()) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     size_t const node_index = static_cast<size_t>(compactified_index_);
 #ifndef NDEBUG
     if (!(node_index < kFirstIllegalNodeOrVarIndex)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     return static_cast<size_t>(node_index);
@@ -262,13 +262,13 @@ class ExpressionNodeIndex {
   size_t UnitTestVarIndex() const {
 #ifndef NDEBUG
     if (UnitTestIsNodeIndex()) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     size_t const var_index = static_cast<size_t>(compactified_index_ ^ kBitCompactIndexIsVar);
 #ifndef NDEBUG
     if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
-      CURRENT_THROW(OptimizeException("Internal error."));
+      TriggerSegmentationFault();
     }
 #endif
     return var_index;
@@ -348,10 +348,10 @@ class ExpressionNodeImpl final {
       compact_secondary_index_ = rhs.RawCompactifiedIndex();
       compact_flipped_ = false;
     } else {
-#ifndef DEBUG
+#ifndef NDEBUG
       if (lhs.IsIndexImmediateDouble()) {
         // Can't have both LHS and RHS nodes as immediate doubles.
-        CURRENT_THROW(OptimizeException("Internal error."));
+        TriggerSegmentationFault();
       }
 #endif
       compact_secondary_index_ = lhs.RawCompactifiedIndex();
