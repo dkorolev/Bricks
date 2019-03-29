@@ -25,6 +25,8 @@ SOFTWARE.
 #ifndef OPTIMIZE_TREE_BALANCER_TREE_BALANCER_H
 #define OPTIMIZE_TREE_BALANCER_TREE_BALANCER_H
 
+#include <stack>
+
 #include "../expression/expression.h"
 
 namespace current {
