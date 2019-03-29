@@ -30,4 +30,5 @@ SOFTWARE.
 #include "jit/test.cc"
 #include "optimizer/line_search/test.cc"
 #include "optimizer/test.cc"
+#include "tree_balancer/test.cc"
 #include "vars/test.cc"

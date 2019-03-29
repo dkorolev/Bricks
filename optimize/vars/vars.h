@@ -683,6 +683,10 @@ class VarsContext final : public VarsContextInterface {
   ExpressionNodeImpl const& operator[](size_t expression_node_index) const {
     return expression_nodes_[expression_node_index];
   }
+
+  ExpressionNodeImpl& MutableNodeByIndex(size_t expression_node_index) {
+    return expression_nodes_[expression_node_index];
+  }
 };
 
 struct VarsAccessor final {

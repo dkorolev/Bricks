@@ -314,6 +314,7 @@ class ExpressionNodeImpl final {
 
   void InitArgument(ExpressionNodeIndex argument) { compact_primary_index_ = argument.RawCompactifiedIndex(); }
 
+  friend class NodesCluster;  // For expression tree balancing, see `tree_balancer/tree_balancer.h`.
   void InitLHSRHS(ExpressionNodeIndex lhs, ExpressionNodeIndex rhs) {
     if (!rhs.IsIndexImmediateDouble()) {
       compact_primary_index_ = lhs.RawCompactifiedIndex();
