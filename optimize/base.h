@@ -28,6 +28,7 @@ SOFTWARE.
 #include "double.h"
 
 #include "../bricks/exception.h"
+#include "../bricks/strings/util.h"
 #include "../port.h"
 
 namespace current {
@@ -230,6 +231,13 @@ class ExpressionNodeIndex {
     }
   }
 
+  std::string IndexDebugAsString() const {
+    return CheckedDispatch<std::string>([](size_t node_index) { return "z[" + current::ToString(node_index) + "]"; },
+                                        [](size_t var_index) { return "x{" + current::ToString(var_index) + "}"; },
+                                        [](double x) { return "(" + current::ToString(x) + ")"; },
+                                        []() { return "lambda"; });
+  }
+
   // NOTE(dkorolev): The below section is now "commented out" to make sure I don't miss out on handling all the
   // corner cases as the "node index" can also be a `lambda` and an encoded `double` value. Once just the simple
   // check of `if (x.IsNodeIndex()) { ... } else { ... }` is no longer correct, I'd rather have the compiler
@@ -271,6 +279,10 @@ class ExpressionNodeIndex {
 static_assert(sizeof(ExpressionNodeIndex) == 8, "`ExpressionNodeIndex` should be 8 bytes.");
 
 enum class ExpressionNodeType {
+#ifndef NDEBUG
+  UninitializedNodeType,
+#endif
+
   MarkerOperationsBeginAfterThisIndex,
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name) Operation_##name,
 #include "math_operations.inl"
@@ -349,19 +361,83 @@ class ExpressionNodeImpl final {
   }
 
  public:
+#ifndef NDEBUG
+  ExpressionNodeImpl() : compact_type_(static_cast<uint8_t>(ExpressionNodeType::UninitializedNodeType)) {}
+#else
   ExpressionNodeImpl() = default;
+#endif
 
-  ExpressionNodeType Type() const { return static_cast<ExpressionNodeType>(compact_type_); }
+#ifndef NDEBUG
+  void AssertValid() const {
+    if (static_cast<ExpressionNodeType>(compact_type_) == ExpressionNodeType::UninitializedNodeType) {
+      TriggerSegmentationFault();
+    }
+  }
+#endif
+
+  ExpressionNodeType Type() const {
+#ifndef NDEBUG
+    AssertValid();
+#endif
+    return static_cast<ExpressionNodeType>(compact_type_);
+  }
   ExpressionNodeIndex ArgumentIndex() const {
+#ifndef NDEBUG
+    AssertValid();
+    if (!IsFunctionNode(Type())) {
+      TriggerSegmentationFault();
+    }
+#endif
     return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(compact_primary_index_);
   }
   ExpressionNodeIndex LHSIndex() const {
+#ifndef NDEBUG
+    AssertValid();
+    if (!IsOperationNode(Type())) {
+      TriggerSegmentationFault();
+    }
+#endif
     return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(compact_flipped_ ? compact_secondary_index_
                                                                                  : compact_primary_index_);
   }
   ExpressionNodeIndex RHSIndex() const {
+#ifndef NDEBUG
+    AssertValid();
+    if (!IsOperationNode(Type())) {
+      TriggerSegmentationFault();
+    }
+#endif
     return ExpressionNodeIndex::FromRawAlreadyCompactifiedIndex(compact_flipped_ ? compact_primary_index_
                                                                                  : compact_secondary_index_);
+  }
+
+  std::string NodeDebugAsString() const {
+#ifndef NDEBUG
+    AssertValid();
+#endif
+    ExpressionNodeType const type = Type();
+#ifndef NDEBUG
+    if (type == ExpressionNodeType::UninitializedNodeType) {
+      return "UnititializedNode";
+#else
+    if (false) {
+#endif
+
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)   \
+  }                                                        \
+  else if (type == ExpressionNodeType::Operation_##name) { \
+    return "`" #op "` " + LHSIndex().IndexDebugAsString() + ' ' + RHSIndex().IndexDebugAsString();
+#include "math_operations.inl"
+#undef CURRENT_EXPRESSION_MATH_OPERATION
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)            \
+  }                                                     \
+  else if (type == ExpressionNodeType::Function_##fn) { \
+    return #fn " " + ArgumentIndex().IndexDebugAsString();
+#include "math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
+    } else {
+      return "InternalError";
+    }
   }
 
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                               \
