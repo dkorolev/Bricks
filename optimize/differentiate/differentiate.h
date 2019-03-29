@@ -178,12 +178,12 @@ class Differentiator final {
 
     std::function<void(ExpressionNodeIndex, size_t)> const PushToStack = [&stack, &impl](ExpressionNodeIndex index,
                                                                                          size_t return_value_index) {
-      index.Dispatch([&](size_t) { stack.DoPush(index, return_value_index); },
-                     [&](size_t var_index) {
-                       impl.DoReturnDerivativeOfVar(var_index, stack.RetvalPlaceholder(return_value_index));
-                     },
-                     [&](double) { impl.DoAssignZero(stack.RetvalPlaceholder(return_value_index)); },
-                     [&]() { impl.DoReturnDerivativeOfLambda(stack.RetvalPlaceholder(return_value_index)); });
+      index.CheckedDispatch([&](size_t) { stack.DoPush(index, return_value_index); },
+                            [&](size_t var_index) {
+                              impl.DoReturnDerivativeOfVar(var_index, stack.RetvalPlaceholder(return_value_index));
+                            },
+                            [&](double) { impl.DoAssignZero(stack.RetvalPlaceholder(return_value_index)); },
+                            [&]() { impl.DoReturnDerivativeOfLambda(stack.RetvalPlaceholder(return_value_index)); });
     };
 
     PushToStack(value_to_differentiate, 0u);
@@ -195,14 +195,18 @@ class Differentiator final {
 
       uint64_t const phase = element.index_with_special_bit.ClearSpecialTwoBitsAndReturnWhatTheyWere();
 
-      // The node is `short-lived`, as the const reference to it can and will be invalidated as more nodes are added
-      // to the tree. Thus, all the relevant pieces of data must be extracted from this node before adding the new ones.
+// The node is `short-lived`, as the const reference to it can and will be invalidated as more nodes are added
+// to the tree. Thus, all the relevant pieces of data must be extracted from this node before adding the new ones.
+#ifdef NDEBUG
+      size_t const node_index = element.index_with_special_bit.UncheckedNodeIndex();
+#else
       // TODO(dkorolev): In `NDEBUG` mode this would just be an unchecked node index extraction.
-      size_t const node_index = element.index_with_special_bit.template Dispatch<size_t>(
+      size_t const node_index = element.index_with_special_bit.template CheckedDispatch<size_t>(
           [](size_t node_index) -> size_t { return node_index; },
           [](size_t) -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); },
           [](double) -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); },
           []() -> size_t { CURRENT_THROW(OptimizeException("Internal error.")); });
+#endif
       ExpressionNodeImpl const& short_lived_node = vars_context[node_index];
       ExpressionNodeType const node_type = short_lived_node.Type();
 
@@ -399,14 +403,9 @@ struct DifferentiateByAllVarsTogetherImpl {
       }
     }
 
-    std::vector<value_t> FillOutput(size_t dim) const {
-#ifndef NDEBUG
-      if (dim != nonzero_indexes_bitset.size()) {
-        CURRENT_THROW(OptimizeException("Internal error."));
-      }
-#endif
-      std::vector<value_t> result(dim);
-      for (size_t i = 0u; i < dim; ++i) {
+    std::vector<value_t> FillOutput() const {
+      std::vector<value_t> result(components_.size());
+      for (size_t i = 0u; i < result.size(); ++i) {
         result[i] = Has(i) ? value_t(components_[i]) : 0.0;
       }
       return result;
@@ -463,11 +462,10 @@ inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_inde
 
 // The single-pass gradient computer.
 inline std::vector<value_t> ComputeGradient(value_t f) {
-  VarsContext const& vars_context = VarsManager::TLS().Active();
   std::vector<value_t> result;
   Differentiator<DifferentiateByAllVarsTogetherImpl>::DoDifferentiate(
-      vars_context, f, [&result, &vars_context](DifferentiateByAllVarsTogetherImpl::GradientPiece const& retval) {
-        result = retval.FillOutput(vars_context.NumberOfVars());
+      VarsManager::TLS().Active(), f, [&result](DifferentiateByAllVarsTogetherImpl::GradientPiece const& retval) {
+        result = retval.FillOutput();
       });
   return result;
 }

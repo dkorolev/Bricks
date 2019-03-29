@@ -168,7 +168,6 @@ class ExpressionNodeIndex {
 
   // No cast into `bool` for performance reasons. -- D.K.
   uint64_t IsIndexImmediateDouble() const { return (compactified_index_ & kBitDouble); }
-
   double GetImmediateDoubleFromIndex() const {
 #ifndef NDEBUG
     if (!IsIndexImmediateDouble()) {
@@ -178,10 +177,20 @@ class ExpressionNodeIndex {
     return UnpackDouble(compactified_index_);
   }
 
+  // The `Unchecked*` methods assume the user knows what they are doing.
+  // If in doubt, use the `CheckedDispatch` first.
+  uint64_t UncheckedIsIndexLambda() const { return (compactified_index_ & kBitLambda); }
+  uint64_t UncheckedIsIndexVarIndex() const { return (compactified_index_ & kBitCompactIndexIsVar); }
+  bool UncheckedIsSpecificallyNodeIndex() const {
+    return (compactified_index_ & (kBitDouble | kBitLambda | kBitCompactIndexIsVar)) == 0ull;
+  }
+  uint64_t UncheckedVarIndex() const { return compactified_index_ ^ kBitCompactIndexIsVar; }
+  uint64_t UncheckedNodeIndex() const { return compactified_index_; }
+
   // NOTE(dkorolev): This is a *temporary* (~5% slower) solution implemented to make sure
   // I don't forget to handle all the corner cases as the number of them grows larger than two.
   template <typename T_RETVAL = void, class F_NODE, class F_VAR, class F_DOUBLE, class F_LAMBDA>
-  T_RETVAL Dispatch(F_NODE&& f_node, F_VAR&& f_var, F_DOUBLE&& f_double, F_LAMBDA&& f_lambda) const {
+  T_RETVAL CheckedDispatch(F_NODE&& f_node, F_VAR&& f_var, F_DOUBLE&& f_double, F_LAMBDA&& f_lambda) const {
     if (compactified_index_ & kBitDouble) {
 #ifndef NDEBUG
       if (!IsUInt64PackedDouble(compactified_index_)) {

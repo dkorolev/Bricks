@@ -32,7 +32,7 @@ namespace current {
 namespace expression {
 inline size_t UnitTestRecursiveExpressionTreeHeight(ExpressionNodeIndex index,
                                                     VarsContext const& vars_context = VarsManager::TLS().Active()) {
-  return index.template Dispatch<size_t>(
+  return index.template CheckedDispatch<size_t>(
       [&vars_context](size_t node_index) -> size_t {
         ExpressionNodeImpl const& node = vars_context[node_index];
         ExpressionNodeType const node_type = node.Type();

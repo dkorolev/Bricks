@@ -115,7 +115,7 @@ class value_t final {
       return "Uninitialized";
     }
 #endif
-    return index_.template Dispatch<std::string>(
+    return index_.template CheckedDispatch<std::string>(
         [&](size_t node_index) -> std::string {
           ExpressionNodeImpl const& node = VarsManager::TLS().Active()[node_index];
           ExpressionNodeType const type = node.Type();
@@ -302,8 +302,9 @@ class Build1DFunctionImpl {
     }
   }
 
+  // TODO(dkorolev): This `DoBuild1DFunction` is a) `Checked`, meaning slow, and b) recursive. Something to fix.
   value_t DoBuild1DFunction(value_t f) const {
-    return ExpressionNodeIndex(f).template Dispatch<value_t>(
+    return ExpressionNodeIndex(f).template CheckedDispatch<value_t>(
         [&](size_t node_index) -> value_t {
           ExpressionNodeImpl const& node = vars_context_[node_index];
           ExpressionNodeType const type = node.Type();

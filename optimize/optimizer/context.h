@@ -80,7 +80,7 @@ struct OptimizationContext {
   static std::vector<size_t> ComputeGI(std::vector<value_t> const& g) {
     std::vector<size_t> result(g.size());
     for (size_t i = 0; i < g.size(); ++i) {
-      result[i] = ExpressionNodeIndex(g[i]).template Dispatch<size_t>(
+      result[i] = ExpressionNodeIndex(g[i]).template CheckedDispatch<size_t>(
           [](size_t node_index) { return static_cast<size_t>(node_index); },
           [](size_t) {
             // TODO(dkorolev): Add a test where the component of a gradient would just be a var.

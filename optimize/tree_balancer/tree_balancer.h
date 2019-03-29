@@ -39,10 +39,9 @@ inline size_t ExpressionTreeHeight(ExpressionNodeIndex index,
 
   auto const PushToStack = [&stack, &max_depth](ExpressionNodeIndex index, size_t current_depth) {
     max_depth = std::max(current_depth, max_depth);
-    index.template Dispatch([&stack, current_depth](size_t node_index) { stack.emplace(node_index, current_depth); },
-                            [](size_t) {},
-                            [](double) {},
-                            []() {});
+    if (index.UncheckedIsSpecificallyNodeIndex()) {
+      stack.emplace(index.UncheckedNodeIndex(), current_depth);
+    }
   };
 
   PushToStack(index, 1u);
@@ -132,22 +131,19 @@ class NodesCluster {
       size_t const height = stack.top().second;
       stack.pop();
       max_height_ = std::max(max_height_, height);
-      if (!index.template Dispatch<bool>(
-              [this, &stack, desired_node_type, height](size_t node_index) -> bool {
-                ExpressionNodeImpl const& node = vars_context_[node_index];
-                if (node.Type() == desired_node_type) {
-                  nodes_.push_back(node_index);
-                  // NOTE(dkorolev): Essential to flip the order of LHS and RHS here!
-                  stack.emplace(node.RHSIndex(), height + 1u);
-                  stack.emplace(node.LHSIndex(), height + 1u);
-                  return true;
-                } else {
-                  return false;
-                }
-              },
-              [](size_t) -> bool { return false; },
-              [](double) -> bool { return false; },
-              []() -> bool { return false; })) {
+      bool done = false;
+      if (index.UncheckedIsSpecificallyNodeIndex()) {
+        size_t const node_index = static_cast<size_t>(index.UncheckedNodeIndex());
+        ExpressionNodeImpl const& node = vars_context_[node_index];
+        if (node.Type() == desired_node_type) {
+          nodes_.push_back(node_index);
+          // NOTE(dkorolev): Essential to flip the order of LHS and RHS here!
+          stack.emplace(node.RHSIndex(), height + 1u);
+          stack.emplace(node.LHSIndex(), height + 1u);
+          done = true;
+        }
+      }
+      if (!done) {
         leaves_.push_back(index);
       }
     }
@@ -232,8 +228,9 @@ inline void BalanceExpressionTree(ExpressionNodeIndex index, VarsContext& vars_c
   std::stack<size_t> stack;
 
   auto const PushToStack = [&stack](ExpressionNodeIndex index) {
-    index.template Dispatch(
-        [&stack](size_t node_index) { stack.emplace(node_index); }, [](size_t) {}, [](double) {}, []() {});
+    if (index.UncheckedIsSpecificallyNodeIndex()) {
+      stack.push(index.UncheckedNodeIndex());
+    }
   };
 
   PushToStack(index);

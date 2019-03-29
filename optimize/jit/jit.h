@@ -225,7 +225,7 @@ class JITCompiledFunctionReturningVectorImpl final {
     std::vector<double> result(output_node_indexes_.size());
     f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
     for (size_t i = 0; i < output_node_indexes_.size(); ++i) {
-      result[i] = output_node_indexes_[i].template Dispatch<double>(
+      result[i] = output_node_indexes_[i].template CheckedDispatch<double>(
           [&](size_t node_index) -> double { return call_context_.ConstRAMPointer()[node_index]; },
           [&](size_t var_index) -> double { return x[var_index]; },
           [&](double value) -> double { return value; },
@@ -332,7 +332,19 @@ class JITCompiler final {
 #endif
 
     auto const PushNodeToStack = [this, &manual_stack](ExpressionNodeIndex index, bool ready_to_compute_flag) {
-      index.Dispatch(
+#ifdef NDEBUG
+      if (index.UncheckedIsSpecificallyNodeIndex()) {
+        size_t const node_index = static_cast<size_t>(index.UncheckedNodeIndex());
+        if (!node_computed_[node_index]) {
+          if (ready_to_compute_flag) {
+            index.SetSpecialTwoBitsValue(1);
+          }
+          manual_stack.push_back(index);
+        }
+      }
+#else
+      // This is the safe, `Checked`, implementation.
+      index.CheckedDispatch(
           [&](size_t node_index) {
             if (!node_computed_[node_index]) {
               if (ready_to_compute_flag) {
@@ -350,6 +362,7 @@ class JITCompiler final {
           []() {
             // No need to do anything for the value of the lambda either.
           });
+#endif
     };
 
     PushNodeToStack(requested_index, false);
@@ -359,18 +372,18 @@ class JITCompiler final {
       manual_stack.pop_back();
       bool const ready_to_compute = current_node_full_index.ClearSpecialTwoBitsAndReturnWhatTheyWere();
 
-      current_node_full_index.Dispatch(
-          [&](size_t current_node_index) {
+      if (current_node_full_index.UncheckedIsSpecificallyNodeIndex()) {
+        size_t const current_node_index = current_node_full_index.UncheckedNodeIndex();
 #ifndef NDEBUG
-            if (!(current_node_index < node_computed_.size())) {
-              CURRENT_THROW(JITInternalErrorException());
-            }
+        if (!(current_node_index < node_computed_.size())) {
+          CURRENT_THROW(JITInternalErrorException());
+        }
 #endif
-            if (!node_computed_[current_node_index]) {
-              using namespace current::fncas::x64_native_jit;
-              ExpressionNodeImpl const& node = VarsManager::TLS().Active()[current_node_index];
-              ExpressionNodeType const type = node.Type();
-              if (false) {
+        if (!node_computed_[current_node_index]) {
+          using namespace current::fncas::x64_native_jit;
+          ExpressionNodeImpl const& node = VarsManager::TLS().Active()[current_node_index];
+          ExpressionNodeType const type = node.Type();
+          if (false) {
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                           \
   }                                                                                                                \
   else if (type == ExpressionNodeType::Operation_##name) {                                                         \
@@ -381,12 +394,12 @@ class JITCompiler final {
       PushNodeToStack(rhs, false);                                                                                 \
       PushNodeToStack(lhs, false);                                                                                 \
     } else {                                                                                                       \
-      lhs.Dispatch(                                                                                                \
+      lhs.CheckedDispatch(                                                                                         \
           [&](size_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                         \
           [&](size_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); },   \
           [&](double val) { opcodes::load_immediate_to_xmm0(code, val); },                                         \
           [&]() { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, Config().total_nodes); });                 \
-      rhs.Dispatch(                                                                                                \
+      rhs.CheckedDispatch(                                                                                         \
           [&](size_t idx) { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, idx); },                       \
           [&](size_t var) { opcodes::name##_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); }, \
           [&](double val) {                                                                                        \
@@ -409,7 +422,7 @@ class JITCompiler final {
       PushNodeToStack(argument, false);                                                                          \
     } else {                                                                                                     \
       using namespace current::fncas::x64_native_jit;                                                            \
-      argument.Dispatch(                                                                                         \
+      argument.CheckedDispatch(                                                                                  \
           [&](size_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                       \
           [&](size_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, Config().dense_index[var]); }, \
           [&](double val) { opcodes::load_immediate_to_memory_by_rbx_offset(code, current_node_index, val); },   \
@@ -425,23 +438,15 @@ class JITCompiler final {
     }
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
-              } else {
-                CURRENT_THROW(JITInternalErrorException());
-              }
-            }
-          },
-          [](size_t) {
-            // Seeing a var node. The stack should only contain indexes that are expression nodes.
+          } else {
             CURRENT_THROW(JITInternalErrorException());
-          },
-          [](double) {
-            // Seeing a double value node. The stack should only contain indexes that are expression nodes.
-            CURRENT_THROW(JITInternalErrorException());
-          },
-          []() {
-            // Seeing a lambda node. The stack should only contain indexes that are expression nodes.
-            CURRENT_THROW(JITInternalErrorException());
-          });
+          }
+        }
+      } else {
+        // Seeing a var node, a double value node, or a lambda node.
+        // The stack should only contain indexes that are expression nodes.
+        CURRENT_THROW(JITInternalErrorException());
+      }
     }
   }
 
@@ -460,7 +465,7 @@ class JITCompiler final {
     std::vector<uint8_t> code;
 
     ExpressionNodeIndex index = ExpressionNodeIndex(node);
-    index.Dispatch(
+    index.CheckedDispatch(
         [&](size_t node_index) {
           // The true expression node. Need to JIT-generate the proper function body.
           opcodes::push_rbx(code);
@@ -501,20 +506,10 @@ class JITCompiler final {
     }
 
     for (ExpressionNodeIndex const index : output_node_indexes) {
-      index.Dispatch(
-          [&](size_t) {
-            // Expression nodes should be JIT-compiled.
-            NonRecursiveEnsureNodeComputed(code, index);
-          },
-          [](size_t) {
-            // Var "nodes" are already conveniently available right by the memory location pointed to. A no-op.
-          },
-          [](double) {
-            // Same is true for immediate double values.
-          },
-          []() {
-            // Same is true for the lambda "nodes".
-          });
+      // Outside the very index nodes, var nodes, double value nodes, and lamda nodes do not need to be JIT-compiled.
+      if (index.UncheckedIsSpecificallyNodeIndex()) {
+        NonRecursiveEnsureNodeComputed(code, index);
+      }
     }
 
     opcodes::pop_rbx(code);
@@ -530,7 +525,7 @@ class JITCompiler final {
     std::vector<uint8_t> code;
 
     ExpressionNodeIndex const index = ExpressionNodeIndex(node);
-    index.Dispatch(
+    index.CheckedDispatch(
         [&](size_t node_index) {
           // The true expression node. Need to JIT-generate the proper function body.
           opcodes::push_rbx(code);
