@@ -48,26 +48,36 @@ struct DoNotDifferentiateSigmoidException final : DifferentiationDeliberatelyNot
 struct SeeingLambdaWhileNotDifferentiatingByLambdaException final : OptimizeException {};
 struct DirectionalDerivativeGradientDimMismatchException final : OptimizeException {};
 
-inline value_t DifferentiateOperation(ExpressionNodeType node_type, value_t a, value_t b, value_t da, value_t db) {
+inline ExpressionNodeIndex DifferentiateOperation(ExpressionNodeType node_type,
+                                                  ExpressionNodeIndex a,
+                                                  ExpressionNodeIndex b,
+                                                  ExpressionNodeIndex da,
+                                                  ExpressionNodeIndex db) {
+  value_t const vda = value_t::FromExpressionNodeIndex(da);
+  value_t const vdb = value_t::FromExpressionNodeIndex(db);
   if (node_type == ExpressionNodeType::Operation_add) {
-    return da + db;
+    return (vda + vdb).GetExpressionNodeIndex();
   } else if (node_type == ExpressionNodeType::Operation_sub) {
-    return da - db;
+    return (vda - vdb).GetExpressionNodeIndex();
   } else if (node_type == ExpressionNodeType::Operation_mul) {
-    return a * db + b * da;
+    value_t const va = value_t::FromExpressionNodeIndex(a);
+    value_t const vb = value_t::FromExpressionNodeIndex(b);
+    return (va * vdb + vb * vda).GetExpressionNodeIndex();
   } else if (node_type == ExpressionNodeType::Operation_div) {
-    return (b * da - a * db) / (b * b);
+    value_t const va = value_t::FromExpressionNodeIndex(a);
+    value_t const vb = value_t::FromExpressionNodeIndex(b);
+    return ((vb * vda - va * vdb) / (vb * vb)).GetExpressionNodeIndex();
   } else {
 #ifndef NDEBUG
     TriggerSegmentationFault();
     throw false;
 #else
-    return 0.0;
+    return ExpressionNodeIndex::DoubleZero();
 #endif
   }
 }
 
-inline value_t DifferentiateFunction(ExpressionNodeType node_type, value_t f, value_t x, value_t dx) {
+inline value_t DifferentiateFunctionInValues(ExpressionNodeType node_type, value_t f, value_t x, value_t dx) {
   if (node_type == ExpressionNodeType::Function_exp) {
     return dx * f;
   } else if (node_type == ExpressionNodeType::Function_log) {
@@ -104,6 +114,16 @@ inline value_t DifferentiateFunction(ExpressionNodeType node_type, value_t f, va
     return 0.0;
 #endif
   }
+}
+inline ExpressionNodeIndex DifferentiateFunction(ExpressionNodeType node_type,
+                                                 ExpressionNodeIndex f,
+                                                 ExpressionNodeIndex x,
+                                                 ExpressionNodeIndex dx) {
+  return DifferentiateFunctionInValues(node_type,
+                                       value_t::FromExpressionNodeIndex(f),
+                                       value_t::FromExpressionNodeIndex(x),
+                                       value_t::FromExpressionNodeIndex(dx))
+      .GetExpressionNodeIndex();
 }
 
 // The generic differentiator, contains all the logic on how to differentiate expression nodes of all types.
@@ -173,8 +193,11 @@ class Differentiator final {
 
  public:
   template <typename F, typename... ARGS>
-  static void DoDifferentiate(VarsContext const& vars_context, value_t value_to_differentiate, F&& f, ARGS&&... args) {
-    size_t const max_stack_depth = ExpressionTreeHeight(value_to_differentiate);
+  static void DoDifferentiate(VarsContext const& vars_context,
+                              ExpressionNodeIndex index_to_differentiate,
+                              F&& f,
+                              ARGS&&... args) {
+    size_t const max_stack_depth = ExpressionNodeIndexHeight(index_to_differentiate);
     if (max_stack_depth > kNodeHeightCutoffIndicatingUnbalancedExpression) {
       // For most practical purposes, running `BalanceExpressionTree(cost_function)` would do the job.
       CURRENT_THROW(DifferentiatorRequiresBalancedTreeException());
@@ -194,7 +217,7 @@ class Differentiator final {
                             [&]() { impl.DoReturnDerivativeOfLambda(stack.RetvalPlaceholder(return_value_index)); });
     };
 
-    PushToStack(value_to_differentiate.GetExpressionNodeIndex(), 0u);
+    PushToStack(index_to_differentiate, 0u);
 
     while (stack.NotEmpty()) {
       size_t const current_stack_index = stack.CurrentStackIndex();
@@ -208,7 +231,6 @@ class Differentiator final {
 #ifdef NDEBUG
       size_t const node_index = element.index_with_special_bit.UncheckedNodeIndex();
 #else
-      // TODO(dkorolev): In `NDEBUG` mode this would just be an unchecked node index extraction.
       size_t const node_index = element.index_with_special_bit.template CheckedDispatch<size_t>(
           [](size_t node_index) -> size_t { return node_index; },
           [](size_t) -> size_t {
@@ -228,16 +250,16 @@ class Differentiator final {
       ExpressionNodeType const node_type = short_lived_node.Type();
 
       if (IsOperationNode(node_type)) {
-        value_t const a = value_t::FromExpressionNodeIndex(short_lived_node.LHSIndex());
-        value_t const b = value_t::FromExpressionNodeIndex(short_lived_node.RHSIndex());
+        ExpressionNodeIndex const a = short_lived_node.LHSIndex();
+        ExpressionNodeIndex const b = short_lived_node.RHSIndex();
         if (phase < 2) {
           // Going down. Need to differentiate the dependencies of this node first. Use special bits. Flip LHS ad RHS.
           element.index_with_special_bit.SetSpecialTwoBitsValue(phase + 1);
           if (phase == 0) {
             // One's complement of `current_stack_index` index to return the value into `return_value[1]`, not `[0]`.
-            PushToStack(b.GetExpressionNodeIndex(), ~current_stack_index);
+            PushToStack(b, ~current_stack_index);
           } else {
-            PushToStack(a.GetExpressionNodeIndex(), current_stack_index);
+            PushToStack(a, current_stack_index);
           }
         } else {
           // Going up, the { lhs, rhs } are already differentiated.
@@ -258,8 +280,8 @@ class Differentiator final {
         } else {
           // Going up, the argument is already differentiated.
           impl.DoReturnDifferentiatedFunction(node_type,
-                                              value_t::FromExpressionNodeIndex(element.index_with_special_bit),
-                                              value_t::FromExpressionNodeIndex(x),
+                                              element.index_with_special_bit,
+                                              x,
                                               element.return_value[0],
                                               stack.RetvalPlaceholder(element.return_value_index));
           stack.DoPop();
@@ -294,21 +316,19 @@ struct DifferentiateBySingleVarImpl {
     CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
   }
   void DoReturnDifferentiatedOperation(ExpressionNodeType node_type,
-                                       value_t a,
-                                       value_t b,
+                                       ExpressionNodeIndex a,
+                                       ExpressionNodeIndex b,
                                        ExpressionNodeIndex da,
                                        ExpressionNodeIndex db,
                                        ExpressionNodeIndex& placeholder) const {
-    placeholder = DifferentiateOperation(
-                      node_type, a, b, value_t::FromExpressionNodeIndex(da), value_t::FromExpressionNodeIndex(db))
-                      .GetExpressionNodeIndex();
+    placeholder = DifferentiateOperation(node_type, a, b, da, db);
   }
   void DoReturnDifferentiatedFunction(ExpressionNodeType node_type,
-                                      value_t f,
-                                      value_t x,
+                                      ExpressionNodeIndex f,
+                                      ExpressionNodeIndex x,
                                       ExpressionNodeIndex dx,
                                       ExpressionNodeIndex& placeholder) const {
-    placeholder = DifferentiateFunction(node_type, f, x, value_t::FromExpressionNodeIndex(dx)).GetExpressionNodeIndex();
+    placeholder = DifferentiateFunction(node_type, f, x, dx);
   }
 };
 
@@ -321,21 +341,19 @@ struct DifferentiateByLambdaImpl {
   void DoReturnDerivativeOfVar(size_t, retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
   void DoReturnDerivativeOfLambda(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleOne(); }
   void DoReturnDifferentiatedOperation(ExpressionNodeType node_type,
-                                       value_t a,
-                                       value_t b,
+                                       ExpressionNodeIndex a,
+                                       ExpressionNodeIndex b,
                                        ExpressionNodeIndex da,
                                        ExpressionNodeIndex db,
                                        ExpressionNodeIndex& placeholder) const {
-    placeholder = DifferentiateOperation(
-                      node_type, a, b, value_t::FromExpressionNodeIndex(da), value_t::FromExpressionNodeIndex(db))
-                      .GetExpressionNodeIndex();
+    placeholder = DifferentiateOperation(node_type, a, b, da, db);
   }
   void DoReturnDifferentiatedFunction(ExpressionNodeType node_type,
-                                      value_t f,
-                                      value_t x,
+                                      ExpressionNodeIndex f,
+                                      ExpressionNodeIndex x,
                                       ExpressionNodeIndex dx,
                                       ExpressionNodeIndex& placeholder) const {
-    placeholder = DifferentiateFunction(node_type, f, x, value_t::FromExpressionNodeIndex(dx)).GetExpressionNodeIndex();
+    placeholder = DifferentiateFunction(node_type, f, x, dx);
   }
 };
 
@@ -388,24 +406,17 @@ struct DifferentiateByAllVarsTogetherImpl {
       nonzero_indexes_list_[nonzero_indexes_count_++] = i;
     }
 
-    void ApplyOperation(ExpressionNodeType node_type, value_t a, value_t b, GradientPiece const& rhs) {
+    void ApplyOperation(ExpressionNodeType node_type,
+                        ExpressionNodeIndex a,
+                        ExpressionNodeIndex b,
+                        GradientPiece const& rhs) {
       size_t removal_candidates_count = 0u;
       for (size_t lhs_index = 0u; lhs_index < nonzero_indexes_count_; ++lhs_index) {
         uint32_t const i = nonzero_indexes_list_[lhs_index];
         if (rhs.Has(i)) {
-          components_[i] = DifferentiateOperation(node_type,
-                                                  a,
-                                                  b,
-                                                  value_t::FromExpressionNodeIndex(components_[i]),
-                                                  value_t::FromExpressionNodeIndex(rhs.components_[i]))
-                               .GetExpressionNodeIndex();
+          components_[i] = DifferentiateOperation(node_type, a, b, components_[i], rhs.components_[i]);
         } else {
-          components_[i] = DifferentiateOperation(node_type,
-                                                  a,
-                                                  b,
-                                                  value_t::FromExpressionNodeIndex(components_[i]),
-                                                  value_t::FromExpressionNodeIndex(ExpressionNodeIndex::DoubleZero()))
-                               .GetExpressionNodeIndex();
+          components_[i] = DifferentiateOperation(node_type, a, b, components_[i], ExpressionNodeIndex::DoubleZero());
         }
         if (components_[i].IsIndexDoubleZero()) {
           removal_candidates_[removal_candidates_count++] = lhs_index;
@@ -414,12 +425,8 @@ struct DifferentiateByAllVarsTogetherImpl {
       for (size_t rhs_index = 0u; rhs_index < rhs.nonzero_indexes_count_; ++rhs_index) {
         uint32_t const j = rhs.nonzero_indexes_list_[rhs_index];
         if (!Has(j)) {
-          components_[j] = DifferentiateOperation(node_type,
-                                                  a,
-                                                  b,
-                                                  value_t::FromExpressionNodeIndex(ExpressionNodeIndex::DoubleZero()),
-                                                  value_t::FromExpressionNodeIndex(rhs.components_[j]))
-                               .GetExpressionNodeIndex();
+          components_[j] =
+              DifferentiateOperation(node_type, a, b, ExpressionNodeIndex::DoubleZero(), rhs.components_[j]);
           if (!components_[j].IsIndexDoubleZero()) {
 #ifndef NDEBUG
             if (nonzero_indexes_count_ >= m_) {
@@ -438,12 +445,11 @@ struct DifferentiateByAllVarsTogetherImpl {
       }
     }
 
-    void ApplyFunction(ExpressionNodeType node_type, value_t f, value_t x) {
+    void ApplyFunction(ExpressionNodeType node_type, ExpressionNodeIndex f, ExpressionNodeIndex x) {
       size_t removal_candidates_count = 0u;
       for (size_t index = 0u; index < nonzero_indexes_count_; ++index) {
         uint32_t const i = nonzero_indexes_list_[index];
-        components_[i] = DifferentiateFunction(node_type, f, x, value_t::FromExpressionNodeIndex(components_[i]))
-                             .GetExpressionNodeIndex();
+        components_[i] = DifferentiateFunction(node_type, f, x, components_[i]);
         if (components_[i].IsIndexDoubleZero()) {
           removal_candidates_[removal_candidates_count++] = index;
         }
@@ -484,8 +490,8 @@ struct DifferentiateByAllVarsTogetherImpl {
   }
 
   void DoReturnDifferentiatedOperation(ExpressionNodeType node_type,
-                                       value_t a,
-                                       value_t b,
+                                       ExpressionNodeIndex a,
+                                       ExpressionNodeIndex b,
                                        GradientPiece& da,
                                        GradientPiece& db,
                                        GradientPiece& placeholder) const {
@@ -494,8 +500,11 @@ struct DifferentiateByAllVarsTogetherImpl {
     placeholder.ApplyOperation(node_type, a, b, db);
   }
 
-  void DoReturnDifferentiatedFunction(
-      ExpressionNodeType node_type, value_t f, value_t x, GradientPiece& dx, GradientPiece& placeholder) const {
+  void DoReturnDifferentiatedFunction(ExpressionNodeType node_type,
+                                      ExpressionNodeIndex f,
+                                      ExpressionNodeIndex x,
+                                      GradientPiece& dx,
+                                      GradientPiece& placeholder) const {
     // TODO(dkorolev): This `std::swap()` is already fast, but perhaps we can do better?
     std::swap(placeholder, dx);
     placeholder.ApplyFunction(node_type, f, x);
@@ -507,7 +516,7 @@ inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_inde
   ExpressionNodeIndex result;
   Differentiator<DifferentiateBySingleVarImpl>::DoDifferentiate(
       VarsManager::TLS().Active(),
-      f,
+      f.GetExpressionNodeIndex(),
       [&result](ExpressionNodeIndex retval) { result = retval; },
       derivative_per_finalized_var_index);
   return value_t::FromExpressionNodeIndex(result);
@@ -517,9 +526,9 @@ inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_inde
 inline std::vector<value_t> ComputeGradient(value_t f) {
   std::vector<value_t> result;
   Differentiator<DifferentiateByAllVarsTogetherImpl>::DoDifferentiate(
-      VarsManager::TLS().Active(), f, [&result](DifferentiateByAllVarsTogetherImpl::GradientPiece const& retval) {
-        result = retval.FillOutput();
-      });
+      VarsManager::TLS().Active(),
+      f.GetExpressionNodeIndex(),
+      [&result](DifferentiateByAllVarsTogetherImpl::GradientPiece const& retval) { result = retval.FillOutput(); });
   return result;
 }
 
@@ -538,7 +547,9 @@ inline value_t GenerateLineSearchFunction(VarsMapperConfig const& config, value_
 inline value_t DifferentiateByLambda(value_t f) {
   ExpressionNodeIndex result;
   Differentiator<DifferentiateByLambdaImpl>::DoDifferentiate(
-      VarsManager::TLS().Active(), f, [&result](ExpressionNodeIndex retval) { result = retval; });
+      VarsManager::TLS().Active(), f.GetExpressionNodeIndex(), [&result](ExpressionNodeIndex retval) {
+        result = retval;
+      });
   return value_t::FromExpressionNodeIndex(result);
 }
 
