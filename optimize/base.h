@@ -111,15 +111,17 @@ class ExpressionNodeIndex {
   ExpressionNodeIndex& operator=(ExpressionNodeIndex const&) = default;
   ExpressionNodeIndex& operator=(ExpressionNodeIndex&&) = default;
 
-  struct DoubleZero {};
-  struct DoubleOne {};
-  ExpressionNodeIndex(DoubleZero) : compactified_index_(kExpressionNodeIndexForDoubleZero) {}
-  ExpressionNodeIndex(DoubleOne) : compactified_index_(kExpressionNodeIndexForDoubleOne) {}
+  struct ConstructDoubleZero {};
+  struct ConstructDoubleOne {};
+  ExpressionNodeIndex(ConstructDoubleZero) : compactified_index_(kExpressionNodeIndexForDoubleZero) {}
+  ExpressionNodeIndex(ConstructDoubleOne) : compactified_index_(kExpressionNodeIndexForDoubleOne) {}
   bool IsIndexDoubleZero() const {
     return compactified_index_ == kExpressionNodeIndexForDoubleZero ||
            compactified_index_ == kExpressionNodeIndexForDoubleNegativeZero;
   }
   bool IsIndexDoubleOne() const { return compactified_index_ == kExpressionNodeIndexForDoubleOne; }
+  static ExpressionNodeIndex DoubleZero() { return ExpressionNodeIndex(ConstructDoubleZero()); }
+  static ExpressionNodeIndex DoubleOne() { return ExpressionNodeIndex(ConstructDoubleOne()); }
 
   static ExpressionNodeIndex FromNodeIndex(size_t node_index) {
 #ifndef NDEBUG

@@ -231,10 +231,10 @@ TEST(OptimizationExpression, IndexesAreNonFinalizedIndexes) {
   value_t const v0(x[0]);
   value_t const v2(x[2]);
 
-  EXPECT_TRUE(!ExpressionNodeIndex(v0).UnitTestIsNodeIndex());
-  EXPECT_TRUE(!ExpressionNodeIndex(v2).UnitTestIsNodeIndex());
-  EXPECT_EQ(0u, ExpressionNodeIndex(v0).UnitTestVarIndex());
-  EXPECT_EQ(1u, ExpressionNodeIndex(v2).UnitTestVarIndex());
+  EXPECT_TRUE(!v0.GetExpressionNodeIndex().UnitTestIsNodeIndex());
+  EXPECT_TRUE(!v2.GetExpressionNodeIndex().UnitTestIsNodeIndex());
+  EXPECT_EQ(0u, v0.GetExpressionNodeIndex().UnitTestVarIndex());
+  EXPECT_EQ(1u, v2.GetExpressionNodeIndex().UnitTestVarIndex());
 
   EXPECT_EQ("x[0]", v0.DebugAsString());
   EXPECT_EQ("x[2]", v2.DebugAsString());
@@ -253,18 +253,18 @@ TEST(OptimizationExpression, IndexesAreNonFinalizedIndexes) {
   EXPECT_EQ("x[1]", v1.DebugAsString());  // No dense index allocated yet for `x[1]` before `Freeze()` was called.
   EXPECT_EQ("x[2]{1}", v2.DebugAsString());
 
-  EXPECT_TRUE(!ExpressionNodeIndex(v0).UnitTestIsNodeIndex());
-  EXPECT_TRUE(!ExpressionNodeIndex(v1).UnitTestIsNodeIndex());
-  EXPECT_TRUE(!ExpressionNodeIndex(v2).UnitTestIsNodeIndex());
-  EXPECT_EQ(0u, ExpressionNodeIndex(v0).UnitTestVarIndex());
-  EXPECT_EQ(1u, ExpressionNodeIndex(v2).UnitTestVarIndex());  // `v2`, which is `x[2]`, has an internal index `1`.
-  EXPECT_EQ(2u, ExpressionNodeIndex(v1).UnitTestVarIndex());  // `v1`, which is `x[1]`, has an internal index `2`.
+  EXPECT_TRUE(!v0.GetExpressionNodeIndex().UnitTestIsNodeIndex());
+  EXPECT_TRUE(!v1.GetExpressionNodeIndex().UnitTestIsNodeIndex());
+  EXPECT_TRUE(!v2.GetExpressionNodeIndex().UnitTestIsNodeIndex());
+  EXPECT_EQ(0u, v0.GetExpressionNodeIndex().UnitTestVarIndex());
+  EXPECT_EQ(1u, v2.GetExpressionNodeIndex().UnitTestVarIndex());  // `v2`, which is `x[2]`, has an internal index `1`.
+  EXPECT_EQ(2u, v1.GetExpressionNodeIndex().UnitTestVarIndex());  // `v1`, which is `x[1]`, has an internal index `2`.
 
   vars_context.Freeze();
 
-  EXPECT_EQ(0u, ExpressionNodeIndex(v0).UnitTestVarIndex());
-  EXPECT_EQ(1u, ExpressionNodeIndex(v2).UnitTestVarIndex());
-  EXPECT_EQ(2u, ExpressionNodeIndex(v1).UnitTestVarIndex());
+  EXPECT_EQ(0u, v0.GetExpressionNodeIndex().UnitTestVarIndex());
+  EXPECT_EQ(1u, v2.GetExpressionNodeIndex().UnitTestVarIndex());
+  EXPECT_EQ(2u, v1.GetExpressionNodeIndex().UnitTestVarIndex());
 
   EXPECT_EQ("x[0]{0}", v0.DebugAsString());
   EXPECT_EQ("x[1]{1}", v1.DebugAsString());
@@ -334,9 +334,9 @@ TEST(OptimizationExpression, FreezePreventsNodesCreation) {
   value_t const tmp2 = x[0] + 2.0;
   value_t const tmp3 = x[0] + 3.0;
 
-  EXPECT_EQ(0u, ExpressionNodeIndex(tmp1).UnitTestNodeIndex());
-  EXPECT_EQ(1u, ExpressionNodeIndex(tmp2).UnitTestNodeIndex());
-  EXPECT_EQ(2u, ExpressionNodeIndex(tmp3).UnitTestNodeIndex());
+  EXPECT_EQ(0u, tmp1.GetExpressionNodeIndex().UnitTestNodeIndex());
+  EXPECT_EQ(1u, tmp2.GetExpressionNodeIndex().UnitTestNodeIndex());
+  EXPECT_EQ(2u, tmp3.GetExpressionNodeIndex().UnitTestNodeIndex());
 
   VarsMapperConfig const config = vars_context.Freeze();
   EXPECT_EQ(1u, config.total_leaves);  // Just one variable, `x[0]`.
@@ -400,20 +400,18 @@ TEST(OptimizationExpression, DoubleValuesAsNodes) {
 TEST(OptimizationExpression, ConstantsForInternalRepresentationsAreCorrect) {
   using namespace current::expression;
 
-  EXPECT_EQ(kExpressionNodeIndexForDoubleZero, ExpressionNodeIndex(value_t(0.0)).UnitTestRawCompactifiedIndex())
-      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(value_t(0.0)).UnitTestRawCompactifiedIndex());
+  EXPECT_EQ(kExpressionNodeIndexForDoubleZero, value_t(0.0).GetExpressionNodeIndex().UnitTestRawCompactifiedIndex())
+      << current::strings::Printf("0x%016lx", value_t(0.0).GetExpressionNodeIndex().UnitTestRawCompactifiedIndex());
 
   EXPECT_EQ(kExpressionNodeIndexForDoubleNegativeZero,
-            ExpressionNodeIndex(value_t(-0.0)).UnitTestRawCompactifiedIndex())
-      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(value_t(-0.0)).UnitTestRawCompactifiedIndex());
+            value_t(-0.0).GetExpressionNodeIndex().UnitTestRawCompactifiedIndex())
+      << current::strings::Printf("0x%016lx", value_t(-0.0).GetExpressionNodeIndex().UnitTestRawCompactifiedIndex());
 
-  EXPECT_EQ(kExpressionNodeIndexForDoubleOne, ExpressionNodeIndex(value_t(1.0)).UnitTestRawCompactifiedIndex())
-      << current::strings::Printf("0x%016lx", ExpressionNodeIndex(value_t(1.0)).UnitTestRawCompactifiedIndex());
+  EXPECT_EQ(kExpressionNodeIndexForDoubleOne, value_t(1.0).GetExpressionNodeIndex().UnitTestRawCompactifiedIndex())
+      << current::strings::Printf("0x%016lx", value_t(1.0).GetExpressionNodeIndex().UnitTestRawCompactifiedIndex());
 
-  EXPECT_EQ(kExpressionNodeIndexForDoubleZero,
-            ExpressionNodeIndex(ExpressionNodeIndex::DoubleZero()).UnitTestRawCompactifiedIndex());
-  EXPECT_EQ(kExpressionNodeIndexForDoubleOne,
-            ExpressionNodeIndex(ExpressionNodeIndex::DoubleOne()).UnitTestRawCompactifiedIndex());
+  EXPECT_EQ(kExpressionNodeIndexForDoubleZero, ExpressionNodeIndex::DoubleZero().UnitTestRawCompactifiedIndex());
+  EXPECT_EQ(kExpressionNodeIndexForDoubleOne, ExpressionNodeIndex::DoubleOne().UnitTestRawCompactifiedIndex());
 }
 
 // See `DoublesUpTo1ePositive77AreRegular` and `DoublesUpTo1eNegative76AreRegular` in `../encoded_double/test.cc`.

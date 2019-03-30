@@ -133,6 +133,9 @@ struct VarsMapperConfig final {
         root(std::move(root)) {}
 };
 
+// To also be implemented for `value_t` in `../expression/expression.h`; the `value_t` type is unknown to `vars/`.
+inline ExpressionNodeIndex ExpressionNodeIndexFromExpressionNodeOrValue(ExpressionNodeIndex index) { return index; }
+
 class VarsMapper final {
  private:
   VarsMapperConfig const config_;
@@ -184,16 +187,6 @@ class VarsMapper final {
       CURRENT_THROW(VarsMapperWrongVarException());
     }
 
-    operator double() const {
-      if (Exists<json::X>(node_)) {
-        auto const& v = Value<json::X>(node_);
-        if (Exists(v.i)) {
-          return value_[Value(v.i)];
-        }
-      }
-      CURRENT_THROW(VarsMapperNodeNotVarException());
-    }
-
     double& Ref(bool allow_modifying_constants = false) const {
       if (Exists<json::X>(node_)) {
         auto const& v = Value<json::X>(node_);
@@ -207,9 +200,9 @@ class VarsMapper final {
       CURRENT_THROW(VarsMapperNodeNotVarException());
     }
 
-    operator double&() const { return Ref(); }
+    operator double() const { return Ref(); }
 
-    void operator=(double x) const { (operator double&()) = x; }
+    void operator=(double x) const { Ref() = x; }
 
     double& RefEvenForAConstant() const { return Ref(true); }
 
@@ -229,13 +222,13 @@ class VarsMapper final {
   // This method is `template`-d to accept both `std::vector<ExpressionNodeIndex>` and `std::vector<value_t>`.
   // The latter type, `value_t`, is not introduced when building `vars.h`.
   template <typename T>
-  void MovePoint(double const* ram, T const& direction_indexes, double step_size) {
-    if (direction_indexes.size() != value_.size()) {
+  void MovePoint(double const* ram, T const& direction, double step_size) {
+    if (direction.size() != value_.size()) {
       CURRENT_THROW(VarsMapperMovePointDimensionsMismatchException());
     }
     std::vector<double> new_value(value_);
-    for (size_t i = 0; i < direction_indexes.size(); ++i) {
-      ExpressionNodeIndex(direction_indexes[i])
+    for (size_t i = 0; i < direction.size(); ++i) {
+      ExpressionNodeIndexFromExpressionNodeOrValue(direction[i])
           .CheckedDispatch([&](size_t node_index) { new_value[i] += ram[node_index] * step_size; },
                            [&](size_t var_index) { new_value[i] += value_[var_index] * step_size; },
                            [&](double x) { new_value[i] += x * step_size; },

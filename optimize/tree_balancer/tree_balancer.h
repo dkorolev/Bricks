@@ -32,8 +32,8 @@ SOFTWARE.
 namespace current {
 namespace expression {
 
-inline size_t ExpressionTreeHeight(ExpressionNodeIndex index,
-                                   VarsContext const& vars_context = VarsManager::TLS().Active()) {
+inline size_t ExpressionNodeIndexHeight(ExpressionNodeIndex index,
+                                        VarsContext const& vars_context = VarsManager::TLS().Active()) {
   std::stack<std::pair<size_t, size_t>> stack;
   size_t max_depth = 0u;
 
@@ -83,6 +83,10 @@ inline size_t ExpressionTreeHeight(ExpressionNodeIndex index,
   }
 
   return max_depth;
+}
+
+inline size_t ExpressionTreeHeight(value_t value, VarsContext const& vars_context = VarsManager::TLS().Active()) {
+  return ExpressionNodeIndexHeight(value.GetExpressionNodeIndex(), vars_context);
 }
 
 // A collection of node indexes united by `+` or by `*`, for further rebalancing.
@@ -226,7 +230,8 @@ class NodesCluster {
   }
 };
 
-inline void BalanceExpressionTree(ExpressionNodeIndex index, VarsContext& vars_context = VarsManager::TLS().Active()) {
+inline void BalanceExpressionNodeIndexTree(ExpressionNodeIndex index,
+                                           VarsContext& vars_context = VarsManager::TLS().Active()) {
   std::stack<size_t> stack;
 
   auto const PushToStack = [&stack](ExpressionNodeIndex index) {
@@ -270,6 +275,10 @@ inline void BalanceExpressionTree(ExpressionNodeIndex index, VarsContext& vars_c
 #endif
     }
   }
+}
+
+inline void BalanceExpressionTree(value_t value, VarsContext& vars_context = VarsManager::TLS().Active()) {
+  BalanceExpressionNodeIndexTree(value.GetExpressionNodeIndex(), vars_context);
 }
 
 }  // namespace current::expression

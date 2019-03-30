@@ -471,7 +471,7 @@ class JITCompiler final {
     // TODO(dkorolev): Inplace code generation.
     std::vector<uint8_t> code;
 
-    ExpressionNodeIndex index = ExpressionNodeIndex(node);
+    ExpressionNodeIndex index = node.GetExpressionNodeIndex();
     index.CheckedDispatch(
         [&](size_t node_index) {
           // The true expression node. Need to JIT-generate the proper function body.
@@ -509,7 +509,7 @@ class JITCompiler final {
 
     std::vector<ExpressionNodeIndex> output_node_indexes(nodes.size());
     for (size_t i = 0; i < nodes.size(); ++i) {
-      output_node_indexes[i] = static_cast<ExpressionNodeIndex>(ExpressionNodeIndex(nodes[i]));
+      output_node_indexes[i] = static_cast<ExpressionNodeIndex>(nodes[i].GetExpressionNodeIndex());
     }
 
     for (ExpressionNodeIndex const index : output_node_indexes) {
@@ -531,7 +531,7 @@ class JITCompiler final {
     // TODO(dkorolev): Inplace code generation.
     std::vector<uint8_t> code;
 
-    ExpressionNodeIndex const index = ExpressionNodeIndex(node);
+    ExpressionNodeIndex const index = node.GetExpressionNodeIndex();
     index.CheckedDispatch(
         [&](size_t node_index) {
           // The true expression node. Need to JIT-generate the proper function body.

@@ -30,17 +30,17 @@ SOFTWARE.
 // Will fail on very deep trees because it is, well, recursive.
 namespace current {
 namespace expression {
-inline size_t UnitTestRecursiveExpressionTreeHeight(ExpressionNodeIndex index,
-                                                    VarsContext const& vars_context = VarsManager::TLS().Active()) {
+inline size_t UnitTestRecursiveExpressionNodeIndexTreeHeight(
+    ExpressionNodeIndex index, VarsContext const& vars_context = VarsManager::TLS().Active()) {
   return index.template CheckedDispatch<size_t>(
       [&vars_context](size_t node_index) -> size_t {
         ExpressionNodeImpl const& node = vars_context[node_index];
         ExpressionNodeType const node_type = node.Type();
         if (IsOperationNode(node_type)) {
-          return 1u + std::max(UnitTestRecursiveExpressionTreeHeight(node.LHSIndex(), vars_context),
-                               UnitTestRecursiveExpressionTreeHeight(node.RHSIndex(), vars_context));
+          return 1u + std::max(UnitTestRecursiveExpressionNodeIndexTreeHeight(node.LHSIndex(), vars_context),
+                               UnitTestRecursiveExpressionNodeIndexTreeHeight(node.RHSIndex(), vars_context));
         } else if (IsFunctionNode(node_type)) {
-          return 1u + UnitTestRecursiveExpressionTreeHeight(node.ArgumentIndex(), vars_context);
+          return 1u + UnitTestRecursiveExpressionNodeIndexTreeHeight(node.ArgumentIndex(), vars_context);
         } else {
 #ifndef NDEBUG
           TriggerSegmentationFault();
@@ -53,6 +53,10 @@ inline size_t UnitTestRecursiveExpressionTreeHeight(ExpressionNodeIndex index,
       [](size_t) -> size_t { return 1u; },
       [](double) -> size_t { return 1u; },
       []() -> size_t { return 1u; });
+}
+inline size_t UnitTestRecursiveExpressionTreeHeight(value_t value,
+                                                    VarsContext const& vars_context = VarsManager::TLS().Active()) {
+  return UnitTestRecursiveExpressionNodeIndexTreeHeight(value.GetExpressionNodeIndex(), vars_context);
 }
 }  // namespace current::expression
 }  // namespace current
