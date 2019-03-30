@@ -46,27 +46,21 @@ inline size_t ExpressionNodeIndexHeight(ExpressionNodeIndex index,
 
   PushToStack(index, 1u);
 
-#if 0
-    // There are no cycles, but the same node can be reached via different paths.
-    // Do not re-visit the nodes unless the new path from the root is longer (thus increasing the depth).
-    // NOTE(dkorolev): Disabled this as the performance is already O(nodes), and I'm focusing on fewer RAM allocations.
+  // There are no cycles, but the same node can be reached via different paths, esp. w/ 1D lambda-based optimization.
+  // Do not re-visit the nodes unless the new path from the root is longer (thus increasing the depth).
   std::vector<size_t> seen_at_depth(vars_context.NumberOfNodes());
-#endif
 
   while (!stack.empty()) {
     size_t const current_index = stack.top().first;
     size_t const current_depth = stack.top().second;
     stack.pop();
 
-#if 0
-    // There are no cycles, but the same node can be reached via different paths.
+    // There are no cycles, but the same node can be reached via different paths, esp. w/ 1D lambda-based optimization.
     // Do not re-visit the nodes unless the new path from the root is longer (thus increasing the depth).
-    // NOTE(dkorolev): Disabled this as the performance is already O(nodes), and I'm focusing on fewer RAM allocations.
     if (seen_at_depth[current_index] >= current_depth) {
       continue;
     }
     seen_at_depth[current_index] = current_depth;
-#endif
 
     ExpressionNodeImpl const& node = vars_context[current_index];
     ExpressionNodeType const node_type = node.Type();

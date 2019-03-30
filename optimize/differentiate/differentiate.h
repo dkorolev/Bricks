@@ -126,6 +126,46 @@ inline ExpressionNodeIndex DifferentiateFunction(ExpressionNodeType node_type,
       .GetExpressionNodeIndex();
 }
 
+#ifndef NDEBUG
+class RecursivelyEnsureExpressionIsDAGImpl {
+ private:
+  VarsContext const& vars_context_;
+  std::vector<size_t> seen_count_;
+  std::vector<bool> node_in_stack_;
+
+ public:
+  RecursivelyEnsureExpressionIsDAGImpl(VarsContext const& vars_context)
+      : vars_context_(vars_context),
+        seen_count_(vars_context_.NumberOfNodes()),
+        node_in_stack_(vars_context_.NumberOfNodes()) {}
+
+  void Run(ExpressionNodeIndex index) {
+    if (index.UncheckedIsSpecificallyNodeIndex()) {
+      size_t const node_index = index.UncheckedNodeIndex();
+      if (node_in_stack_[node_index]) {
+        TriggerSegmentationFault();
+      }
+      node_in_stack_[node_index] = true;
+      if (seen_count_[node_index] > 1000000) {
+        TriggerSegmentationFault();
+      }
+      ++seen_count_[node_index] = true;
+      ExpressionNodeImpl const& node = vars_context_[node_index];
+      ExpressionNodeType const type = node.Type();
+      if (IsOperationNode(type)) {
+        Run(node.LHSIndex());
+        Run(node.RHSIndex());
+      } else if (IsFunctionNode(type)) {
+        Run(node.ArgumentIndex());
+      } else {
+        TriggerSegmentationFault();
+      }
+      node_in_stack_[node_index] = false;
+    }
+  }
+};
+#endif
+
 // The generic differentiator, contains all the logic on how to differentiate expression nodes of all types.
 template <typename IMPL>
 class Differentiator final {
@@ -203,7 +243,11 @@ class Differentiator final {
       CURRENT_THROW(DifferentiatorRequiresBalancedTreeException());
     }
 
-    IMPL const impl(vars_context, std::forward<ARGS>(args)...);
+#ifndef NDEBUG
+    RecursivelyEnsureExpressionIsDAGImpl(vars_context).Run(index_to_differentiate);
+#endif
+
+    IMPL impl(vars_context, std::forward<ARGS>(args)...);
 
     ManualStack stack(max_stack_depth);
 
@@ -246,48 +290,54 @@ class Differentiator final {
             throw false;
           });
 #endif
-      ExpressionNodeImpl const& short_lived_node = vars_context[node_index];
-      ExpressionNodeType const node_type = short_lived_node.Type();
+      if (impl.DoReturnCachedValueIfValid(node_index, stack.RetvalPlaceholder(element.return_value_index))) {
+        stack.DoPop();
+      } else {
+        ExpressionNodeImpl const& short_lived_node = vars_context[node_index];
+        ExpressionNodeType const node_type = short_lived_node.Type();
 
-      if (IsOperationNode(node_type)) {
-        ExpressionNodeIndex const a = short_lived_node.LHSIndex();
-        ExpressionNodeIndex const b = short_lived_node.RHSIndex();
-        if (phase < 2) {
-          // Going down. Need to differentiate the dependencies of this node first. Use special bits. Flip LHS ad RHS.
-          element.index_with_special_bit.SetSpecialTwoBitsValue(phase + 1);
-          if (phase == 0) {
-            // One's complement of `current_stack_index` index to return the value into `return_value[1]`, not `[0]`.
-            PushToStack(b, ~current_stack_index);
+        if (IsOperationNode(node_type)) {
+          ExpressionNodeIndex const a = short_lived_node.LHSIndex();
+          ExpressionNodeIndex const b = short_lived_node.RHSIndex();
+          if (phase < 2) {
+            // Going down. Need to differentiate the dependencies of this node first. Use special bits. Flip LHS ad RHS.
+            element.index_with_special_bit.SetSpecialTwoBitsValue(phase + 1);
+            if (phase == 0) {
+              // One's complement of `current_stack_index` index to return the value into `return_value[1]`, not `[0]`.
+              PushToStack(b, ~current_stack_index);
+            } else {
+              PushToStack(a, current_stack_index);
+            }
           } else {
-            PushToStack(a, current_stack_index);
+            // Going up, the { lhs, rhs } are already differentiated.
+            impl.DoReturnDifferentiatedOperation(node_index,
+                                                 node_type,
+                                                 a,
+                                                 b,
+                                                 element.return_value[0],
+                                                 element.return_value[1],
+                                                 stack.RetvalPlaceholder(element.return_value_index));
+            stack.DoPop();
+          }
+        } else if (IsFunctionNode(node_type)) {
+          ExpressionNodeIndex const x = short_lived_node.ArgumentIndex();
+          if (phase == 0) {
+            // Going down. Need to differentiate the argument of this call first. Use the lowest special bit.
+            element.index_with_special_bit.SetSpecialTwoBitsValue(1);
+            PushToStack(x, current_stack_index);
+          } else {
+            // Going up, the argument is already differentiated.
+            impl.DoReturnDifferentiatedFunction(node_index,
+                                                node_type,
+                                                element.index_with_special_bit,
+                                                x,
+                                                element.return_value[0],
+                                                stack.RetvalPlaceholder(element.return_value_index));
+            stack.DoPop();
           }
         } else {
-          // Going up, the { lhs, rhs } are already differentiated.
-          impl.DoReturnDifferentiatedOperation(node_type,
-                                               a,
-                                               b,
-                                               element.return_value[0],
-                                               element.return_value[1],
-                                               stack.RetvalPlaceholder(element.return_value_index));
-          stack.DoPop();
+          CURRENT_THROW(DifferentiatorForThisNodeTypeNotImplementedException());
         }
-      } else if (IsFunctionNode(node_type)) {
-        ExpressionNodeIndex const x = short_lived_node.ArgumentIndex();
-        if (phase == 0) {
-          // Going down. Need to differentiate the argument of this call first. Use the lowest special bit.
-          element.index_with_special_bit.SetSpecialTwoBitsValue(1);
-          PushToStack(x, current_stack_index);
-        } else {
-          // Going up, the argument is already differentiated.
-          impl.DoReturnDifferentiatedFunction(node_type,
-                                              element.index_with_special_bit,
-                                              x,
-                                              element.return_value[0],
-                                              stack.RetvalPlaceholder(element.return_value_index));
-          stack.DoPop();
-        }
-      } else {
-        CURRENT_THROW(DifferentiatorForThisNodeTypeNotImplementedException());
       }
     }
     stack.CollectReturnValue(std::forward<F>(f));
@@ -315,45 +365,90 @@ struct DifferentiateBySingleVarImpl {
   void DoReturnDerivativeOfLambda(retval_t&) const {
     CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
   }
-  void DoReturnDifferentiatedOperation(ExpressionNodeType node_type,
+  void DoReturnDifferentiatedOperation(size_t node_index_for_cache,
+                                       ExpressionNodeType node_type,
                                        ExpressionNodeIndex a,
                                        ExpressionNodeIndex b,
                                        ExpressionNodeIndex da,
                                        ExpressionNodeIndex db,
                                        ExpressionNodeIndex& placeholder) const {
+    static_cast<void>(node_index_for_cache);
     placeholder = DifferentiateOperation(node_type, a, b, da, db);
   }
-  void DoReturnDifferentiatedFunction(ExpressionNodeType node_type,
+  void DoReturnDifferentiatedFunction(size_t node_index_for_cache,
+                                      ExpressionNodeType node_type,
                                       ExpressionNodeIndex f,
                                       ExpressionNodeIndex x,
                                       ExpressionNodeIndex dx,
                                       ExpressionNodeIndex& placeholder) const {
+    static_cast<void>(node_index_for_cache);
     placeholder = DifferentiateFunction(node_type, f, x, dx);
+  }
+  bool DoReturnCachedValueIfValid(size_t node_index, ExpressionNodeIndex& placeholder) {
+    static_cast<void>(node_index);
+    static_cast<void>(placeholder);
+    return false;
   }
 };
 
+// In case of optimizing over a lambda-using 1D function that was created by "moving" by a small "step",
+// a lot of nodes will be re-visited multiple times. TODO(dkorolev): Instead of the cache,
+// which is the present solution, perhaps introduce a dedicated node type for per-var lambda-based gradient?
 struct DifferentiateByLambdaImpl {
-  DifferentiateByLambdaImpl(VarsContext const&) {}
-
   using retval_t = ExpressionNodeIndex;
+  std::vector<bool> cache_valid_;
+  std::vector<ExpressionNodeIndex> cache_;
+
+  DifferentiateByLambdaImpl(VarsContext const& vars_context)
+      : cache_valid_(vars_context.NumberOfNodes()), cache_(vars_context.NumberOfNodes()) {}
 
   void DoAssignZero(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
   void DoReturnDerivativeOfVar(size_t, retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
   void DoReturnDerivativeOfLambda(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleOne(); }
-  void DoReturnDifferentiatedOperation(ExpressionNodeType node_type,
+  void DoReturnDifferentiatedOperation(size_t node_index_for_cache,
+                                       ExpressionNodeType node_type,
                                        ExpressionNodeIndex a,
                                        ExpressionNodeIndex b,
                                        ExpressionNodeIndex da,
                                        ExpressionNodeIndex db,
-                                       ExpressionNodeIndex& placeholder) const {
+                                       ExpressionNodeIndex& placeholder) {
+#ifndef NDEBUG
+    if (!(node_index_for_cache < cache_valid_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
     placeholder = DifferentiateOperation(node_type, a, b, da, db);
+
+    cache_valid_[node_index_for_cache] = true;
+    cache_[node_index_for_cache] = placeholder;
   }
-  void DoReturnDifferentiatedFunction(ExpressionNodeType node_type,
+  void DoReturnDifferentiatedFunction(size_t node_index_for_cache,
+                                      ExpressionNodeType node_type,
                                       ExpressionNodeIndex f,
                                       ExpressionNodeIndex x,
                                       ExpressionNodeIndex dx,
-                                      ExpressionNodeIndex& placeholder) const {
+                                      ExpressionNodeIndex& placeholder) {
+#ifndef NDEBUG
+    if (!(node_index_for_cache < cache_valid_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
     placeholder = DifferentiateFunction(node_type, f, x, dx);
+    cache_valid_[node_index_for_cache] = true;
+    cache_[node_index_for_cache] = placeholder;
+  }
+  bool DoReturnCachedValueIfValid(size_t node_index, ExpressionNodeIndex& placeholder) {
+#ifndef NDEBUG
+    if (!(node_index < cache_valid_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
+    if (cache_valid_[node_index]) {
+      placeholder = cache_[node_index];
+      return true;
+    } else {
+      return false;
+    }
   }
 };
 
@@ -438,8 +533,8 @@ struct DifferentiateByAllVarsTogetherImpl {
           }
         }
       }
-      for (size_t index = 0; index < removal_candidates_count; ++index) {
-        uint32_t const i = removal_candidates_[index];
+      for (size_t removal_index = 0u; removal_index < removal_candidates_count; ++removal_index) {
+        uint32_t const i = removal_candidates_[removal_index];
         nonzero_index_epoch_version_[nonzero_indexes_list_[i]] = current_epoch_ - 1u;
         nonzero_indexes_list_[i] = nonzero_indexes_list_[--nonzero_indexes_count_];
       }
@@ -454,8 +549,8 @@ struct DifferentiateByAllVarsTogetherImpl {
           removal_candidates_[removal_candidates_count++] = index;
         }
       }
-      for (size_t index = 0; index < removal_candidates_count; ++index) {
-        uint32_t const i = removal_candidates_[index];
+      for (size_t removal_index = 0u; removal_index < removal_candidates_count; ++removal_index) {
+        uint32_t const i = removal_candidates_[removal_index];
         nonzero_index_epoch_version_[nonzero_indexes_list_[i]] = current_epoch_ - 1u;
         nonzero_indexes_list_[i] = nonzero_indexes_list_[--nonzero_indexes_count_];
       }
@@ -489,25 +584,35 @@ struct DifferentiateByAllVarsTogetherImpl {
     CURRENT_THROW(SeeingLambdaWhileNotDifferentiatingByLambdaException());
   }
 
-  void DoReturnDifferentiatedOperation(ExpressionNodeType node_type,
+  void DoReturnDifferentiatedOperation(size_t node_index_for_cache,
+                                       ExpressionNodeType node_type,
                                        ExpressionNodeIndex a,
                                        ExpressionNodeIndex b,
                                        GradientPiece& da,
                                        GradientPiece& db,
                                        GradientPiece& placeholder) const {
+    static_cast<void>(node_index_for_cache);
     // TODO(dkorolev): This `std::swap()` is already fast, but perhaps we can do better?
     std::swap(placeholder, da);
     placeholder.ApplyOperation(node_type, a, b, db);
   }
 
-  void DoReturnDifferentiatedFunction(ExpressionNodeType node_type,
+  void DoReturnDifferentiatedFunction(size_t node_index_for_cache,
+                                      ExpressionNodeType node_type,
                                       ExpressionNodeIndex f,
                                       ExpressionNodeIndex x,
                                       GradientPiece& dx,
                                       GradientPiece& placeholder) const {
+    static_cast<void>(node_index_for_cache);
     // TODO(dkorolev): This `std::swap()` is already fast, but perhaps we can do better?
     std::swap(placeholder, dx);
     placeholder.ApplyFunction(node_type, f, x);
+  }
+
+  bool DoReturnCachedValueIfValid(size_t node_index, GradientPiece& placeholder) {
+    static_cast<void>(node_index);
+    static_cast<void>(placeholder);
+    return false;
   }
 };
 
