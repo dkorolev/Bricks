@@ -224,6 +224,7 @@ class NodesCluster {
   }
 };
 
+// NOTE(dkorolev): See the warning below, for `BalanceExpressionTree()`.
 inline void BalanceExpressionNodeIndexTree(ExpressionNodeIndex index,
                                            VarsContext& vars_context = VarsManager::TLS().Active()) {
   std::stack<size_t> stack;
@@ -271,6 +272,13 @@ inline void BalanceExpressionNodeIndexTree(ExpressionNodeIndex index,
   }
 }
 
+// NOTE(dkorolev):
+//
+// Balancing the expression tree moves the nodes around, so the other `value_t` "pointers"
+// to various intermediate nodes can and will get invalidated.
+//
+// The user is expected to run `BalanceExpressionTree` at most once, for the top-level cost function to be optimized,
+// prior to it being differentiated and JIT-compiled.
 inline void BalanceExpressionTree(value_t value, VarsContext& vars_context = VarsManager::TLS().Active()) {
   BalanceExpressionNodeIndexTree(value.GetExpressionNodeIndex(), vars_context);
 }
