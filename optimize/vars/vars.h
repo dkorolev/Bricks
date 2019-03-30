@@ -696,6 +696,7 @@ class VarsContext final : public VarsContextInterface {
     if (!(expression_node_index < expression_nodes_.size())) {
       TriggerSegmentationFault();
     }
+    expression_nodes_[expression_node_index].AssertValid();
 #endif
     return expression_nodes_[expression_node_index];
   }
@@ -705,6 +706,7 @@ class VarsContext final : public VarsContextInterface {
     if (!(expression_node_index < expression_nodes_.size())) {
       TriggerSegmentationFault();
     }
+    expression_nodes_[expression_node_index].AssertValid();
 #endif
     return expression_nodes_[expression_node_index];
   }

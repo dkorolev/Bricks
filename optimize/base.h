@@ -194,18 +194,23 @@ class ExpressionNodeIndex {
   // I don't forget to handle all the corner cases as the number of them grows larger than two.
   template <typename T_RETVAL = void, class F_NODE, class F_VAR, class F_DOUBLE, class F_LAMBDA>
   T_RETVAL CheckedDispatch(F_NODE&& f_node, F_VAR&& f_var, F_DOUBLE&& f_double, F_LAMBDA&& f_lambda) const {
+#ifndef NDEBUG
+    if (IsUninitialized()) {
+      TriggerSegmentationFault();
+    }
+#endif
     if (compactified_index_ & kBitDouble) {
 #ifndef NDEBUG
       if (!IsUInt64PackedDouble(compactified_index_)) {
-        // NOTE(dkorolev): This test will always pass unless the code in `double.h` is altered substantially.
+        // NOTE(dkorolev): This check will always pass unless the code in `double.h` is altered substantially.
         TriggerSegmentationFault();
       }
 #endif
       return f_double(UnpackDouble(compactified_index_));
     } else {
 #ifndef NDEBUG
-      // Important: The "special" bit is "allowed" to be set in case of `double` values.
-      if (compactified_index_ == kCompactifiedIndexValueUninitialized) {
+      // Important: The "special" bits are "allowed" to be set in case of `double` values.
+      if (IsUninitialized()) {
         TriggerSegmentationFault();
       }
       if (compactified_index_ & kBitSpecial1OrSpecial2) {

@@ -316,12 +316,12 @@ using namespace current::expression::functions;
 class Build1DFunctionImpl {
  private:
   VarsContext const& vars_context_;
-  std::vector<value_t> const& substitute_;
+  std::vector<ExpressionNodeIndex> const& substitute_;
 
  public:
   Build1DFunctionImpl(VarsContext const& vars_context,
                       VarsMapperConfig const& vars_config,
-                      std::vector<value_t> const& substitute)
+                      std::vector<ExpressionNodeIndex> const& substitute)
       : vars_context_(vars_context), substitute_(substitute) {
     // TODO(dkorolev): A stricter check that the config matches the context?
     if (vars_context_.NumberOfVars() != vars_config.name.size()) {
@@ -333,23 +333,27 @@ class Build1DFunctionImpl {
   }
 
   // TODO(dkorolev): This `DoBuild1DFunction` is a) `Checked`, meaning slow, and b) recursive. Something to fix.
-  value_t DoBuild1DFunction(value_t f) const {
-    return f.GetExpressionNodeIndex().template CheckedDispatch<value_t>(
-        [&](size_t node_index) -> value_t {
-          ExpressionNodeImpl const& node = vars_context_[node_index];
-          ExpressionNodeType const type = node.Type();
+  ExpressionNodeIndex DoBuild1DFunction(ExpressionNodeIndex f) const {
+    return f.template CheckedDispatch<ExpressionNodeIndex>(
+        [&](size_t node_index) -> ExpressionNodeIndex {
+          ExpressionNodeImpl const& short_lived_node = vars_context_[node_index];
+          ExpressionNodeType const type = short_lived_node.Type();
           if (false) {
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                        \
-  }                                                                             \
-  else if (type == ExpressionNodeType::Operation_##name) {                      \
-    return DoBuild1DFunction(value_t::FromExpressionNodeIndex(node.LHSIndex())) \
-        op DoBuild1DFunction(value_t::FromExpressionNodeIndex(node.RHSIndex()));
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                     \
+  }                                                                          \
+  else if (type == ExpressionNodeType::Operation_##name) {                   \
+    ExpressionNodeIndex const lhs = short_lived_node.LHSIndex();             \
+    ExpressionNodeIndex const rhs = short_lived_node.RHSIndex();             \
+    return (value_t::FromExpressionNodeIndex(DoBuild1DFunction(lhs))         \
+                op value_t::FromExpressionNodeIndex(DoBuild1DFunction(rhs))) \
+        .GetExpressionNodeIndex();
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
-#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)            \
-  }                                                     \
-  else if (type == ExpressionNodeType::Function_##fn) { \
-    return fn(DoBuild1DFunction(value_t::FromExpressionNodeIndex(node.ArgumentIndex())));
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                         \
+  }                                                                                                  \
+  else if (type == ExpressionNodeType::Function_##fn) {                                              \
+    return fn(value_t::FromExpressionNodeIndex(DoBuild1DFunction(short_lived_node.ArgumentIndex()))) \
+        .GetExpressionNodeIndex();
 #include "../math_functions.inl"
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
           } else {
@@ -357,11 +361,12 @@ class Build1DFunctionImpl {
             TriggerSegmentationFault();
             throw false;
 #else
-            return 0.0;
+            return ExpressionNodeIndex::DoubleZero();
+            ;
 #endif
           }
         },
-        [&](size_t var_index) -> value_t {
+        [&](size_t var_index) -> ExpressionNodeIndex {
 #ifndef NDEBUG
           if (!(var_index < substitute_.size())) {
             TriggerSegmentationFault();
@@ -369,20 +374,31 @@ class Build1DFunctionImpl {
 #endif
           return substitute_[var_index];
         },
-        [&](double) -> value_t { return f; },
-        [&]() -> value_t {
+        [&](double) -> ExpressionNodeIndex { return f; },
+        [&]() -> ExpressionNodeIndex {
 // No `lambda` support here. `DoBuild1DFunction` introduces `lambda`-s, not uses them.
 #ifndef NDEBUG
           TriggerSegmentationFault();
           throw false;
 #else
-          return 0.0;
+          return ExpressionNodeIndex::DoubleZero();
 #endif
         });
   }
 };
 inline value_t Build1DFunction(value_t f, VarsMapperConfig const& config, std::vector<value_t> const& substitute) {
-  return Build1DFunctionImpl(VarsManager::TLS().Active(), config, substitute).DoBuild1DFunction(f);
+  std::vector<ExpressionNodeIndex> actual_substitute(substitute.size());
+  for (size_t i = 0u; i < substitute.size(); ++i) {
+    actual_substitute[i] = substitute[i].GetExpressionNodeIndex();
+  }
+  return value_t::FromExpressionNodeIndex(Build1DFunctionImpl(VarsManager::TLS().Active(), config, actual_substitute)
+                                              .DoBuild1DFunction(f.GetExpressionNodeIndex()));
+}
+inline value_t Build1DFunction(value_t f,
+                               VarsMapperConfig const& config,
+                               std::vector<ExpressionNodeIndex> const& substitute) {
+  return value_t::FromExpressionNodeIndex(Build1DFunctionImpl(VarsManager::TLS().Active(), config, substitute)
+                                              .DoBuild1DFunction(f.GetExpressionNodeIndex()));
 }
 
 }  // namespace current::expression
