@@ -33,7 +33,7 @@ namespace current {
 namespace expression {
 
 inline size_t ExpressionNodeIndexHeight(ExpressionNodeIndex index,
-                                        VarsContext const& vars_context = VarsManager::TLS().Active()) {
+                                        Vars::ThreadLocalContext const& vars_context = InternalTLS()) {
   std::stack<std::pair<size_t, size_t>> stack;
   size_t max_depth = 0u;
 
@@ -79,14 +79,14 @@ inline size_t ExpressionNodeIndexHeight(ExpressionNodeIndex index,
   return max_depth;
 }
 
-inline size_t ExpressionTreeHeight(value_t value, VarsContext const& vars_context = VarsManager::TLS().Active()) {
+inline size_t ExpressionTreeHeight(value_t value, Vars::ThreadLocalContext const& vars_context = InternalTLS()) {
   return ExpressionNodeIndexHeight(value.GetExpressionNodeIndex(), vars_context);
 }
 
 // A collection of node indexes united by `+` or by `*`, for further rebalancing.
 class NodesCluster {
  private:
-  VarsContext& vars_context_;
+  Vars::ThreadLocalContext& vars_context_;
   std::vector<size_t> nodes_;                // The indexes of the nodes that form the cluster of `+` or `*` nodes.
   std::vector<ExpressionNodeIndex> leaves_;  // The nodes that are the "leaves" of this cluster, left to right.
   size_t max_height_ = 0u;                   // The height of this expression subtree, to decide if it needs balancing.
@@ -185,7 +185,7 @@ class NodesCluster {
   }
 
  public:
-  NodesCluster(VarsContext& vars_context) : vars_context_(vars_context) {}
+  NodesCluster(Vars::ThreadLocalContext& vars_context) : vars_context_(vars_context) {}
 
   void Build(ExpressionNodeIndex index, ExpressionNodeType desired_node_type) {
     nodes_.clear();
@@ -226,7 +226,7 @@ class NodesCluster {
 
 // NOTE(dkorolev): See the warning below, for `BalanceExpressionTree()`.
 inline void BalanceExpressionNodeIndexTree(ExpressionNodeIndex index,
-                                           VarsContext& vars_context = VarsManager::TLS().Active()) {
+                                           Vars::ThreadLocalContext& vars_context = InternalTLS()) {
   std::stack<size_t> stack;
 
   auto const PushToStack = [&stack](ExpressionNodeIndex index) {
@@ -279,7 +279,7 @@ inline void BalanceExpressionNodeIndexTree(ExpressionNodeIndex index,
 //
 // The user is expected to run `BalanceExpressionTree` at most once, for the top-level cost function to be optimized,
 // prior to it being differentiated and JIT-compiled.
-inline void BalanceExpressionTree(value_t value, VarsContext& vars_context = VarsManager::TLS().Active()) {
+inline void BalanceExpressionTree(value_t value, Vars::ThreadLocalContext& vars_context = InternalTLS()) {
   BalanceExpressionNodeIndexTree(value.GetExpressionNodeIndex(), vars_context);
 }
 

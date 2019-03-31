@@ -81,8 +81,8 @@ struct JITCallContextFunctionPointers {
 
 class JITCallContext final {
  private:
-  VarsContext const& vars_context_;
-  VarsMapperConfig const& vars_config_;
+  Vars::ThreadLocalContext const& vars_context_;
+  Vars::Config const& vars_config_;
 
   // TODO(dkorolev): It's probably worth it to add a check that if extra nodes were added, JIT-compilation should abort.
   size_t const number_of_nodes_;
@@ -102,9 +102,9 @@ class JITCallContext final {
  public:
   // Allocate an extra one `double` so that an external parameter could be passed in it,
   // to later intoduce functions of one variable, i.e. for directional derivatives.
-  JITCallContext(VarsContext& context = VarsManager::TLS().Active())
+  JITCallContext(Vars::ThreadLocalContext& context = InternalTLS())
       : vars_context_(context),
-        vars_config_(context.DoGetVarsMapperConfig()),
+        vars_config_(context.DoGetConfig()),
         number_of_nodes_(vars_context_.NumberOfNodes()),
         ram_(number_of_nodes_ + 1u) {}
 
@@ -173,8 +173,8 @@ class JITCompiledFunction final {
   double operator()(JITCallContext const& call_context, std::vector<double> const& x) const {
     return f_->CallFunction(call_context, &x[0]);
   }
-  double operator()(JITCallContext const& call_context, VarsMapper const& vars) const {
-    return f_->CallFunction(call_context, &vars.x[0]);
+  double operator()(JITCallContext const& call_context, Vars const& values) const {
+    return f_->CallFunction(call_context, &values.x[0]);
   }
   size_t CodeSize() const { return f_->CodeSize(); }
 };
@@ -249,8 +249,8 @@ class JITCompiledFunctionReturningVector final {
   std::vector<double> operator()(JITCallContext const& call_context, std::vector<double> const& x) const {
     return f_->CallFunctionReturningVector(call_context, &x[0]);
   }
-  std::vector<double> operator()(JITCallContext const& call_context, VarsMapper const& vars) const {
-    return f_->CallFunctionReturningVector(call_context, &vars.x[0]);
+  std::vector<double> operator()(JITCallContext const& call_context, Vars const& values) const {
+    return f_->CallFunctionReturningVector(call_context, &values.x[0]);
   }
   size_t CodeSize() const { return f_->CodeSize(); }
 };
@@ -301,8 +301,8 @@ class JITCompiledFunctionWithArgument final {
   double operator()(JITCallContext const& call_context, std::vector<double> const& x, double p) const {
     return f_->CallFunctionWithArgument(call_context, &x[0], p);
   }
-  double operator()(JITCallContext const& call_context, VarsMapper const& vars, double p) const {
-    return f_->CallFunctionWithArgument(call_context, &vars.x[0], p);
+  double operator()(JITCallContext const& call_context, Vars const& values, double p) const {
+    return f_->CallFunctionWithArgument(call_context, &values.x[0], p);
   }
   size_t CodeSize() const { return f_->CodeSize(); }
 };

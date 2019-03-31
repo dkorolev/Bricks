@@ -33,7 +33,7 @@ SOFTWARE.
 TEST(OptimizationJIT, SmokeAdd) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x["a"] = 1.0;
   value_t const value = x["a"] + x["a"];
@@ -46,15 +46,15 @@ TEST(OptimizationJIT, SmokeAdd) {
   JITCompiler code_generator(jit_call_context);
   JITCompiledFunction const f = code_generator.Compile(value);
 
-  VarsMapper input;
-  EXPECT_EQ(2.0, f(jit_call_context, input.x));
+  Vars values;
+  EXPECT_EQ(2.0, f(jit_call_context, values.x));
 
   // Other calling semantics.
-  input["a"] = 2.0;
-  EXPECT_EQ(4.0, f(jit_call_context, input));
+  values["a"] = 2.0;
+  EXPECT_EQ(4.0, f(jit_call_context, values));
 
-  input["a"] = -2.0;
-  EXPECT_EQ(-4.0, f(jit_call_context, &input.x[0]));
+  values["a"] = -2.0;
+  EXPECT_EQ(-4.0, f(jit_call_context, &values.x[0]));
 
   EXPECT_EQ(5.0, f(jit_call_context, {2.5}));
 }
@@ -62,7 +62,7 @@ TEST(OptimizationJIT, SmokeAdd) {
 TEST(OptimizationJIT, SmokeAddConstant) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x["b"] = 1.0;
   value_t const value = x["b"] + 1.0;
@@ -70,20 +70,20 @@ TEST(OptimizationJIT, SmokeAddConstant) {
   JITCallContext jit_call_context;
   JITCompiledFunction const f = JITCompiler(jit_call_context).Compile(value);
 
-  VarsMapper input;
-  EXPECT_EQ(2.0, f(jit_call_context, input.x));
+  Vars values;
+  EXPECT_EQ(2.0, f(jit_call_context, values.x));
 
-  input["b"] = 2.0;
-  EXPECT_EQ(3.0, f(jit_call_context, input));  // Can pass `input` instead of `input.x`.
+  values["b"] = 2.0;
+  EXPECT_EQ(3.0, f(jit_call_context, values));  // Can pass `values` instead of `values.x`.
 
-  input["b"] = -2.0;
-  EXPECT_EQ(-1.0, f(jit_call_context, input));
+  values["b"] = -2.0;
+  EXPECT_EQ(-1.0, f(jit_call_context, values));
 }
 
 TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x["a"] = 1.0;
   x["b"] = 1.0;
@@ -94,10 +94,10 @@ TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
   JITCompiledFunctionReturningVector const g = JITCompiler(jit_call_context).Compile(values);
 
   {
-    VarsMapper input;
-    input["a"] = 10.0;
-    input["b"] = 5.0;
-    EXPECT_EQ("[15.0,5.0,50.0,2.0]", JSON(g(jit_call_context, input)));
+    Vars values;
+    values["a"] = 10.0;
+    values["b"] = 5.0;
+    EXPECT_EQ("[15.0,5.0,50.0,2.0]", JSON(g(jit_call_context, values)));
   }
 
   EXPECT_EQ("[6.0,2.0,8.0,2.0]", JSON(g(jit_call_context, {4.0, 2.0})));
@@ -106,7 +106,7 @@ TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
 TEST(OptimizationJIT, Exp) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x["c"] = 0.0;
   value_t const value = exp(x["c"]);
@@ -124,23 +124,23 @@ TEST(OptimizationJIT, Exp) {
     return inner_disposable_code_generator.Compile(value);
   }();
 
-  VarsMapper input;
+  Vars values;
 
   disposable_code_generator = nullptr;
 
-  EXPECT_EQ(exp(0.0), f(jit_call_context, input));
+  EXPECT_EQ(exp(0.0), f(jit_call_context, values));
 
-  input["c"] = 1.0;
-  EXPECT_EQ(exp(1.0), f(jit_call_context, input));
+  values["c"] = 1.0;
+  EXPECT_EQ(exp(1.0), f(jit_call_context, values));
 
-  input["c"] = 2.0;
-  EXPECT_EQ(exp(2.0), f(jit_call_context, input));
+  values["c"] = 2.0;
+  EXPECT_EQ(exp(2.0), f(jit_call_context, values));
 
-  input["c"] = -1.0;
-  EXPECT_EQ(exp(-1.0), f(jit_call_context, input));
+  values["c"] = -1.0;
+  EXPECT_EQ(exp(-1.0), f(jit_call_context, values));
 
-  input["c"] = -2.0;
-  EXPECT_EQ(exp(-2.0), f(jit_call_context, input));
+  values["c"] = -2.0;
+  EXPECT_EQ(exp(-2.0), f(jit_call_context, values));
 }
 
 TEST(OptimizationJIT, OtherMathFunctions) {
@@ -148,7 +148,7 @@ TEST(OptimizationJIT, OtherMathFunctions) {
 
   EXPECT_EQ(14u, static_cast<size_t>(ExpressionFunctionIndex::TotalFunctionsCount));
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x["p"] = 0.0;
   value_t const p = x["p"];
@@ -206,7 +206,7 @@ TEST(OptimizationJIT, OtherMathFunctions) {
 TEST(OptimizationJIT, IntermediateResultsAreReused) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x["p"] = 0.0;
   value_t const a = sqrt(1.0 + (2.0 + sqr(x["p"])) - 3.0);  // To make sure `a` is not "optimized away" :-) -- D.K.
@@ -221,7 +221,7 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
   JITCompiledFunction const fb = compiler.Compile(b);
   JITCompiledFunction const fc = compiler.Compile(c);
 
-  VarsMapper input;
+  Vars values;
 
   // Compute for `0`.
   EXPECT_EQ(0, fa(jit_call_context, {0.0}));
@@ -259,7 +259,7 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
 TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x["t"] = 0.0;
   value_t const r = x["t"] - sqrt(2.0) + 1.0;
@@ -277,7 +277,7 @@ TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
 TEST(OptimizationJIT, FunctionWithArgument) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x["a"] = 0.0;
   value_t const lambda = value_t::lambda();
@@ -298,7 +298,7 @@ TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
   // never actually has to "compute" the expression node of the respective type. -- D.K.
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
   value_t const lambda = value_t::lambda();
 
   JITCallContext jit_call_context;
@@ -313,7 +313,7 @@ TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
 inline void RunOptimizationJITStressTest(size_t dim) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   for (size_t i = 0; i < dim; ++i) {
     x[i] = 0.0;
@@ -327,8 +327,8 @@ inline void RunOptimizationJITStressTest(size_t dim) {
   JITCallContext jit_call_context;
   JITCompiledFunction const compiled_f = JITCompiler(jit_call_context).Compile(f);
 
-  // The default constuctor of `VarsMapper()` initializes itself with the starting point.
-  EXPECT_EQ(dim, compiled_f(jit_call_context, VarsMapper()));
+  // The default constuctor of `Vars()` initializes itself with the starting point.
+  EXPECT_EQ(dim, compiled_f(jit_call_context, Vars()));
 
   // NOTE(dkorolev): The subtraction is because the very first "zero plus ..." node is optimized away.
   EXPECT_EQ(47u * dim - 10u, compiled_f.CodeSize());

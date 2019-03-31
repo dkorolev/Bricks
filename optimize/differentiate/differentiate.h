@@ -129,13 +129,13 @@ inline ExpressionNodeIndex DifferentiateFunction(ExpressionNodeType node_type,
 #ifndef NDEBUG
 class RecursivelyEnsureExpressionIsDAGImpl {
  private:
-  VarsContext const& vars_context_;
+  Vars::ThreadLocalContext const& vars_context_;
   std::vector<size_t> seen_count_;
   std::vector<bool> node_in_stack_;
 
  public:
-  RecursivelyEnsureExpressionIsDAGImpl(VarsContext const& vars_context)
-      : vars_context_(vars_context),
+  RecursivelyEnsureExpressionIsDAGImpl()
+      : vars_context_(InternalTLS()),
         seen_count_(vars_context_.NumberOfNodes()),
         node_in_stack_(vars_context_.NumberOfNodes()) {}
 
@@ -233,10 +233,7 @@ class Differentiator final {
 
  public:
   template <typename F, typename... ARGS>
-  static void DoDifferentiate(VarsContext const& vars_context,
-                              ExpressionNodeIndex index_to_differentiate,
-                              F&& f,
-                              ARGS&&... args) {
+  static void DoDifferentiate(ExpressionNodeIndex index_to_differentiate, F&& f, ARGS&&... args) {
     size_t const max_stack_depth = ExpressionNodeIndexHeight(index_to_differentiate);
     if (max_stack_depth > kNodeHeightCutoffIndicatingUnbalancedExpression) {
       // For most practical purposes, running `BalanceExpressionTree(cost_function)` would do the job.
@@ -244,10 +241,10 @@ class Differentiator final {
     }
 
 #ifndef NDEBUG
-    RecursivelyEnsureExpressionIsDAGImpl(vars_context).Run(index_to_differentiate);
+    RecursivelyEnsureExpressionIsDAGImpl().Run(index_to_differentiate);
 #endif
 
-    IMPL impl(vars_context, std::forward<ARGS>(args)...);
+    IMPL impl(std::forward<ARGS>(args)...);
 
     ManualStack stack(max_stack_depth);
 
@@ -293,7 +290,7 @@ class Differentiator final {
       if (impl.DoReturnCachedValueIfValid(node_index, stack.RetvalPlaceholder(element.return_value_index))) {
         stack.DoPop();
       } else {
-        ExpressionNodeImpl const& short_lived_node = vars_context[node_index];
+        ExpressionNodeImpl const& short_lived_node = InternalTLS()[node_index];
         ExpressionNodeType const node_type = short_lived_node.Type();
 
         if (IsOperationNode(node_type)) {
@@ -346,17 +343,15 @@ class Differentiator final {
 
 // Various implementations of the differentiator: per var, per lambda, maintaining the whole gradient at once.
 struct DifferentiateBySingleVarImpl {
-  VarsContext const& vars_context_;
   size_t const var_index_;
 
-  DifferentiateBySingleVarImpl(VarsContext const& vars_context, size_t var_index)
-      : vars_context_(vars_context), var_index_(var_index) {}
+  DifferentiateBySingleVarImpl(size_t var_index) : var_index_(var_index) {}
 
   using retval_t = ExpressionNodeIndex;
 
   void DoAssignZero(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
   void DoReturnDerivativeOfVar(size_t var_index, retval_t& placeholder) const {
-    if (vars_context_.IsVarTheNonConstantOneBeingDifferentiatedBy(var_index, var_index_)) {
+    if (InternalTLS().IsVarTheNonConstantOneBeingDifferentiatedBy(var_index, var_index_)) {
       placeholder = ExpressionNodeIndex::DoubleOne();
     } else {
       placeholder = ExpressionNodeIndex::DoubleZero();
@@ -399,8 +394,7 @@ struct DifferentiateByLambdaImpl {
   std::vector<bool> cache_valid_;
   std::vector<ExpressionNodeIndex> cache_;
 
-  DifferentiateByLambdaImpl(VarsContext const& vars_context)
-      : cache_valid_(vars_context.NumberOfNodes()), cache_(vars_context.NumberOfNodes()) {}
+  DifferentiateByLambdaImpl() : cache_valid_(InternalTLS().NumberOfNodes()), cache_(InternalTLS().NumberOfNodes()) {}
 
   void DoAssignZero(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
   void DoReturnDerivativeOfVar(size_t, retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
@@ -470,14 +464,14 @@ struct DifferentiateByAllVarsTogetherImpl {
    public:
     GradientPiece()
 #ifndef NDEBUG
-        : m_(VarsManager::TLS().Active().NumberOfVars()),
-          components_(VarsManager::TLS().Active().NumberOfVars()),
+        : m_(InternalTLS().NumberOfVars()),
+          components_(m_),
 #else
-        : components_(VarsManager::TLS().Active().NumberOfVars()),
+        : components_(InternalTLS().NumberOfVars()),
 #endif
-          nonzero_index_epoch_version_(VarsManager::TLS().Active().NumberOfVars()),
-          nonzero_indexes_list_(VarsManager::TLS().Active().NumberOfVars()),
-          removal_candidates_(VarsManager::TLS().Active().NumberOfVars()) {
+          nonzero_index_epoch_version_(InternalTLS().NumberOfVars()),
+          nonzero_indexes_list_(InternalTLS().NumberOfVars()),
+          removal_candidates_(InternalTLS().NumberOfVars()) {
     }
 
     void Clear() {
@@ -565,9 +559,7 @@ struct DifferentiateByAllVarsTogetherImpl {
     }
   };
 
-  VarsContext const& vars_context_;
-
-  DifferentiateByAllVarsTogetherImpl(VarsContext const& vars_context) : vars_context_(vars_context) {}
+  DifferentiateByAllVarsTogetherImpl() {}
 
   using retval_t = GradientPiece;
 
@@ -575,7 +567,7 @@ struct DifferentiateByAllVarsTogetherImpl {
 
   void DoReturnDerivativeOfVar(size_t var_index, GradientPiece& placeholder) const {
     placeholder.Clear();
-    if (vars_context_.IsVarNotConstant(var_index)) {
+    if (InternalTLS().IsVarNotConstant(var_index)) {
       placeholder.SetOne(var_index);
     }
   }
@@ -617,13 +609,10 @@ struct DifferentiateByAllVarsTogetherImpl {
 };
 
 // The per-variable differentiator.
-inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_index) {
+inline value_t Differentiate(value_t f, size_t derivative_var_index) {
   ExpressionNodeIndex result;
   Differentiator<DifferentiateBySingleVarImpl>::DoDifferentiate(
-      VarsManager::TLS().Active(),
-      f.GetExpressionNodeIndex(),
-      [&result](ExpressionNodeIndex retval) { result = retval; },
-      derivative_per_finalized_var_index);
+      f.GetExpressionNodeIndex(), [&result](ExpressionNodeIndex retval) { result = retval; }, derivative_var_index);
   return value_t::FromExpressionNodeIndex(result);
 }
 
@@ -631,7 +620,6 @@ inline value_t Differentiate(value_t f, size_t derivative_per_finalized_var_inde
 inline std::vector<value_t> ComputeGradient(value_t f) {
   std::vector<value_t> result;
   Differentiator<DifferentiateByAllVarsTogetherImpl>::DoDifferentiate(
-      VarsManager::TLS().Active(),
       f.GetExpressionNodeIndex(),
       [&result](DifferentiateByAllVarsTogetherImpl::GradientPiece const& retval) { result = retval.FillOutput(); });
   return result;
@@ -652,9 +640,7 @@ inline value_t GenerateLineSearchFunction(value_t f, std::vector<value_t> const&
 inline value_t DifferentiateByLambda(value_t f) {
   ExpressionNodeIndex result;
   Differentiator<DifferentiateByLambdaImpl>::DoDifferentiate(
-      VarsManager::TLS().Active(), f.GetExpressionNodeIndex(), [&result](ExpressionNodeIndex retval) {
-        result = retval;
-      });
+      f.GetExpressionNodeIndex(), [&result](ExpressionNodeIndex retval) { result = retval; });
   return value_t::FromExpressionNodeIndex(result);
 }
 

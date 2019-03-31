@@ -31,7 +31,7 @@ SOFTWARE.
 namespace current {
 namespace expression {
 inline size_t UnitTestRecursiveExpressionNodeIndexTreeHeight(
-    ExpressionNodeIndex index, VarsContext const& vars_context = VarsManager::TLS().Active()) {
+    ExpressionNodeIndex index, Vars::ThreadLocalContext const& vars_context = InternalTLS()) {
   return index.template CheckedDispatch<size_t>(
       [&vars_context](size_t node_index) -> size_t {
         ExpressionNodeImpl const& node = vars_context[node_index];
@@ -55,7 +55,7 @@ inline size_t UnitTestRecursiveExpressionNodeIndexTreeHeight(
       []() -> size_t { return 1u; });
 }
 inline size_t UnitTestRecursiveExpressionTreeHeight(value_t value,
-                                                    VarsContext const& vars_context = VarsManager::TLS().Active()) {
+                                                    Vars::ThreadLocalContext const& vars_context = InternalTLS()) {
   return UnitTestRecursiveExpressionNodeIndexTreeHeight(value.GetExpressionNodeIndex(), vars_context);
 }
 }  // namespace current::expression
@@ -64,7 +64,7 @@ inline size_t UnitTestRecursiveExpressionTreeHeight(value_t value,
 TEST(OptimizationExpressionTreeBalancer, Smoke) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 #ifdef NDEBUG
   // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
   x[0u] = 0.0;
@@ -89,7 +89,7 @@ TEST(OptimizationExpressionTreeBalancer, Smoke) {
 TEST(OptimizationExpressionTreeBalancer, MixingAdditionAndMultiplication) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 #ifdef NDEBUG
   // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
   x[0u] = 0.0;
@@ -117,7 +117,7 @@ TEST(OptimizationExpressionTreeBalancer, MixingAdditionAndMultiplication) {
 TEST(OptimizationExpressionTreeBalancer, RebalanceWhatWasAddedLater) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 #ifdef NDEBUG
   // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
   x[0u] = 0.0;
@@ -158,7 +158,7 @@ TEST(OptimizationExpressionTreeBalancer, RebalanceWhatWasAddedLater) {
 TEST(OptimizationExpressionTreeBalancer, BalancedStaysBalanced) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 #ifdef NDEBUG
   // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
   x[0u] = 0.0;
@@ -216,7 +216,7 @@ TEST(OptimizationExpressionTreeBalancer, BalancedStaysBalanced) {
 #define SMOKE_LO(count, perfect_height, s_before, s_after)                                    \
   TEST(OptimizationExpressionTreeBalancer, LowNodesCountWithRecursiveSanityCheck##count) {    \
     using namespace current::expression;                                                      \
-    VarsContext vars_context;                                                                 \
+    Vars::ThreadLocalContext vars_context;                                                    \
     x[0u] = 0.0;                                                                              \
     value_t v = 0.0;                                                                          \
     for (size_t i = 0u; i < static_cast<size_t>(count); ++i) {                                \
@@ -237,7 +237,7 @@ TEST(OptimizationExpressionTreeBalancer, BalancedStaysBalanced) {
 #define SMOKE_HI(count, perfect_height)                                                                              \
   TEST(OptimizationExpressionTreeBalancer, HighNodesCountWithNoRecursion##count) {                                   \
     using namespace current::expression;                                                                             \
-    VarsContext vars_context;                                                                                        \
+    Vars::ThreadLocalContext vars_context;                                                                           \
     x[0u] = 0.0;                                                                                                     \
     value_t v = 0.0;                                                                                                 \
     for (size_t i = 0u; i < static_cast<size_t>(count); ++i) {                                                       \

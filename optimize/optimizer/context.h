@@ -42,18 +42,18 @@ class LineSearchContext final {
   friend class LineSearchImpl;
 
   JITCallContext const& jit_call_context;
-  VarsMapper const& vars_mapper;
+  Vars const& vars_values;
   JITCompiledFunctionWithArgument const& l;
   JITCompiledFunctionWithArgument const& d;
   std::vector<JITCompiledFunctionWithArgument const*> const& more_ds;
 
  public:
   LineSearchContext(JITCallContext const& jit_call_context,
-                    VarsMapper const& vars_mapper,
+                    Vars const& vars_values,
                     JITCompiledFunctionWithArgument const& l,
                     JITCompiledFunctionWithArgument const& d,
                     std::vector<JITCompiledFunctionWithArgument const*> const& more_ds)
-      : jit_call_context(jit_call_context), vars_mapper(vars_mapper), l(l), d(d), more_ds(more_ds) {}
+      : jit_call_context(jit_call_context), vars_values(vars_values), l(l), d(d), more_ds(more_ds) {}
 };
 
 struct OptimizationContext {
@@ -63,9 +63,8 @@ struct OptimizationContext {
   value_t const l;                // The "line" 1D function f(lambda), to optimize along the gradient.
   std::vector<value_t> const ds;  // The derivatives of the 1D "line" function; one requires, others optional.
 
-  // Vars config and vars mapper, initialized after all the gradients are taken, and all the nodes are edded.
-  VarsMapperConfig const config;  // The config with the vars indexed.
-  VarsMapper vars_mapper;         // The holder of the starting point, and then the point being optimized.
+  // Vars values, initialized after all the gradients are taken, and all the nodes are added.
+  Vars vars_values;
 
   JITCallContext jit_call_context;  // The holder of the RAM block to run the JIT-compiled functions.
   JITCompiler jit_compiler;         // The JIT compiler, single scope for maximum cache reuse.
@@ -112,13 +111,12 @@ struct OptimizationContext {
     return result;
   }
 
-  OptimizationContext(VarsContext& vars_context, value_t f)
+  OptimizationContext(Vars::ThreadLocalContext& vars_context, value_t f)
       : f(f),
         g(ComputeGradient(f)),
         l(GenerateLineSearchFunction(f, g)),
         ds(ComputeDS(l)),
-        config(vars_context.DoGetVarsMapperConfig()),
-        vars_mapper(config),
+        vars_values(vars_context.DoGetConfig()),
         jit_call_context(),
         jit_compiler(jit_call_context),
         compiled_f(jit_compiler.Compile(f)),
@@ -127,18 +125,17 @@ struct OptimizationContext {
         compiled_ds(CompileDS(jit_compiler, ds)),
         compiled_ds_pointers(GetCompiledDSPointers(compiled_ds)) {}
 
-  std::vector<double> const CurrentPoint() const { return vars_mapper.x; }
+  std::vector<double> const CurrentPoint() const { return vars_values.x; }
 
-  // This method is generally only used for the unit tests, as the context keeps the value at the current point.
-  // TODO(dkorolev): Make is so. :-)
-  double ComputeCurrentObjectiveFunctionValue() const { return compiled_f(jit_call_context, vars_mapper); }
+  // This method is only used for the unit tests, as the context keeps the value at the current point.
+  double UnitTestComputeCurrentObjectiveFunctionValue() const { return compiled_f(jit_call_context, vars_values); }
 
   void MovePointAlongGradient(double gradient_k) {
-    vars_mapper.MovePoint(jit_call_context.ConstRAMPointer(), g, gradient_k);
+    vars_values.MovePoint(jit_call_context.ConstRAMPointer(), g, gradient_k);
   }
 
   operator LineSearchContext() const {
-    return LineSearchContext(jit_call_context, vars_mapper, compiled_l, *compiled_ds.front(), compiled_ds_pointers);
+    return LineSearchContext(jit_call_context, vars_values, compiled_l, *compiled_ds.front(), compiled_ds_pointers);
   }
 };
 

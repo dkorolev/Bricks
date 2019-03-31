@@ -40,7 +40,7 @@ SOFTWARE.
 
 TEST(OptimizationVars, SparseByInt) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x[1] = 2;
   x[100] = 101;
   x[42] = 0;
@@ -53,7 +53,7 @@ TEST(OptimizationVars, SparseByInt) {
   // The elements in the JSON are ordered, and the `q` index is in the order of introduction of the leaves in this tree.
   // Here and in all the tests below.
   EXPECT_EQ("{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}],[42,{'X':{'i':2,'x':0.0}}],[100,{'X':{'i':1,'x':101.0}}]]}}",
-            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
   ASSERT_THROW(x.DenseDoubleVector(100), VarNodeTypeMismatchException);
   ASSERT_THROW(x["foo"], VarNodeTypeMismatchException);
   ASSERT_THROW(x[1][2], VarNodeTypeMismatchException);
@@ -65,12 +65,12 @@ TEST(OptimizationVars, SparseByInt) {
       "[42,{'X':{'i':2,'x':0.0}}],"
       "[100,{'X':{'i':1,'x':101.0}}]"
       "]}}",
-      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
 }
 
 TEST(OptimizationVars, SparseByString) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x["foo"] = 1;
   x["bar"] = 2;
   x["baz"] = 3;
@@ -78,7 +78,7 @@ TEST(OptimizationVars, SparseByString) {
   CHECK_VAR_NAME(x["bar"]);
   CHECK_VAR_NAME(x["baz"]);
   EXPECT_EQ("{'S':{'z':{'bar':{'X':{'i':1,'x':2.0}},'baz':{'X':{'i':2,'x':3.0}},'foo':{'X':{'i':0,'x':1.0}}}}}",
-            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
   ASSERT_THROW(x.DenseDoubleVector(100), VarNodeTypeMismatchException);
   ASSERT_THROW(x[42], VarNodeTypeMismatchException);
   ASSERT_THROW(x["foo"][2], VarNodeTypeMismatchException);
@@ -90,12 +90,12 @@ TEST(OptimizationVars, SparseByString) {
       "'baz':{'X':{'i':2,'x':3.0}},"
       "'foo':{'X':{'i':0,'x':1.0}}"
       "}}}",
-      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
 }
 
 TEST(OptimizationVars, EmptyStringAllowedAsVarName) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x["ok"] = 1;
   x[""] = 2;
   x["nested"]["also ok"] = 3;
@@ -108,14 +108,14 @@ TEST(OptimizationVars, EmptyStringAllowedAsVarName) {
 
 TEST(OptimizationVars, DenseVector) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x.DenseDoubleVector(5);
   x[2] = 2;
   x[4] = 4;
   CHECK_VAR_NAME(x[2]);
   CHECK_VAR_NAME(x[4]);
   EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'i':0,'x':2.0}},{'U':{}},{'X':{'i':1,'x':4.0}}]}}",
-            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
   ASSERT_THROW(x[42], VarsManagementException);
   ASSERT_THROW(x["foo"], VarNodeTypeMismatchException);
   x.DenseDoubleVector(5);  // Same size, a valid no-op.
@@ -123,12 +123,12 @@ TEST(OptimizationVars, DenseVector) {
   x[2] = 2;  // Same value, a valid no-op.
   ASSERT_THROW(x[2] = 3, VarNodeReassignmentAttemptException);
   EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'i':0,'x':2.0}},{'U':{}},{'X':{'i':1,'x':4.0}}]}}",
-            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
 }
 
 TEST(OptimizationVars, InternalVarIndexes) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x["foo"][1] = 2;
   CHECK_VAR_NAME(x["foo"][1]);
   // Should keep track of allocated internal leaf indexes.
@@ -143,7 +143,7 @@ TEST(OptimizationVars, InternalVarIndexes) {
 
 TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x["dense"].DenseDoubleVector(2);
   x["sparse"][42] = 42;
   x["strings"]["foo"] = 1;
@@ -151,7 +151,7 @@ TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
   CHECK_VAR_NAME(x["dense"][1]);
   CHECK_VAR_NAME(x["sparse"][42]);
   CHECK_VAR_NAME(x["strings"]["foo"]);
-  x.GetVarsMapperConfig();
+  x.GetConfig();
   x["dense"][0];
   x["dense"][1];
   x["sparse"][42];
@@ -164,55 +164,55 @@ TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
 
 TEST(OptimizationVars, MultiDimensionalIntInt) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x[1][2] = 3;
   x[4][5] = 6;
   EXPECT_EQ("{'I':{'z':[[1,{'I':{'z':[[2,{'X':{'i':0,'x':3.0}}]]}}],[4,{'I':{'z':[[5,{'X':{'i':1,'x':6.0}}]]}}]]}}",
-            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
-  x.GetVarsMapperConfig();
+            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
+  x.GetConfig();
   EXPECT_EQ(
       "{'I':{'z':["
       "[1,{'I':{'z':[[2,{'X':{'i':0,'x':3.0}}]]}}],"
       "[4,{'I':{'z':[[5,{'X':{'i':1,'x':6.0}}]]}}]"
       "]}}",
-      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
 }
 
 TEST(OptimizationVars, MultiDimensionalIntString) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x[1]["foo"] = 2;
   x[3]["bar"] = 4;
   EXPECT_EQ("{'I':{'z':[[1,{'S':{'z':{'foo':{'X':{'i':0,'x':2.0}}}}}],[3,{'S':{'z':{'bar':{'X':{'i':1,'x':4.0}}}}}]]}}",
-            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
-  x.GetVarsMapperConfig();
+            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
+  x.GetConfig();
   EXPECT_EQ(
       "{'I':{'z':["
       "[1,{'S':{'z':{'foo':{'X':{'i':0,'x':2.0}}}}}],"
       "[3,{'S':{'z':{'bar':{'X':{'i':1,'x':4.0}}}}}]"
       "]}}",
-      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
 }
 
 TEST(OptimizationVars, MultiDimensionalStringInt) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x["foo"][1] = 2;
   x["bar"][3] = 4;
   EXPECT_EQ("{'S':{'z':{'bar':{'I':{'z':[[3,{'X':{'i':1,'x':4.0}}]]}},'foo':{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}]]}}}}}",
-            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
-  x.GetVarsMapperConfig();
+            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
+  x.GetConfig();
   EXPECT_EQ(
       "{'S':{'z':{"
       "'bar':{'I':{'z':[[3,{'X':{'i':1,'x':4.0}}]]}},"
       "'foo':{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}]]}}"
       "}}}",
-      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
 }
 
 TEST(OptimizationVars, Constants) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x["one"] = 1;
   x["two"] = 2;
   x["three"] = 3;
@@ -222,7 +222,7 @@ TEST(OptimizationVars, Constants) {
       "'three':{'X':{'i':2,'x':3.0}},"
       "'two':{'X':{'i':1,'x':2.0}}"
       "}}}",
-      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
   x["two"].SetConstant();
   x["three"].SetConstant(3.0);
   x["four"].SetConstant(4);
@@ -234,12 +234,12 @@ TEST(OptimizationVars, Constants) {
       "'three':{'X':{'i':2,'x':3.0,'c':true}},"
       "'two':{'X':{'i':1,'x':2.0,'c':true}}"
       "}}}",
-      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
 }
 
 TEST(OptimizationVars, DenseRepresentation) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   x["x"]["x1"] = 101;  // Add the values in an arbitrary order to test they get sorted before being flattened.
   x["x"]["x3"] = 103;
   x["x"]["x2"] = 102;
@@ -256,7 +256,7 @@ TEST(OptimizationVars, DenseRepresentation) {
   CHECK_VAR_NAME(x["y"][0][1]);
   CHECK_VAR_NAME(x["y"][1][0]);
   CHECK_VAR_NAME(x["y"][1][1]);
-  VarsMapperConfig const config = x.GetVarsMapperConfig();
+  Vars::Config const config = x.GetConfig();
   ASSERT_EQ(7u, config.NumberOfVars());
   // The indexes on the right are flipped.
   CHECK_VAR_NAME_AND_INDEX(x["x"]["x1"], 0u);
@@ -279,9 +279,9 @@ TEST(OptimizationVars, DenseRepresentation) {
   EXPECT_EQ("[false,false,true,false,false,false,true]", JSON(config.VarIsConstant()));
 
   {
-    VarsMapper a(config);
-    VarsMapper b(config);  // To confirm no global or thread-local context is used by `VarsMapper`-s.
-    VarsMapper c;          // The default config from the thread-local singleton would be used regardless.
+    Vars a(config);
+    Vars b(config);  // To confirm no global or thread-local context is used by `Vars`-s.
+    Vars c;          // The default config from the thread-local singleton would be used regardless.
 
     EXPECT_EQ(JSON(a.x), JSON(config.StartingPoint()));
     EXPECT_EQ(JSON(b.x), JSON(config.StartingPoint()));
@@ -329,7 +329,7 @@ TEST(OptimizationVars, DenseRepresentation) {
 
 TEST(OptimizationVars, DenseVectorDimensions) {
   using namespace current::expression;
-  VarsContext context;
+  Vars::ThreadLocalContext context;
   ASSERT_THROW(x.DenseDoubleVector(0), VarsManagementException);
   ASSERT_THROW(x.DenseDoubleVector(static_cast<size_t>(1e6) + 1), VarsManagementException);
 }
@@ -343,8 +343,8 @@ TEST(OptimizationVars, NeedContext) {
 
 TEST(OptimizationVars, NoNestedContextsAllowed) {
   using namespace current::expression;
-  VarsContext context;
-  ASSERT_THROW(VarsContext illegal_inner_context, VarsManagementException);
+  Vars::ThreadLocalContext context;
+  ASSERT_THROW(Vars::ThreadLocalContext illegal_inner_context, VarsManagementException);
 }
 
 #undef CHECK_VAR_NAME_AND_INDEX

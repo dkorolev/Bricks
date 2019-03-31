@@ -30,7 +30,7 @@ SOFTWARE.
 TEST(OptimizationExpression, SimpleVarsAddition) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
   x[1] = 0.0;
@@ -67,7 +67,7 @@ TEST(OptimizationExpression, SimpleVarsAddition) {
 TEST(OptimizationExpression, AddingImmediatesToVars) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
   value_t const v(x[0]);
@@ -89,7 +89,7 @@ TEST(OptimizationExpression, AddingImmediatesToVars) {
 TEST(OptimizationExpression, NestedVarsAddition) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
 #ifndef NDEBUG
   x["foo"] = 0;
@@ -113,7 +113,7 @@ TEST(OptimizationExpression, NestedVarsAddition) {
 TEST(OptimizationExpression, OtherOperations) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
   x[1] = 0.0;
@@ -129,7 +129,7 @@ TEST(OptimizationExpression, OtherOperations) {
 TEST(OptimizationExpression, OperationsWithAssignment) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
   value_t const a(x[0]);
@@ -177,7 +177,7 @@ TEST(OptimizationExpression, OperationsWithAssignment) {
 TEST(OptimizationExpression, UnaryOperations) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
   x[0] = 0.0;
 
   EXPECT_EQ("x[0]", value_t(x[0]).DebugAsString());
@@ -192,7 +192,7 @@ TEST(OptimizationExpression, UnaryOperations) {
 TEST(OptimizationExpression, SimpleVarsExponentiation) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
 
@@ -215,7 +215,7 @@ TEST(OptimizationExpression, SimpleVarsExponentiation) {
 TEST(OptimizationExpression, OtherFunctions) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
   value_t const p(x[0]);
@@ -231,7 +231,7 @@ TEST(OptimizationExpression, OtherFunctions) {
 TEST(OptimizationExpression, MustBeWithinContextInDEBUGMode) {
   using namespace current::expression;
   std::vector<value_t> const v = []() {
-    VarsContext vars_context;
+    Vars::ThreadLocalContext vars_context;
     x[0] = 0.0;
     std::vector<value_t> values;
     values.push_back(x[0]);
@@ -256,7 +256,7 @@ TEST(OptimizationExpression, ValuesAreUninitializedInDEBUGMode) {
   using namespace current::expression;
 
   {
-    VarsContext vars_context;
+    Vars::ThreadLocalContext vars_context;
     EXPECT_EQ("Uninitialized", value_t().DebugAsString());
   }
 }
@@ -282,7 +282,7 @@ TEST(OptimizationExpression, VarsContextIsNotRequiredForValuesInNDEBUGMode) {
 TEST(OptimizationExpression, GeneratingVarsMapperPreventsFutherNodesCreation) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
   x[0] = 0.0;
 
   value_t const tmp1 = x[0] + 1.0;
@@ -293,7 +293,7 @@ TEST(OptimizationExpression, GeneratingVarsMapperPreventsFutherNodesCreation) {
   EXPECT_EQ(1u, tmp2.GetExpressionNodeIndex().UnitTestNodeIndex());
   EXPECT_EQ(2u, tmp3.GetExpressionNodeIndex().UnitTestNodeIndex());
 
-  VarsMapperConfig const config = vars_context.DoGetVarsMapperConfig();
+  Vars::Config const config = vars_context.DoGetConfig();
   EXPECT_EQ(1u, config.NumberOfVars());   // Just one variable, `x[0]`.
   EXPECT_EQ(3u, config.NumberOfNodes());  // Three `+` nodes.
 
@@ -304,7 +304,7 @@ TEST(OptimizationExpression, GeneratingVarsMapperPreventsFutherNodesCreation) {
 TEST(OptimizationExpression, Lambda) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
 
@@ -321,7 +321,7 @@ TEST(OptimizationExpression, Lambda) {
 TEST(OptimizationExpression, LambdaFunctionGeneration) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
   x[1] = 0.0;
@@ -339,7 +339,7 @@ TEST(OptimizationExpression, LambdaFunctionGeneration) {
 TEST(OptimizationExpression, DoubleValuesAsNodes) {
   using namespace current::expression;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   value_t one = 1.0;
   value_t two = 2.0;

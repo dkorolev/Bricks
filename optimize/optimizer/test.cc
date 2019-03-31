@@ -71,7 +71,7 @@ TEST(OptimizationOptimizer, TrivialSingleStepOptimization) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0;
   x[1] = 0;
@@ -103,7 +103,7 @@ TEST(OptimizationOptimizer, MultiStepOptimization) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
   x[1] = 0.0;
@@ -141,7 +141,7 @@ TEST(OptimizationOptimizer, RosenbrockFunction) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = -3.0;
   x[1] = -4.0;
@@ -171,7 +171,7 @@ TEST(OptimizationOptimizer, HimmelblauFunction) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 5.0;
   x[1] = 5.0;

@@ -111,15 +111,15 @@ CURRENT_STRUCT(I) { CURRENT_FIELD(z, (std::map<uint32_t, Node>)); };
 CURRENT_STRUCT(S) { CURRENT_FIELD(z, (std::map<std::string, Node>)); };
 }  // namespace current::expression::json
 
-class VarsContext;
+class InternalVarsContext;
 
 // The information about the variables set, as well as their initial values and which are the constants.
-class VarsMapperConfig final {
+class InternalVarsConfig final {
  private:
   size_t const number_of_variables_;  // The number of vars, including the constant (`x[...].SetConstant(...)`) ones.
   size_t const number_of_nodes_;
 #ifndef NDEBUG
-  VarsContext const* vars_context_;
+  InternalVarsContext const* vars_context_;
 #endif
   std::vector<double> const x0_;
   std::vector<std::string> const name_;
@@ -127,16 +127,16 @@ class VarsMapperConfig final {
   json::Node const root_;
 
  public:
-  VarsMapperConfig(size_t number_of_variables,
-                   size_t number_of_nodes,
+  InternalVarsConfig(size_t number_of_variables,
+                     size_t number_of_nodes,
 #ifndef NDEBUG
-                   VarsContext const* vars_context,
+                     InternalVarsContext const* vars_context,
 #endif
 
-                   std::vector<double> x0,
-                   std::vector<std::string> name,
-                   std::vector<bool> is_constant,
-                   json::Node root)
+                     std::vector<double> x0,
+                     std::vector<std::string> name,
+                     std::vector<bool> is_constant,
+                     json::Node root)
       : number_of_variables_(number_of_variables),
         number_of_nodes_(number_of_nodes),
 #ifndef NDEBUG
@@ -150,7 +150,7 @@ class VarsMapperConfig final {
   }
 
 #ifndef NDEBUG
-  bool DebugConfigMatchesContext(VarsContext const* candidate_vars_context,
+  bool DebugConfigMatchesContext(InternalVarsContext const* candidate_vars_context,
                                  size_t candidate_number_of_variables) const {
     return candidate_vars_context == vars_context_ && candidate_number_of_variables == number_of_variables_;
   }
@@ -172,11 +172,14 @@ class VarsMapperConfig final {
   json::Node const& Root() const { return root_; }
 };
 
-class VarsContextInterface {
+class InternalVarsContextInterface {
  public:
-  ~VarsContextInterface() = default;
+  ~InternalVarsContextInterface() = default;
+
+  // After the call to `DoGetConfig()`, the expression is "frozen", and no new vars or nodes can be added.
+  virtual InternalVarsConfig const& DoGetConfig() = 0;
   virtual bool IsFrozen() const = 0;
-  virtual VarsMapperConfig const& DoGetVarsMapperConfig() = 0;
+
 #ifndef NDEBUG
   virtual uint32_t AllocateNewVarInDebugMode(std::string var_name) = 0;
 #else
@@ -184,15 +187,15 @@ class VarsContextInterface {
 #endif
   virtual void MarkVarAsConstant(size_t var_index) = 0;
 };
-// Forward declaration for the default constuctor of `VarsMapper` below.
-inline VarsContextInterface& ActiveVarsContextViaInterface();
+// Forward declaration for the default constuctor of `Vars` below.
+inline InternalVarsContextInterface& InternalTLSInterface();
 
 // To also be implemented for `value_t` in `../expression/expression.h`; the `value_t` type is unknown to `vars/`.
 inline ExpressionNodeIndex ExpressionNodeIndexFromExpressionNodeOrValue(ExpressionNodeIndex index) { return index; }
 
-class VarsMapper final {
+class Vars final {
  private:
-  VarsMapperConfig const& config_;
+  InternalVarsConfig const& config_;
   std::vector<double> value_;
 
   class AccessorNode final {
@@ -266,12 +269,15 @@ class VarsMapper final {
   AccessorNode const root_;
 
  public:
-  // `x` is a const reference `value_`, for easy read-only access to the vars. NOTE(dkorolev): Possible reshuffled vars!
+  using ThreadLocalContext = InternalVarsContext;
+  using Config = InternalVarsConfig;
+
+  // `x` is a const reference `value_`, for easy read-only access to the vars. NOTE(dkorolev): Possibly reshuffled vars!
   std::vector<double> const& x = value_;
 
-  explicit VarsMapper(VarsMapperConfig const& config = ActiveVarsContextViaInterface().DoGetVarsMapperConfig())
+  explicit Vars(InternalVarsConfig const& config = InternalTLSInterface().DoGetConfig())
       : config_(config), value_(config.StartingPoint()), root_(value_, config_.Root()) {}
-  VarsMapperConfig const& Config() const { return config_; }
+
   AccessorNode operator[](size_t i) const { return root_[i]; }
   AccessorNode operator[](std::string const& s) const { return root_[s]; }
 
@@ -296,30 +302,30 @@ class VarsMapper final {
 
 class VarsManager final {
  private:
-  VarsContext* active_context_ = nullptr;
-  VarsContextInterface* active_context_interface_ = nullptr;
+  InternalVarsContext* active_context_ = nullptr;
+  InternalVarsContextInterface* active_context_interface_ = nullptr;
 
  public:
-  static VarsManager& TLS() { return ThreadLocalSingleton<VarsManager>(); }
-  VarsContext& Active() const {
+  static VarsManager& StaticInternalTLS() { return ThreadLocalSingleton<VarsManager>(); }
+  InternalVarsContext& ActiveContext() const {
     if (!active_context_) {
       CURRENT_THROW(VarsManagementException("The variables context is required."));
     }
     return *active_context_;
   }
-  void SetActive(VarsContext* ptr1, VarsContextInterface* ptr2) {
+  void SetActive(InternalVarsContext* ptr1, InternalVarsContextInterface* ptr2) {
     if (active_context_) {
       CURRENT_THROW(VarsManagementException("Attempted to create a nested variables context."));
     }
     active_context_ = ptr1;
     active_context_interface_ = ptr2;
   }
-  void ConfirmActive(VarsContext const* ptr1, VarsContextInterface const* ptr2) const {
+  void ConfirmActive(InternalVarsContext const* ptr1, InternalVarsContextInterface const* ptr2) const {
     if (!(active_context_ == ptr1 && active_context_interface_ == ptr2)) {
-      CURRENT_THROW(VarsManagementException("Mismatch of active `current::expression::VarsContext`."));
+      CURRENT_THROW(VarsManagementException("Mismatch of active `current::expression::InternalVarsContext`."));
     }
   }
-  void ClearActive(VarsContext const* ptr1, VarsContextInterface const* ptr2) {
+  void ClearActive(InternalVarsContext const* ptr1, InternalVarsContextInterface const* ptr2) {
     if (!(active_context_ == ptr1 && active_context_interface_ == ptr2)) {
       std::cerr << "Internal error when deleting variables context." << std::endl;
 #ifndef NDEBUG
@@ -331,10 +337,12 @@ class VarsManager final {
     active_context_ = nullptr;
     active_context_interface_ = nullptr;
   }
-  VarsContextInterface& ActiveViaInterface() { return *active_context_interface_; }
+  InternalVarsContextInterface& ActiveContextViaInterface() { return *active_context_interface_; }
 };
 
-inline VarsContextInterface& ActiveVarsContextViaInterface() { return VarsManager::TLS().ActiveViaInterface(); }
+inline InternalVarsContextInterface& InternalTLSInterface() {
+  return VarsManager::StaticInternalTLS().ActiveContextViaInterface();
+}
 
 class StringOrInt {
  private:
@@ -371,7 +379,7 @@ struct VarNode {
   size_t var_index;                                    // `type == Value`.
 
   void DenseDoubleVector(size_t dim) {
-    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
+    if (InternalTLSInterface().IsFrozen()) {
       CURRENT_THROW(NoNewVarsCanBeAddedException());
     }
     if (!dim || dim > static_cast<size_t>(1e6)) {
@@ -392,7 +400,7 @@ struct VarNode {
   }
 
   VarNode& operator[](size_t i) {
-    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
+    if (InternalTLSInterface().IsFrozen()) {
       if (type == VarNodeType::Vector && i < children_vector.size()) {
         return children_vector[i];
       } else if (type == VarNodeType::IntMap) {
@@ -425,7 +433,7 @@ struct VarNode {
   }
 
   VarNode& operator[](std::string const& s) {
-    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
+    if (InternalTLSInterface().IsFrozen()) {
       if (type == VarNodeType::StringMap) {
         auto const cit = children_string_map.find(s);
         if (cit != children_string_map.end()) {
@@ -449,7 +457,7 @@ struct VarNode {
   }
 
   void operator=(double x) {
-    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
+    if (InternalTLSInterface().IsFrozen()) {
       CURRENT_THROW(NoNewVarsCanBeAddedException());
     }
     if (type != VarNodeType::Unset) {
@@ -466,14 +474,14 @@ struct VarNode {
     type = VarNodeType::Value;
     value = x;
 #ifndef NDEBUG
-    var_index = VarsManager::TLS().ActiveViaInterface().AllocateNewVarInDebugMode(FullVarName());
+    var_index = InternalTLSInterface().AllocateNewVarInDebugMode(FullVarName());
 #else
-    var_index = VarsManager::TLS().ActiveViaInterface().AllocateNewVar();
+    var_index = InternalTLSInterface().AllocateNewVar();
 #endif
   }
 
   void SetConstant() {
-    if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
+    if (InternalTLSInterface().IsFrozen()) {
       CURRENT_THROW(NoNewVarsCanBeAddedException());
     }
 #ifndef NDEBUG
@@ -482,7 +490,7 @@ struct VarNode {
     }
 #endif
     is_constant = true;
-    VarsManager::TLS().ActiveViaInterface().MarkVarAsConstant(var_index);
+    InternalTLSInterface().MarkVarAsConstant(var_index);
   }
 
   void SetConstant(double x) {
@@ -573,24 +581,24 @@ struct VarNode {
     }
   }
 
-  json::Node DoDump() const {
+  json::Node ConstructTree() const {
     if (type == VarNodeType::Vector) {
       json::V dense;
       dense.z.reserve(children_vector.size());
       for (VarNode const& c : children_vector) {
-        dense.z.push_back(c.DoDump());
+        dense.z.push_back(c.ConstructTree());
       }
       return dense;
     } else if (type == VarNodeType::IntMap) {
       json::I sparse_by_int;
       for (std::pair<size_t, VarNode> const& e : children_int_map) {
-        sparse_by_int.z[static_cast<uint32_t>(e.first)] = e.second.DoDump();
+        sparse_by_int.z[static_cast<uint32_t>(e.first)] = e.second.ConstructTree();
       }
       return sparse_by_int;
     } else if (type == VarNodeType::StringMap) {
       json::S sparse_by_string;
       for (std::pair<std::string, VarNode> const& e : children_string_map) {
-        sparse_by_string.z[e.first] = e.second.DoDump();
+        sparse_by_string.z[e.first] = e.second.ConstructTree();
       }
       return sparse_by_string;
     } else if (type == VarNodeType::Value) {
@@ -603,7 +611,7 @@ struct VarNode {
   }
 };
 
-class VarsContext final : public VarsContextInterface {
+class InternalVarsContext final : public InternalVarsContextInterface {
  private:
   VarNode root_;
 
@@ -614,16 +622,16 @@ class VarsContext final : public VarsContextInterface {
   std::vector<bool> allocated_var_is_constant_;
   std::vector<ExpressionNodeImpl> expression_nodes_;
 
-  // Initialized on the first call to `DoGetVarsMapperConfig`, and no new vars can be introduced after that call.
-  std::unique_ptr<VarsMapperConfig> vars_mapper_config_;
+  // Initialized on the first call to `DoGetConfig()`, and no new vars or nodes can be added after that call.
+  std::unique_ptr<InternalVarsConfig> vars_mapper_config_;
 
 #ifndef NDEBUG
-  void ConfirmSelfActiveIfInDebugMode() const { VarsManager::TLS().ConfirmActive(this, this); }
+  void ConfirmSelfActiveIfInDebugMode() const { VarsManager::StaticInternalTLS().ConfirmActive(this, this); }
 #endif
 
  public:
-  VarsContext() { VarsManager::TLS().SetActive(this, this); }
-  ~VarsContext() { VarsManager::TLS().ClearActive(this, this); }
+  InternalVarsContext() { VarsManager::StaticInternalTLS().SetActive(this, this); }
+  ~InternalVarsContext() { VarsManager::StaticInternalTLS().ClearActive(this, this); }
 
   size_t NumberOfVars() const { return allocated_var_is_constant_.size(); }
   size_t NumberOfNodes() const { return expression_nodes_.size(); }
@@ -638,7 +646,7 @@ class VarsContext final : public VarsContextInterface {
   std::string VarName(size_t i) const { return DebugVarNameByIndex(i); }
 #else
   // NOTE(dkorolev): Important to keep in mind that in `NDEBUG` mode the variable names are just `x[0]` and onwards.
-  // The exported `VarsMapperConfig` will have all the fully-specified variable names collected,
+  // The exported `InternalVarsConfig` will have all the fully-specified variable names collected,
   // but the calls to `DebugAsString()` would return erroneus results unless the very variables were introduced
   // specifically in the order of `x[0]`, `x[1]`, etc.
   std::string VarName(size_t i) const { return "x[" + current::ToString(i) + ']'; }
@@ -658,7 +666,8 @@ class VarsContext final : public VarsContextInterface {
     return vars_mapper_config_ != nullptr;
   }
 
-  VarsMapperConfig const& DoGetVarsMapperConfig() override {
+  // After the call to `DoGetConfig()`, the expression is "frozen", and no new vars or nodes can be added.
+  InternalVarsConfig const& DoGetConfig() override {
 #ifndef NDEBUG
     ConfirmSelfActiveIfInDebugMode();
 #endif
@@ -673,15 +682,15 @@ class VarsContext final : public VarsContextInterface {
         CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `GetVarsMapperConfig()`."));
 #endif
       }
-      vars_mapper_config_ = std::make_unique<VarsMapperConfig>(vars_count,
-                                                               NumberOfNodes(),
+      vars_mapper_config_ = std::make_unique<InternalVarsConfig>(vars_count,
+                                                                 NumberOfNodes(),
 #ifndef NDEBUG
-                                                               this,
+                                                                 this,
 #endif
-                                                               state.x0,
-                                                               state.name,
-                                                               state.is_constant,
-                                                               root_.DoDump());
+                                                                 state.x0,
+                                                                 state.name,
+                                                                 state.is_constant,
+                                                                 root_.ConstructTree());
     }
     return *vars_mapper_config_;
   }
@@ -766,16 +775,23 @@ class VarsContext final : public VarsContextInterface {
   }
 };
 
+inline InternalVarsContext& InternalTLS() { return VarsManager::StaticInternalTLS().ActiveContext(); }
+
 struct VarsAccessor final {
-  void DenseDoubleVector(size_t dim) { VarsManager::TLS().Active().RootNode().DenseDoubleVector(dim); }
-  VarNode& operator[](size_t i) { return VarsManager::TLS().Active().RootNode()[i]; }
-  VarNode& operator[](std::string const& s) { return VarsManager::TLS().Active().RootNode()[s]; }
-  VarsMapperConfig GetVarsMapperConfig() const { return VarsManager::TLS().Active().DoGetVarsMapperConfig(); }
-  json::Node InternalDebugDump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
+  // Vars creators and accessors.
+  VarNode& operator[](size_t i) { return InternalTLS().RootNode()[i]; }
+  VarNode& operator[](std::string const& s) { return InternalTLS().RootNode()[s]; }
+  void DenseDoubleVector(size_t dim) { InternalTLS().RootNode().DenseDoubleVector(dim); }
+
+  // After the call to `GetConfig()`, the expression is "frozen", and no new vars or nodes can be added.
+  InternalVarsConfig GetConfig() const { return InternalTLS().DoGetConfig(); }
+
+  // Used by the unit test only.
+  json::Node UnitTestDump() const { return InternalTLS().RootNode().ConstructTree(); }
 };
 
 // Let the user who is `using namespace current::expression` access the vars directly, without any syntactic sugar.
-static struct VarsAccessor x;
+static VarsAccessor x;
 
 }  // namespace current::expression
 }  // namespace current

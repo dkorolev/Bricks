@@ -36,7 +36,7 @@ TEST(OptimizationOptimizerLineSearch, FunctionOfOrderTwo) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  VarsContext vars_context;
+  Vars::ThreadLocalContext vars_context;
 
   x[0] = 0.0;
 
@@ -50,8 +50,8 @@ TEST(OptimizationOptimizerLineSearch, FunctionOfOrderTwo) {
   // this will happen organically, as no line search begins w/o computing the gradient (and computing the function is
   // the prerequisite for computing the gradient). In the case of explicitly testing the 1D optimizer, the compuatation
   // of both the function and the gradient must be invoked manually beforehand, for each starting point.
-  optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_mapper.x);
-  optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_mapper.x);
+  optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_values.x);
+  optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_values.x);
 
   // In case of the function of order two, see `../differentiate/test.cc`, the first and best step is always  `-0.5`.
   EXPECT_NEAR(-0.5, LineSearch(line_search_context).best_step, 1e-6);
@@ -59,13 +59,13 @@ TEST(OptimizationOptimizerLineSearch, FunctionOfOrderTwo) {
   // This step should take the function to its optimum, which, in this case, is the minimum, equals to zero.
   EXPECT_EQ(
       0.0,
-      optimization_context.compiled_l(optimization_context.jit_call_context, optimization_context.vars_mapper.x, -0.5));
+      optimization_context.compiled_l(optimization_context.jit_call_context, optimization_context.vars_values.x, -0.5));
 
   EXPECT_EQ("[0.0]", JSON(optimization_context.CurrentPoint()));
-  EXPECT_EQ(9.0, optimization_context.ComputeCurrentObjectiveFunctionValue());
+  EXPECT_EQ(9.0, optimization_context.UnitTestComputeCurrentObjectiveFunctionValue());
   optimization_context.MovePointAlongGradient(-0.5);
   EXPECT_EQ("[3.0]", JSON(optimization_context.CurrentPoint()));
-  EXPECT_EQ(0.0, optimization_context.ComputeCurrentObjectiveFunctionValue());
+  EXPECT_EQ(0.0, optimization_context.UnitTestComputeCurrentObjectiveFunctionValue());
 }
 
 inline void SavePlotAndLineSearchPath(std::string const& test_name,
@@ -195,21 +195,21 @@ inline void ExpectCommentsMatchIfInParanoidMode(std::string const& expected_comm
     test_name, function_body, expected_final_value, expected_path1_steps, expected_path2_steps, expected_comments)     \
   TEST(OptimizationOptimizerLineSearch, RegressionTest##test_name) {                                                   \
     using namespace current::expression;                                                                               \
-    VarsContext vars_context;                                                                                          \
+    Vars::ThreadLocalContext vars_context;                                                                             \
     x[0] = 0.0;                                                                                                        \
     value_t const f = [](value_t x) { return function_body; }(x[0]);                                                   \
     using namespace current::expression::optimizer;                                                                    \
     OptimizationContext optimization_context(vars_context, f);                                                         \
     LineSearchContext const line_search_context(optimization_context);                                                 \
-    optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_mapper.x);        \
+    optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_values.x);        \
     double const derivative_value =                                                                                    \
-        optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_mapper.x)[0]; \
+        optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_values.x)[0]; \
     LineSearchResult const result = LineSearch(line_search_context);                                                   \
     EXPECT_EQ(expected_path1_steps, result.path1.size()) << "number of path1 steps.";                                  \
     EXPECT_EQ(expected_path2_steps, result.path2.size()) << "number of path2 steps.";                                  \
     double const step_size = result.best_step;                                                                         \
     optimization_context.MovePointAlongGradient(step_size);                                                            \
-    double const final_value = optimization_context.ComputeCurrentObjectiveFunctionValue();                            \
+    double const final_value = optimization_context.UnitTestComputeCurrentObjectiveFunctionValue();                    \
     if (FLAGS_save_line_search_test_plots) {                                                                           \
       SavePlotAndLineSearchPath(#test_name, #function_body, optimization_context, result, derivative_value);           \
     }                                                                                                                  \

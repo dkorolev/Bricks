@@ -44,7 +44,6 @@ struct ExpressionNodeDivisionByZeroDetected final : OptimizeException {};
 
 struct ExpressionVarNodeBoxingException final : OptimizeException {};
 
-struct VarsConfigVarsContextMismatch final : OptimizeException {};
 struct Build1DFunctionNumberOfVarsMismatchException final : OptimizeException {};
 
 // When `using namespace current::expression`:
@@ -106,21 +105,21 @@ class value_t final {
 
   template <typename... ARGS>
   static ExpressionNodeIndex Emplace(ARGS&&... args) {
-    return ExpressionNodeIndex::FromNodeIndex(VarsManager::TLS().Active().DoEmplace(std::forward<ARGS>(args)...));
+    return ExpressionNodeIndex::FromNodeIndex(InternalTLS().DoEmplace(std::forward<ARGS>(args)...));
   }
 
   ExpressionNodeIndex GetExpressionNodeIndex() const { return index_; }
 
   std::string DebugAsString() const {
 #ifndef NDEBUG
-    VarsManager::TLS().Active();  // This will throw in `!NDEBUG` mode if there is no active context.
+    InternalTLS();  // This will throw in `!NDEBUG` mode if there is no active thread-local context.
     if (index_.IsUninitialized()) {
       return "Uninitialized";
     }
 #endif
     return index_.template CheckedDispatch<std::string>(
         [&](size_t node_index) -> std::string {
-          ExpressionNodeImpl const& node = VarsManager::TLS().Active()[node_index];
+          ExpressionNodeImpl const& node = InternalTLS()[node_index];
           ExpressionNodeType const type = node.Type();
           if (false) {
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                   \
@@ -145,7 +144,7 @@ class value_t final {
 #endif
           }
         },
-        [&](size_t var_index) -> std::string { return VarsManager::TLS().Active().VarName(var_index); },
+        [&](size_t var_index) -> std::string { return InternalTLS().VarName(var_index); },
         [](double value) -> std::string {
           if (value >= 0) {
             return current::ToString(value);
@@ -315,11 +314,11 @@ using namespace current::expression::functions;
 // The usecase of this method is the construction of the "cost function" for line search optimization.
 class Build1DFunctionImpl {
  private:
-  VarsContext const& vars_context_;
+  Vars::ThreadLocalContext const& vars_context_;
   std::vector<ExpressionNodeIndex> const& substitute_;
 
  public:
-  Build1DFunctionImpl(VarsContext const& vars_context, std::vector<ExpressionNodeIndex> const& substitute)
+  Build1DFunctionImpl(Vars::ThreadLocalContext const& vars_context, std::vector<ExpressionNodeIndex> const& substitute)
       : vars_context_(vars_context), substitute_(substitute) {}
 
   // TODO(dkorolev): This `DoBuild1DFunction` is a) `Checked`, meaning slow, and b) recursive. Something to fix.
@@ -375,17 +374,21 @@ class Build1DFunctionImpl {
         });
   }
 };
-inline value_t Build1DFunction(value_t f, std::vector<value_t> const& substitute) {
+inline value_t Build1DFunction(value_t f,
+                               std::vector<value_t> const& substitute,
+                               Vars::ThreadLocalContext& vars_context = InternalTLS()) {
   std::vector<ExpressionNodeIndex> actual_substitute(substitute.size());
   for (size_t i = 0u; i < substitute.size(); ++i) {
     actual_substitute[i] = substitute[i].GetExpressionNodeIndex();
   }
-  return value_t::FromExpressionNodeIndex(Build1DFunctionImpl(VarsManager::TLS().Active(), actual_substitute)
-                                              .DoBuild1DFunction(f.GetExpressionNodeIndex()));
-}
-inline value_t Build1DFunction(value_t f, std::vector<ExpressionNodeIndex> const& substitute) {
   return value_t::FromExpressionNodeIndex(
-      Build1DFunctionImpl(VarsManager::TLS().Active(), substitute).DoBuild1DFunction(f.GetExpressionNodeIndex()));
+      Build1DFunctionImpl(vars_context, actual_substitute).DoBuild1DFunction(f.GetExpressionNodeIndex()));
+}
+inline value_t Build1DFunction(value_t f,
+                               std::vector<ExpressionNodeIndex> const& substitute,
+                               Vars::ThreadLocalContext& vars_context = InternalTLS()) {
+  return value_t::FromExpressionNodeIndex(
+      Build1DFunctionImpl(vars_context, substitute).DoBuild1DFunction(f.GetExpressionNodeIndex()));
 }
 
 }  // namespace current::expression
