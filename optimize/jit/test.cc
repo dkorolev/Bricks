@@ -33,13 +33,13 @@ SOFTWARE.
 TEST(OptimizationJIT, SmokeAdd) {
   using namespace current::expression;
 
-  VarsContext context;
+  VarsContext vars_context;
 
   x["a"] = 1.0;
   value_t const value = x["a"] + x["a"];
 
   // The constuctor of `JITCallContext` allocates the RAM buffer for the temporary computations.
-  JITCallContext jit_call_context(context);
+  JITCallContext jit_call_context(vars_context);
 
   // The instance of `JITCompiler` can emit one or more compiled functiont, which would all operate on the same
   // instance of `JITCallContext`, so that they, when called in the order of compilation, reuse intermediate results.
@@ -62,7 +62,7 @@ TEST(OptimizationJIT, SmokeAdd) {
 TEST(OptimizationJIT, SmokeAddConstant) {
   using namespace current::expression;
 
-  VarsContext context;
+  VarsContext vars_context;
 
   x["b"] = 1.0;
   value_t const value = x["b"] + 1.0;
@@ -83,7 +83,7 @@ TEST(OptimizationJIT, SmokeAddConstant) {
 TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
   using namespace current::expression;
 
-  VarsContext context;
+  VarsContext vars_context;
 
   x["a"] = 1.0;
   x["b"] = 1.0;
@@ -106,12 +106,12 @@ TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
 TEST(OptimizationJIT, Exp) {
   using namespace current::expression;
 
-  VarsContext context;
+  VarsContext vars_context;
 
   x["c"] = 0.0;
   value_t const value = exp(x["c"]);
 
-  // No need to provide `context`, the thread-local singleton will be used by default.
+  // No need to provide the `vars_context`, the thread-local singleton one will be used by default.
   JITCallContext jit_call_context;
 
   // Confirm that the lifetime of `JITCompiler` is not necessary for the functions to be called.
@@ -148,7 +148,7 @@ TEST(OptimizationJIT, OtherMathFunctions) {
 
   EXPECT_EQ(14u, static_cast<size_t>(ExpressionFunctionIndex::TotalFunctionsCount));
 
-  VarsContext context;
+  VarsContext vars_context;
 
   x["p"] = 0.0;
   value_t const p = x["p"];
@@ -206,7 +206,7 @@ TEST(OptimizationJIT, OtherMathFunctions) {
 TEST(OptimizationJIT, IntermediateResultsAreReused) {
   using namespace current::expression;
 
-  VarsContext context;
+  VarsContext vars_context;
 
   x["p"] = 0.0;
   value_t const a = sqrt(1.0 + (2.0 + sqr(x["p"])) - 3.0);  // To make sure `a` is not "optimized away" :-) -- D.K.
@@ -259,7 +259,7 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
 TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
   using namespace current::expression;
 
-  VarsContext context;
+  VarsContext vars_context;
 
   x["t"] = 0.0;
   value_t const r = x["t"] - sqrt(2.0) + 1.0;
@@ -277,7 +277,7 @@ TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
 TEST(OptimizationJIT, FunctionWithArgument) {
   using namespace current::expression;
 
-  VarsContext context;
+  VarsContext vars_context;
 
   x["a"] = 0.0;
   value_t const lambda = value_t::lambda();
@@ -298,7 +298,7 @@ TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
   // never actually has to "compute" the expression node of the respective type. -- D.K.
   using namespace current::expression;
 
-  VarsContext context;
+  VarsContext vars_context;
   value_t const lambda = value_t::lambda();
 
   JITCallContext jit_call_context;

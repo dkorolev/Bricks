@@ -84,7 +84,7 @@ class JITCallContext final {
   VarsContext const& vars_context_;
   VarsMapperConfig const& vars_config_;
 
-  // TODO(dkorolev): It's probably worth to add a check that if extra nodes were added, JIT-compilation should abort.
+  // TODO(dkorolev): It's probably worth it to add a check that if extra nodes were added, JIT-compilation should abort.
   size_t const number_of_nodes_;
 
   mutable std::vector<double> ram_;  // The temporary buffer that must be allocated to run JIT functions of this config.
