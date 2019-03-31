@@ -352,7 +352,6 @@ class Build1DFunctionImpl {
             throw false;
 #else
             return ExpressionNodeIndex::DoubleZero();
-            ;
 #endif
           }
         },

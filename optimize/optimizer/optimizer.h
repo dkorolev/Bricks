@@ -97,6 +97,7 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
     }
   } while (result.iterations < kMaxIterations);
 
+  result.final_value = result.values.back();
   result.final_point = result.trace.back();
 
   return result;

@@ -119,7 +119,7 @@ TEST(OptimizationOptimizer, MultiStepOptimization) {
   ASSERT_EQ(2u, result.final_point.size());
   EXPECT_NEAR(3, result.final_point[0], 1e-6);
   EXPECT_NEAR(5, result.final_point[1], 1e-6);
-  EXPECT_NEAR(0.0, result.final_value, 1e-6);
+  EXPECT_NEAR(4 * log(2), result.final_value, 1e-6);
 
   EXPECT_EQ(
       "["
