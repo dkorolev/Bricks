@@ -65,6 +65,10 @@ TEST(OptimizationExpressionTreeBalancer, Smoke) {
   using namespace current::expression;
 
   VarsContext vars_context;
+#ifdef NDEBUG
+  // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
+  x[0u] = 0.0;
+#endif
 
   value_t v = 0.0;
   for (size_t i = 0; i < 4; ++i) {
@@ -86,6 +90,10 @@ TEST(OptimizationExpressionTreeBalancer, MixingAdditionAndMultiplication) {
   using namespace current::expression;
 
   VarsContext vars_context;
+#ifdef NDEBUG
+  // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
+  x[0u] = 0.0;
+#endif
 
   for (size_t i = 0; i < 9; ++i) {
     x[i + 1] = 0.0;
@@ -110,6 +118,10 @@ TEST(OptimizationExpressionTreeBalancer, RebalanceWhatWasAddedLater) {
   using namespace current::expression;
 
   VarsContext vars_context;
+#ifdef NDEBUG
+  // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
+  x[0u] = 0.0;
+#endif
 
   for (size_t i = 0; i < 8; ++i) {
     x[i + 1] = 0.0;
@@ -147,6 +159,10 @@ TEST(OptimizationExpressionTreeBalancer, BalancedStaysBalanced) {
   using namespace current::expression;
 
   VarsContext vars_context;
+#ifdef NDEBUG
+  // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
+  x[0u] = 0.0;
+#endif
 
   for (size_t i = 0; i < 7; ++i) {
     x[i + 1] = 0.0;
@@ -201,6 +217,7 @@ TEST(OptimizationExpressionTreeBalancer, BalancedStaysBalanced) {
   TEST(OptimizationExpressionTreeBalancer, LowNodesCountWithRecursiveSanityCheck##count) {    \
     using namespace current::expression;                                                      \
     VarsContext vars_context;                                                                 \
+    x[0u] = 0.0;                                                                              \
     value_t v = 0.0;                                                                          \
     for (size_t i = 0u; i < static_cast<size_t>(count); ++i) {                                \
       x[i + 1u] = 0.0;                                                                        \
@@ -221,6 +238,7 @@ TEST(OptimizationExpressionTreeBalancer, BalancedStaysBalanced) {
   TEST(OptimizationExpressionTreeBalancer, HighNodesCountWithNoRecursion##count) {                                   \
     using namespace current::expression;                                                                             \
     VarsContext vars_context;                                                                                        \
+    x[0u] = 0.0;                                                                                                     \
     value_t v = 0.0;                                                                                                 \
     for (size_t i = 0u; i < static_cast<size_t>(count); ++i) {                                                       \
       x[i + 1u] = 0.0;                                                                                               \

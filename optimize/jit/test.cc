@@ -38,24 +38,21 @@ TEST(OptimizationJIT, SmokeAdd) {
   x["a"] = 1.0;
   value_t const value = x["a"] + x["a"];
 
-  // The call to `Freeze()` fixes the variables and nodes used.
-  VarsMapperConfig const vars_config = context.Freeze();
-
   // The constuctor of `JITCallContext` allocates the RAM buffer for the temporary computations.
-  JITCallContext jit_call_context(vars_config);
+  JITCallContext jit_call_context(context);
 
   // The instance of `JITCompiler` can emit one or more compiled functiont, which would all operate on the same
   // instance of `JITCallContext`, so that they, when called in the order of compilation, reuse intermediate results.
   JITCompiler code_generator(jit_call_context);
   JITCompiledFunction const f = code_generator.Compile(value);
 
-  VarsMapper input(vars_config);
+  VarsMapper input;
   EXPECT_EQ(2.0, f(jit_call_context, input.x));
 
+  // Other calling semantics.
   input["a"] = 2.0;
-  EXPECT_EQ(4.0, f(jit_call_context, input.x));
+  EXPECT_EQ(4.0, f(jit_call_context, input));
 
-  // Other calling synopsis.
   input["a"] = -2.0;
   EXPECT_EQ(-4.0, f(jit_call_context, &input.x[0]));
 
@@ -70,12 +67,10 @@ TEST(OptimizationJIT, SmokeAddConstant) {
   x["b"] = 1.0;
   value_t const value = x["b"] + 1.0;
 
-  // No need for `context.Freeze()`, it will happen automatically in the default constructor of `JITCallContext`.
   JITCallContext jit_call_context;
-
   JITCompiledFunction const f = JITCompiler(jit_call_context).Compile(value);
 
-  VarsMapper input(jit_call_context.Config());
+  VarsMapper input;
   EXPECT_EQ(2.0, f(jit_call_context, input.x));
 
   input["b"] = 2.0;
@@ -99,10 +94,10 @@ TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
   JITCompiledFunctionReturningVector const g = JITCompiler(jit_call_context).Compile(values);
 
   {
-    VarsMapper input(jit_call_context.Config());
+    VarsMapper input;
     input["a"] = 10.0;
     input["b"] = 5.0;
-    EXPECT_EQ("[15.0,5.0,50.0,2.0]", JSON(g(jit_call_context, input.x)));
+    EXPECT_EQ("[15.0,5.0,50.0,2.0]", JSON(g(jit_call_context, input)));
   }
 
   EXPECT_EQ("[6.0,2.0,8.0,2.0]", JSON(g(jit_call_context, {4.0, 2.0})));
@@ -116,7 +111,7 @@ TEST(OptimizationJIT, Exp) {
   x["c"] = 0.0;
   value_t const value = exp(x["c"]);
 
-  // No need to provide `context`, the thread-local singleton will be used by default, and it will be `.Freeze()`-ed.
+  // No need to provide `context`, the thread-local singleton will be used by default.
   JITCallContext jit_call_context;
 
   // Confirm that the lifetime of `JITCompiler` is not necessary for the functions to be called.
@@ -125,11 +120,11 @@ TEST(OptimizationJIT, Exp) {
   JITCompiledFunction const f = [&]() {
     // Confirm that the very instance of `JITCompiler` does not have to live for the function(s) to be called,
     // it's the lifetime of `JITCallContext` that is important.
-    JITCompiler disposable_code_generator(jit_call_context);
-    return disposable_code_generator.Compile(value);
+    JITCompiler inner_disposable_code_generator(jit_call_context);
+    return inner_disposable_code_generator.Compile(value);
   }();
 
-  VarsMapper input(disposable_code_generator->Config());
+  VarsMapper input;
 
   disposable_code_generator = nullptr;
 
@@ -226,7 +221,7 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
   JITCompiledFunction const fb = compiler.Compile(b);
   JITCompiledFunction const fc = compiler.Compile(c);
 
-  VarsMapper input(jit_call_context.Config());
+  VarsMapper input;
 
   // Compute for `0`.
   EXPECT_EQ(0, fa(jit_call_context, {0.0}));
@@ -272,45 +267,11 @@ TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
   JITCallContext jit_call_context;
   JITCompiledFunction const f = JITCompiler(jit_call_context).Compile(r);
 
-  VarsMapper input(jit_call_context.Config());
-
   // Should be exactly one, as a machine-imperfect `sqrt(2.0)` is being subtracted from the very same value.
   EXPECT_EQ(1.0, f(jit_call_context, {sqrt(2.0)}));
 
   // Should be the exact value again.
   EXPECT_EQ(0.0 - sqrt(2.0) + 1.0, f(jit_call_context, {0.0}));
-}
-
-TEST(OptimizationJIT, NeedActiveVarsContext) {
-  using namespace current::expression;
-
-  std::unique_ptr<JITCallContext> illegal_jit_context = []() {
-    VarsContext vars_context;
-    return std::make_unique<JITCallContext>(vars_context.Freeze());
-  }();
-  ASSERT_THROW(JITCompiler illegal_code_generator(*illegal_jit_context), VarsManagementException);
-}
-
-TEST(OptimizationJIT, NoIntersectingGlobalJITCallContextsAllowed) {
-  using namespace current::expression;
-
-  VarsContext context;
-
-  JITCallContext jit_call_context;
-  ASSERT_THROW(JITCallContext illegal_call_context, VarsAlreadyFrozenException);
-}
-
-TEST(OptimizationJIT, JITGeneratorUnfreezesVarsContext) {
-  using namespace current::expression;
-
-  VarsContext context;
-
-  { JITCallContext call_context_1; }
-  { JITCallContext call_context_2; }
-  {
-    context.Freeze();
-    ASSERT_THROW(JITCallContext illegal_call_context, VarsAlreadyFrozenException);
-  }
 }
 
 TEST(OptimizationJIT, FunctionWithArgument) {
@@ -320,16 +281,16 @@ TEST(OptimizationJIT, FunctionWithArgument) {
 
   x["a"] = 0.0;
   value_t const lambda = value_t::lambda();
-  value_t const formula = x["a"] + lambda;
+  value_t const formula = x["a"] + lambda + 1.0;
 
   JITCallContext jit_call_context;
   JITCompiler code_generator(jit_call_context);
   JITCompiledFunctionWithArgument const f = code_generator.CompileFunctionWithArgument(formula);
 
-  EXPECT_EQ(0.0, f(jit_call_context, {0.0}, 0.0));
-  EXPECT_EQ(1.0, f(jit_call_context, {1.0}, 0.0));
-  EXPECT_EQ(1.0, f(jit_call_context, {0.0}, 1.0));
-  EXPECT_EQ(2.0, f(jit_call_context, {1.0}, 1.0));
+  EXPECT_EQ(1.0, f(jit_call_context, {0.0}, 0.0));
+  EXPECT_EQ(2.0, f(jit_call_context, {1.0}, 0.0));
+  EXPECT_EQ(2.0, f(jit_call_context, {0.0}, 1.0));
+  EXPECT_EQ(3.0, f(jit_call_context, {1.0}, 1.0));
 }
 
 TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
@@ -363,14 +324,13 @@ inline void RunOptimizationJITStressTest(size_t dim) {
     f += exp(x[i]);
   }
 
-  VarsMapperConfig const vars_config = vars_context.Freeze();
-  JITCallContext jit_call_context(vars_config);
+  JITCallContext jit_call_context;
   JITCompiledFunction const compiled_f = JITCompiler(jit_call_context).Compile(f);
 
-  VarsMapper input(vars_config);
-  EXPECT_EQ(dim, compiled_f(jit_call_context, input.x));
+  // The default constuctor of `VarsMapper()` initializes itself with the starting point.
+  EXPECT_EQ(dim, compiled_f(jit_call_context, VarsMapper()));
 
-  // NOTE(dkorolev): The seemingly-confusing subtraction is because the very first "zero plus ..." is optimized away.
+  // NOTE(dkorolev): The subtraction is because the very first "zero plus ..." node is optimized away.
   EXPECT_EQ(47u * dim - 10u, compiled_f.CodeSize());
 }
 

@@ -639,13 +639,13 @@ inline std::vector<value_t> ComputeGradient(value_t f) {
 
 // Given a function and the formulas for its gradient (actually, node indexes for them only),
 // generates a one-dimensional function `f(lambda)`, which is `f(x0 + lambda * gradient)`.
-inline value_t GenerateLineSearchFunction(VarsMapperConfig const& config, value_t f, std::vector<value_t> const& g) {
+inline value_t GenerateLineSearchFunction(value_t f, std::vector<value_t> const& g) {
   value_t const lambda = value_t::lambda();
-  std::vector<value_t> substitute(config.name.size());
+  std::vector<value_t> substitute(g.size());
   for (size_t i = 0u; i < substitute.size(); ++i) {
     substitute[i] = value_t::FromExpressionNodeIndex(ExpressionNodeIndex::FromVarIndex(i)) + lambda * g[i];
   }
-  return Build1DFunction(f, config, substitute);
+  return Build1DFunction(f, substitute);
 }
 
 // The caller for the differentiator by the lambda, not by a specific variable.

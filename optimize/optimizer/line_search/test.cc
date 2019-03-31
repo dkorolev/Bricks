@@ -197,7 +197,6 @@ inline void ExpectCommentsMatchIfInParanoidMode(std::string const& expected_comm
     using namespace current::expression;                                                                               \
     VarsContext vars_context;                                                                                          \
     x[0] = 0.0;                                                                                                        \
-    vars_context.ReindexVars();                                                                                        \
     value_t const f = [](value_t x) { return function_body; }(x[0]);                                                   \
     using namespace current::expression::optimizer;                                                                    \
     OptimizationContext optimization_context(vars_context, f);                                                         \

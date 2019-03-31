@@ -31,8 +31,12 @@ SOFTWARE.
 #include "../../3rdparty/gtest/gtest-main.h"
 #include "../../3rdparty/gtest/singlequoted.h"
 
-#define EXPECT_VAR_NAME_IS_RIGHT(var) EXPECT_EQ(#var, (var).FullVarName())
-#define EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(var, index) EXPECT_EQ(#var "{" #index "}", (var).FullVarName())
+#define CHECK_VAR_NAME(var) EXPECT_EQ(#var, (var).FullVarName())
+#define CHECK_VAR_NAME_AND_INDEX(var, idx) \
+  {                                        \
+    EXPECT_EQ(#var, (var).FullVarName());  \
+    EXPECT_EQ(idx, (var).VarIndex());      \
+  }
 
 TEST(OptimizationVars, SparseByInt) {
   using namespace current::expression;
@@ -40,31 +44,26 @@ TEST(OptimizationVars, SparseByInt) {
   x[1] = 2;
   x[100] = 101;
   x[42] = 0;
-  EXPECT_EQ(0u, x[1].InternalVarIndex());
-  EXPECT_EQ(1u, x[100].InternalVarIndex());
-  EXPECT_EQ(2u, x[42].InternalVarIndex());
-  EXPECT_VAR_NAME_IS_RIGHT(x[1]);
-  EXPECT_VAR_NAME_IS_RIGHT(x[100]);
-  EXPECT_VAR_NAME_IS_RIGHT(x[42]);
+  EXPECT_EQ(0u, x[1].VarIndex());
+  EXPECT_EQ(1u, x[100].VarIndex());
+  EXPECT_EQ(2u, x[42].VarIndex());
+  CHECK_VAR_NAME_AND_INDEX(x[1], 0u);
+  CHECK_VAR_NAME_AND_INDEX(x[100], 1u);
+  CHECK_VAR_NAME_AND_INDEX(x[42], 2u);
   // The elements in the JSON are ordered, and the `q` index is in the order of introduction of the leaves in this tree.
   // Here and in all the tests below.
-  EXPECT_EQ("{'I':{'z':[[1,{'X':{'q':0,'x':2.0}}],[42,{'X':{'q':2,'x':0.0}}],[100,{'X':{'q':1,'x':101.0}}]]}}",
+  EXPECT_EQ("{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}],[42,{'X':{'i':2,'x':0.0}}],[100,{'X':{'i':1,'x':101.0}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
   ASSERT_THROW(x.DenseDoubleVector(100), VarNodeTypeMismatchException);
   ASSERT_THROW(x["foo"], VarNodeTypeMismatchException);
   ASSERT_THROW(x[1][2], VarNodeTypeMismatchException);
   ASSERT_THROW(x[1]["blah"], VarNodeTypeMismatchException);
   ASSERT_THROW(x[1].DenseDoubleVector(100), VarNodeTypeMismatchException);
-  // After the call to `Freeze()`, the `i` index is stamped, it is lexicographical, following the order in the JSON.
-  // Here and in all the tests below.
-  ASSERT_THROW(context.Unfreeze(), VarsNotFrozenException);
-  context.Freeze();
-  ASSERT_THROW(context.Freeze(), VarsAlreadyFrozenException);
   EXPECT_EQ(
       "{'I':{'z':["
-      "[1,{'X':{'q':0,'i':0,'x':2.0}}],"
-      "[42,{'X':{'q':2,'i':1,'x':0.0}}],"
-      "[100,{'X':{'q':1,'i':2,'x':101.0}}]"
+      "[1,{'X':{'i':0,'x':2.0}}],"
+      "[42,{'X':{'i':2,'x':0.0}}],"
+      "[100,{'X':{'i':1,'x':101.0}}]"
       "]}}",
       SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
 }
@@ -75,22 +74,21 @@ TEST(OptimizationVars, SparseByString) {
   x["foo"] = 1;
   x["bar"] = 2;
   x["baz"] = 3;
-  EXPECT_VAR_NAME_IS_RIGHT(x["foo"]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["bar"]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["baz"]);
-  EXPECT_EQ("{'S':{'z':{'bar':{'X':{'q':1,'x':2.0}},'baz':{'X':{'q':2,'x':3.0}},'foo':{'X':{'q':0,'x':1.0}}}}}",
+  CHECK_VAR_NAME(x["foo"]);
+  CHECK_VAR_NAME(x["bar"]);
+  CHECK_VAR_NAME(x["baz"]);
+  EXPECT_EQ("{'S':{'z':{'bar':{'X':{'i':1,'x':2.0}},'baz':{'X':{'i':2,'x':3.0}},'foo':{'X':{'i':0,'x':1.0}}}}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
   ASSERT_THROW(x.DenseDoubleVector(100), VarNodeTypeMismatchException);
   ASSERT_THROW(x[42], VarNodeTypeMismatchException);
   ASSERT_THROW(x["foo"][2], VarNodeTypeMismatchException);
   ASSERT_THROW(x["foo"]["blah"], VarNodeTypeMismatchException);
   ASSERT_THROW(x["foo"].DenseDoubleVector(100), VarNodeTypeMismatchException);
-  context.Freeze();
   EXPECT_EQ(
       "{'S':{'z':{"
-      "'bar':{'X':{'q':1,'i':0,'x':2.0}},"
-      "'baz':{'X':{'q':2,'i':1,'x':3.0}},"
-      "'foo':{'X':{'q':0,'i':2,'x':1.0}}"
+      "'bar':{'X':{'i':1,'x':2.0}},"
+      "'baz':{'X':{'i':2,'x':3.0}},"
+      "'foo':{'X':{'i':0,'x':1.0}}"
       "}}}",
       SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
 }
@@ -102,10 +100,10 @@ TEST(OptimizationVars, EmptyStringAllowedAsVarName) {
   x[""] = 2;
   x["nested"]["also ok"] = 3;
   x["nested"][""] = 4;
-  EXPECT_VAR_NAME_IS_RIGHT(x["ok"]);
-  EXPECT_VAR_NAME_IS_RIGHT(x[""]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["nested"]["ok"]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["nested"][""]);
+  CHECK_VAR_NAME(x["ok"]);
+  CHECK_VAR_NAME(x[""]);
+  CHECK_VAR_NAME(x["nested"]["ok"]);
+  CHECK_VAR_NAME(x["nested"][""]);
 }
 
 TEST(OptimizationVars, DenseVector) {
@@ -114,9 +112,9 @@ TEST(OptimizationVars, DenseVector) {
   x.DenseDoubleVector(5);
   x[2] = 2;
   x[4] = 4;
-  EXPECT_VAR_NAME_IS_RIGHT(x[2]);
-  EXPECT_VAR_NAME_IS_RIGHT(x[4]);
-  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'q':0,'x':2.0}},{'U':{}},{'X':{'q':1,'x':4.0}}]}}",
+  CHECK_VAR_NAME(x[2]);
+  CHECK_VAR_NAME(x[4]);
+  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'i':0,'x':2.0}},{'U':{}},{'X':{'i':1,'x':4.0}}]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
   ASSERT_THROW(x[42], VarsManagementException);
   ASSERT_THROW(x["foo"], VarNodeTypeMismatchException);
@@ -124,8 +122,7 @@ TEST(OptimizationVars, DenseVector) {
   ASSERT_THROW(x.DenseDoubleVector(100), VarNodeTypeMismatchException);
   x[2] = 2;  // Same value, a valid no-op.
   ASSERT_THROW(x[2] = 3, VarNodeReassignmentAttemptException);
-  context.Freeze();
-  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'q':0,'i':0,'x':2.0}},{'U':{}},{'X':{'q':1,'i':1,'x':4.0}}]}}",
+  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'i':0,'x':2.0}},{'U':{}},{'X':{'i':1,'x':4.0}}]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
 }
 
@@ -133,15 +130,15 @@ TEST(OptimizationVars, InternalVarIndexes) {
   using namespace current::expression;
   VarsContext context;
   x["foo"][1] = 2;
-  EXPECT_VAR_NAME_IS_RIGHT(x["foo"][1]);
+  CHECK_VAR_NAME(x["foo"][1]);
   // Should keep track of allocated internal leaf indexes.
-  EXPECT_EQ(0u, x["foo"][1].InternalVarIndex());
+  EXPECT_EQ(0u, x["foo"][1].VarIndex());
   // These are valid "var paths", but with no leaves allocated (they can still be nodes).
-  ASSERT_THROW(x["foo"].InternalVarIndex(), VarIsNotLeafException);
-  ASSERT_THROW(x["foo"][0].InternalVarIndex(), VarIsNotLeafException);
+  ASSERT_THROW(x["foo"].VarIndex(), VarIsNotLeafException);
+  ASSERT_THROW(x["foo"][0].VarIndex(), VarIsNotLeafException);
   // And for the invalid paths the other exception type is thrown.
-  ASSERT_THROW(x["foo"]["bar"].InternalVarIndex(), VarNodeTypeMismatchException);
-  ASSERT_THROW(x[0].InternalVarIndex(), VarNodeTypeMismatchException);
+  ASSERT_THROW(x["foo"]["bar"].VarIndex(), VarNodeTypeMismatchException);
+  ASSERT_THROW(x[0].VarIndex(), VarNodeTypeMismatchException);
 }
 
 TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
@@ -150,72 +147,19 @@ TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
   x["dense"].DenseDoubleVector(2);
   x["sparse"][42] = 42;
   x["strings"]["foo"] = 1;
-  EXPECT_VAR_NAME_IS_RIGHT(x["dense"][0]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["dense"][1]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["sparse"][42]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["strings"]["foo"]);
-  x.Freeze();
+  CHECK_VAR_NAME(x["dense"][0]);
+  CHECK_VAR_NAME(x["dense"][1]);
+  CHECK_VAR_NAME(x["sparse"][42]);
+  CHECK_VAR_NAME(x["strings"]["foo"]);
+  x.GetVarsMapperConfig();
   x["dense"][0];
   x["dense"][1];
   x["sparse"][42];
   x["strings"]["foo"];
-  ASSERT_THROW(x["dense"][2], VarsFrozenException);
-  ASSERT_THROW(x["sparse"][100], VarsFrozenException);
-  ASSERT_THROW(x["strings"]["bar"], VarsFrozenException);
-  ASSERT_THROW(x["foo"], VarsFrozenException);
-}
-
-TEST(OptimizationVars, UnfreezeAndReindex) {
-  using namespace current::expression;
-  VarsContext context;
-  x.DenseDoubleVector(5);
-  x[2] = 2;
-  x[4] = 4;
-  EXPECT_VAR_NAME_IS_RIGHT(x[2]);
-  EXPECT_VAR_NAME_IS_RIGHT(x[4]);
-  EXPECT_EQ(2u, context.NumberOfVars());
-  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'q':0,'x':2.0}},{'U':{}},{'X':{'q':1,'x':4.0}}]}}",
-            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
-  context.Freeze();
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x[2], 0);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x[4], 1);
-  EXPECT_EQ(2u, context.NumberOfVars());
-  ASSERT_THROW(x[3] = 3, VarsFrozenException);
-  EXPECT_EQ(2u, context.NumberOfVars());
-  EXPECT_EQ("{'V':{'z':[{'U':{}},{'U':{}},{'X':{'q':0,'i':0,'x':2.0}},{'U':{}},{'X':{'q':1,'i':1,'x':4.0}}]}}",
-            SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
-  context.Unfreeze();
-  // Can add a var, but it won't get an internal, "frozen", index.
-  EXPECT_EQ(2u, context.NumberOfVars());
-  x[3] = 3;
-  EXPECT_EQ(3u, context.NumberOfVars());
-  EXPECT_EQ(
-      "{'V':{'z':["
-      "{'U':{}},"
-      "{'U':{}},"
-      "{'X':{'q':0,'i':0,'x':2.0}},"
-      "{'X':{'q':2,'x':3.0}},"  // No `i`, as `x[3]` is not indexed yet.
-      "{'X':{'q':1,'i':1,'x':4.0}}"
-      "]}}",
-      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
-  // After freezing, an internal index is there.
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x[2], 0);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x[4], 1);
-  EXPECT_VAR_NAME_IS_RIGHT(x[3]);
-  context.Freeze();
-  EXPECT_EQ(3u, context.NumberOfVars());
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x[2], 0);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x[3], 1);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x[4], 2);
-  EXPECT_EQ(
-      "{'V':{'z':["
-      "{'U':{}},"
-      "{'U':{}},"
-      "{'X':{'q':0,'i':0,'x':2.0}},"
-      "{'X':{'q':2,'i':1,'x':3.0}},"  // The `x[3]` variable is not indexes, with the index of `x[4]` shifting.
-      "{'X':{'q':1,'i':2,'x':4.0}}"
-      "]}}",
-      SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
+  ASSERT_THROW(x["dense"][2], NoNewVarsCanBeAddedException);
+  ASSERT_THROW(x["sparse"][100], NoNewVarsCanBeAddedException);
+  ASSERT_THROW(x["strings"]["bar"], NoNewVarsCanBeAddedException);
+  ASSERT_THROW(x["foo"], NoNewVarsCanBeAddedException);
 }
 
 TEST(OptimizationVars, MultiDimensionalIntInt) {
@@ -223,13 +167,13 @@ TEST(OptimizationVars, MultiDimensionalIntInt) {
   VarsContext context;
   x[1][2] = 3;
   x[4][5] = 6;
-  EXPECT_EQ("{'I':{'z':[[1,{'I':{'z':[[2,{'X':{'q':0,'x':3.0}}]]}}],[4,{'I':{'z':[[5,{'X':{'q':1,'x':6.0}}]]}}]]}}",
+  EXPECT_EQ("{'I':{'z':[[1,{'I':{'z':[[2,{'X':{'i':0,'x':3.0}}]]}}],[4,{'I':{'z':[[5,{'X':{'i':1,'x':6.0}}]]}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
-  context.Freeze();
+  x.GetVarsMapperConfig();
   EXPECT_EQ(
       "{'I':{'z':["
-      "[1,{'I':{'z':[[2,{'X':{'q':0,'i':0,'x':3.0}}]]}}],"
-      "[4,{'I':{'z':[[5,{'X':{'q':1,'i':1,'x':6.0}}]]}}]"
+      "[1,{'I':{'z':[[2,{'X':{'i':0,'x':3.0}}]]}}],"
+      "[4,{'I':{'z':[[5,{'X':{'i':1,'x':6.0}}]]}}]"
       "]}}",
       SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
 }
@@ -239,13 +183,13 @@ TEST(OptimizationVars, MultiDimensionalIntString) {
   VarsContext context;
   x[1]["foo"] = 2;
   x[3]["bar"] = 4;
-  EXPECT_EQ("{'I':{'z':[[1,{'S':{'z':{'foo':{'X':{'q':0,'x':2.0}}}}}],[3,{'S':{'z':{'bar':{'X':{'q':1,'x':4.0}}}}}]]}}",
+  EXPECT_EQ("{'I':{'z':[[1,{'S':{'z':{'foo':{'X':{'i':0,'x':2.0}}}}}],[3,{'S':{'z':{'bar':{'X':{'i':1,'x':4.0}}}}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
-  context.Freeze();
+  x.GetVarsMapperConfig();
   EXPECT_EQ(
       "{'I':{'z':["
-      "[1,{'S':{'z':{'foo':{'X':{'q':0,'i':0,'x':2.0}}}}}],"
-      "[3,{'S':{'z':{'bar':{'X':{'q':1,'i':1,'x':4.0}}}}}]"
+      "[1,{'S':{'z':{'foo':{'X':{'i':0,'x':2.0}}}}}],"
+      "[3,{'S':{'z':{'bar':{'X':{'i':1,'x':4.0}}}}}]"
       "]}}",
       SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
 }
@@ -255,13 +199,13 @@ TEST(OptimizationVars, MultiDimensionalStringInt) {
   VarsContext context;
   x["foo"][1] = 2;
   x["bar"][3] = 4;
-  EXPECT_EQ("{'S':{'z':{'bar':{'I':{'z':[[3,{'X':{'q':1,'x':4.0}}]]}},'foo':{'I':{'z':[[1,{'X':{'q':0,'x':2.0}}]]}}}}}",
+  EXPECT_EQ("{'S':{'z':{'bar':{'I':{'z':[[3,{'X':{'i':1,'x':4.0}}]]}},'foo':{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}]]}}}}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
-  context.Freeze();
+  x.GetVarsMapperConfig();
   EXPECT_EQ(
       "{'S':{'z':{"
-      "'bar':{'I':{'z':[[3,{'X':{'q':1,'i':0,'x':4.0}}]]}},"
-      "'foo':{'I':{'z':[[1,{'X':{'q':0,'i':1,'x':2.0}}]]}}"
+      "'bar':{'I':{'z':[[3,{'X':{'i':1,'x':4.0}}]]}},"
+      "'foo':{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}]]}}"
       "}}}",
       SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
 }
@@ -274,9 +218,9 @@ TEST(OptimizationVars, Constants) {
   x["three"] = 3;
   EXPECT_EQ(
       "{'S':{'z':{"
-      "'one':{'X':{'q':0,'x':1.0}},"
-      "'three':{'X':{'q':2,'x':3.0}},"
-      "'two':{'X':{'q':1,'x':2.0}}"
+      "'one':{'X':{'i':0,'x':1.0}},"
+      "'three':{'X':{'i':2,'x':3.0}},"
+      "'two':{'X':{'i':1,'x':2.0}}"
       "}}}",
       SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
   x["two"].SetConstant();
@@ -285,10 +229,10 @@ TEST(OptimizationVars, Constants) {
   ASSERT_THROW(x["one"].SetConstant(42), VarNodeReassignmentAttemptException);
   EXPECT_EQ(
       "{'S':{'z':{"
-      "'four':{'X':{'q':3,'x':4.0,'c':true}},"
-      "'one':{'X':{'q':0,'x':1.0}},"
-      "'three':{'X':{'q':2,'x':3.0,'c':true}},"
-      "'two':{'X':{'q':1,'x':2.0,'c':true}}"
+      "'four':{'X':{'i':3,'x':4.0,'c':true}},"
+      "'one':{'X':{'i':0,'x':1.0}},"
+      "'three':{'X':{'i':2,'x':3.0,'c':true}},"
+      "'two':{'X':{'i':1,'x':2.0,'c':true}}"
       "}}}",
       SingleQuoted(JSON<JSONFormat::Minimalistic>(x.InternalDebugDump())));
 }
@@ -305,45 +249,50 @@ TEST(OptimizationVars, DenseRepresentation) {
   x["y"][1][0] = 210;
   x["x"]["x2"].SetConstant();  // Make two of them constants for the test.
   x["y"][1][0].SetConstant();
-  EXPECT_VAR_NAME_IS_RIGHT(x["x"]["x1"]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["x"]["x2"]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["x"]["x3"]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["y"][0][0]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["y"][0][1]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["y"][1][0]);
-  EXPECT_VAR_NAME_IS_RIGHT(x["y"][1][1]);
-  VarsMapperConfig const config = context.Freeze();
-  ASSERT_EQ(7u, config.name.size());
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x["x"]["x1"], 0);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x["x"]["x2"], 1);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x["x"]["x3"], 2);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x["y"][0][0], 3);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x["y"][0][1], 4);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x["y"][1][0], 5);
-  EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT(x["y"][1][1], 6);
-  EXPECT_EQ("x['x']['x1']{0}", SingleQuoted(config.name[0]));
-  EXPECT_EQ("x['x']['x2']{1}", SingleQuoted(config.name[1]));
-  EXPECT_EQ("x['x']['x3']{2}", SingleQuoted(config.name[2]));
-  EXPECT_EQ("x['y'][0][0]{3}", SingleQuoted(config.name[3]));
-  EXPECT_EQ("x['y'][0][1]{4}", SingleQuoted(config.name[4]));
-  EXPECT_EQ("x['y'][1][0]{5}", SingleQuoted(config.name[5]));
-  EXPECT_EQ("x['y'][1][1]{6}", SingleQuoted(config.name[6]));
-  EXPECT_EQ("[101.0,102.0,103.0,200.0,201.0,210.0,211.0]", JSON(config.x0));
-  EXPECT_EQ("[false,true,false,false,false,true,false]", JSON(config.is_constant));
+  CHECK_VAR_NAME(x["x"]["x1"]);
+  CHECK_VAR_NAME(x["x"]["x2"]);
+  CHECK_VAR_NAME(x["x"]["x3"]);
+  CHECK_VAR_NAME(x["y"][0][0]);
+  CHECK_VAR_NAME(x["y"][0][1]);
+  CHECK_VAR_NAME(x["y"][1][0]);
+  CHECK_VAR_NAME(x["y"][1][1]);
+  VarsMapperConfig const config = x.GetVarsMapperConfig();
+  ASSERT_EQ(7u, config.NumberOfVars());
+  // The indexes on the right are flipped.
+  CHECK_VAR_NAME_AND_INDEX(x["x"]["x1"], 0u);
+  CHECK_VAR_NAME_AND_INDEX(x["x"]["x2"], 2u);
+  CHECK_VAR_NAME_AND_INDEX(x["x"]["x3"], 1u);
+  CHECK_VAR_NAME_AND_INDEX(x["y"][0][0], 3u);
+  CHECK_VAR_NAME_AND_INDEX(x["y"][0][1], 5u);
+  CHECK_VAR_NAME_AND_INDEX(x["y"][1][0], 6u);
+  CHECK_VAR_NAME_AND_INDEX(x["y"][1][1], 4u);
+  // The order is the same as in which the variables were introduced.
+  EXPECT_EQ("x['x']['x1']", SingleQuoted(config[0]));
+  EXPECT_EQ("x['x']['x3']", SingleQuoted(config[1]));
+  EXPECT_EQ("x['x']['x2']", SingleQuoted(config[2]));
+  EXPECT_EQ("x['y'][0][0]", SingleQuoted(config[3]));
+  EXPECT_EQ("x['y'][1][1]", SingleQuoted(config[4]));
+  EXPECT_EQ("x['y'][0][1]", SingleQuoted(config[5]));
+  EXPECT_EQ("x['y'][1][0]", SingleQuoted(config[6]));
+  // The order of values is the order in which the variables were introduced.
+  EXPECT_EQ("[101.0,103.0,102.0,200.0,211.0,201.0,210.0]", JSON(config.StartingPoint()));
+  EXPECT_EQ("[false,false,true,false,false,false,true]", JSON(config.VarIsConstant()));
 
   {
     VarsMapper a(config);
     VarsMapper b(config);  // To confirm no global or thread-local context is used by `VarsMapper`-s.
+    VarsMapper c;          // The default config from the thread-local singleton would be used regardless.
 
-    EXPECT_EQ(JSON(a.x), JSON(config.x0));
-    EXPECT_EQ(JSON(b.x), JSON(config.x0));
+    EXPECT_EQ(JSON(a.x), JSON(config.StartingPoint()));
+    EXPECT_EQ(JSON(b.x), JSON(config.StartingPoint()));
+    EXPECT_EQ(JSON(c.x), JSON(config.StartingPoint()));
 
     EXPECT_EQ(101, a.x[0]);
-    EXPECT_EQ(102, a.x[1]);
-    EXPECT_EQ(211, a.x[6]);
+    EXPECT_EQ(102, a.x[2]);
+    EXPECT_EQ(211, a.x[4]);
     EXPECT_EQ(101, b.x[0]);
-    EXPECT_EQ(102, b.x[1]);
-    EXPECT_EQ(211, b.x[6]);
+    EXPECT_EQ(102, b.x[2]);
+    EXPECT_EQ(211, b.x[4]);
 
     a["x"]["x1"] = 70101;
     a["x"]["x2"].SetConstantValue(70102);
@@ -354,12 +303,16 @@ TEST(OptimizationVars, DenseRepresentation) {
     b["x"]["x2"].RefEvenForAConstant() = 80102;
 
     EXPECT_EQ(70101, a.x[0]);
-    EXPECT_EQ(70102, a.x[1]);
-    EXPECT_EQ(70211, a.x[6]);
+    EXPECT_EQ(70102, a.x[2]);
+    EXPECT_EQ(70211, a.x[4]);
 
     EXPECT_EQ(80101, b.x[0]);
-    EXPECT_EQ(80102, b.x[1]);
-    EXPECT_EQ(80211, b.x[6]);
+    EXPECT_EQ(80102, b.x[2]);
+    EXPECT_EQ(80211, b.x[4]);
+
+    EXPECT_EQ(101, c.x[0]);
+    EXPECT_EQ(102, c.x[2]);
+    EXPECT_EQ(211, c.x[4]);
 
     ASSERT_THROW(a[42] = 0, VarsMapperWrongVarException);
     ASSERT_THROW(a["z"] = 0, VarsMapperWrongVarException);
@@ -394,5 +347,5 @@ TEST(OptimizationVars, NoNestedContextsAllowed) {
   ASSERT_THROW(VarsContext illegal_inner_context, VarsManagementException);
 }
 
-#undef EXPECT_VAR_NAME_WITH_INDEX_IS_RIGHT
-#undef EXPECT_VAR_NAME_IS_RIGHT
+#undef CHECK_VAR_NAME_AND_INDEX
+#undef CHECK_VAR_NAME

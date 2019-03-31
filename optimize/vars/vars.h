@@ -25,6 +25,8 @@ SOFTWARE.
 #ifndef OPTIMIZE_VARS_VARS_H
 #define OPTIMIZE_VARS_VARS_H
 
+// TODO(dkorolev): Enable some `NonStrict()` mode for liberal variables introduction.
+
 #include <iostream>
 #include <map>
 #include <string>
@@ -46,32 +48,38 @@ struct VarsManagementException final : OptimizeException {
 
 // When the "weakly typed" tree of possibly multidimensional var nodes is used in the way other than it was initialized.
 // I.e.:
-//   c["foo"]["bar"] = 42;
-//   c["foo"][0] throws.
-//   c["foo"]["bar"]["baz"] throws.
-//   c[42] throws.
+//   x["foo"]["bar"] = 42;
+//   x["foo"][0] throws.
+//   x["foo"]["bar"]["baz"] throws.
+//   x[42] throws.
 struct VarNodeTypeMismatchException final : OptimizeException {};
 
-// When the "internal leaf allocation index" is requested for the var path that is not a leaf.
+// When the "variable index" is requested for the path that does not yet lead to a variable.
 // I.e.:
-//   c["test"]["passed"] = 42;
-//   c["whatever"] = 0;
-//   c["test"] + c["whatever"] throws, because `["test"]` is a node, not a leaf, in the vars tree of `c[]`.
+//   x["test"]["passed"] = 42;
+//   x["whatever"] = 0;
+//   x["whatever"] + x["test"] throws, because `x["test"]` is a node, not a leaf, in the variables tree.
 struct VarIsNotLeafException final : OptimizeException {};
 
-// When the value is attempted to be re-assigned. I.e.: `c["foo"] = 1; c["foo"] = 2;`.
+// When the value is attempted to be re-assigned. I.e.: `x["foo"] = 1; x["foo"] = 2;`.
 struct VarNodeReassignmentAttemptException final : OptimizeException {};
 
-// When the variables tree is attempted to be changed after being frozen via `.Freeze()`.
-// I.e., `c["foo"] = 1.0; vars_context.Freeze(); c["bar"] = 2.0;`.
-struct VarsFrozenException final : OptimizeException {};
+// When the variables tree is attempted to be changed after `GetVarsMapperConfig()` was called.
+// I.e., `x["foo"] = 1.0; auto const config = x.GetVarsMapperConfig(); x["bar"] = 2.0;`.
+//
+// This is done to make sure the gradient is guaranteed to be of the right dimensionality.
+// No new variables can be added after the first call to `GetVarsMapperConfig()`,
+//
+// NOTE(dkorolev): This exception is even being thrown in `NDEBUG` mode, because
+// the check for it is lightweight, and the possible conesquences are just way too bad.
+struct NoNewVarsCanBeAddedException final : OptimizeException {};
 
-// To make sure `Freeze()` is only called on the unfrozen vars tree, and `Unfreeze()` is only called on the frozen one.
-struct VarsAlreadyFrozenException final : OptimizeException {};
-struct VarsNotFrozenException final : OptimizeException {};
+// Same for nodes for the "frozen" vars context.
+struct NoNewNodesCanBeAddedException final : OptimizeException {};
 
-// An internal error when using internal means to access vars by their indexes.
+#ifndef NDEBUG
 struct VarIndexOutOfBoundsException final : OptimizeException {};
+#endif
 
 // For flattened vars vector access, see the unit tests for more details.
 struct VarsMapperException : OptimizeException {};
@@ -92,53 +100,99 @@ CURRENT_FORWARD_DECLARE_STRUCT(X);  // "Value".
 CURRENT_VARIANT(Node, U, V, I, S, X);
 CURRENT_STRUCT(U){};
 CURRENT_STRUCT(X) {
-  CURRENT_FIELD(q, uint32_t);            // The internal index, in the order of defining the variables.
-  CURRENT_FIELD(i, Optional<uint32_t>);  // The in-dense-vector, post-`Freeze()` index, in the DFS order. For JIT.
-  CURRENT_FIELD(x, Optional<double>);    // The value, of a starting point, or of a constant.
-  CURRENT_FIELD(c, Optional<bool>);      // Set to `true` if this "variable" is a constant, `null` otherwise.
+  CURRENT_FIELD(i, uint32_t);          // The 0-based index of this variable, in the order of introduction.
+  CURRENT_FIELD(x, Optional<double>);  // The value, of this variable at a starting point, or if it's a constant.
+  CURRENT_FIELD(c, Optional<bool>);    // Set to `true` if this "variable" is a constant, `null` otherwise.
   CURRENT_CONSTRUCTOR(X)
-  (Optional<double> x, bool is_constant, uint32_t q, uint32_t optional_i = static_cast<uint32_t>(-1))
-      : q(q),
-        i(optional_i == static_cast<uint32_t>(-1) ? nullptr : Optional<uint32_t>(optional_i)),
-        x(x),
-        c(is_constant ? Optional<bool>(true) : nullptr) {}
+  (uint32_t i, Optional<double> x, bool is_constant) : i(i), x(x), c(is_constant ? Optional<bool>(true) : nullptr) {}
 };
 CURRENT_STRUCT(V) { CURRENT_FIELD(z, std::vector<Node>); };
 CURRENT_STRUCT(I) { CURRENT_FIELD(z, (std::map<uint32_t, Node>)); };
 CURRENT_STRUCT(S) { CURRENT_FIELD(z, (std::map<std::string, Node>)); };
 }  // namespace current::expression::json
 
+class VarsContext;
+
 // The information about the variables set, as well as their initial values and which are the constants.
-struct VarsMapperConfig final {
-  size_t const total_leaves;  // The number of variables, including the constant (`x[...].SetConstant(...)`) ones.
-  size_t const total_nodes;   // The number of expression nodes.
-  std::vector<double> const x0;
-  std::vector<std::string> const name;
-  std::vector<bool> const is_constant;
-  std::vector<size_t> const dense_index;
-  json::Node const root;
-  VarsMapperConfig(size_t total_leaves,
-                   size_t total_nodes,
-                   std::vector<size_t> dense_index,
+class VarsMapperConfig final {
+ private:
+  size_t const number_of_variables_;  // The number of vars, including the constant (`x[...].SetConstant(...)`) ones.
+  size_t const number_of_nodes_;
+#ifndef NDEBUG
+  VarsContext const* vars_context_;
+#endif
+  std::vector<double> const x0_;
+  std::vector<std::string> const name_;
+  std::vector<bool> const is_constant_;
+  json::Node const root_;
+
+ public:
+  VarsMapperConfig(size_t number_of_variables,
+                   size_t number_of_nodes,
+#ifndef NDEBUG
+                   VarsContext const* vars_context,
+#endif
+
                    std::vector<double> x0,
                    std::vector<std::string> name,
                    std::vector<bool> is_constant,
                    json::Node root)
-      : total_leaves(total_leaves),
-        total_nodes(total_nodes),
-        x0(std::move(x0)),
-        name(std::move(name)),
-        is_constant(std::move(is_constant)),
-        dense_index(std::move(dense_index)),
-        root(std::move(root)) {}
+      : number_of_variables_(number_of_variables),
+        number_of_nodes_(number_of_nodes),
+#ifndef NDEBUG
+        vars_context_(vars_context),
+#endif
+
+        x0_(std::move(x0)),
+        name_(std::move(name)),
+        is_constant_(std::move(is_constant)),
+        root_(std::move(root)) {
+  }
+
+#ifndef NDEBUG
+  bool DebugConfigMatchesContext(VarsContext const* candidate_vars_context,
+                                 size_t candidate_number_of_variables) const {
+    return candidate_vars_context == vars_context_ && candidate_number_of_variables == number_of_variables_;
+  }
+#endif
+
+  std::vector<double> const& StartingPoint() const { return x0_; }
+  size_t NumberOfVars() const { return number_of_variables_; }
+  size_t NumberOfNodes() const { return number_of_nodes_; }
+  std::vector<std::string> const& VarNames() const { return name_; }
+  std::string const& operator[](size_t var_index) const {
+#ifndef NDEBUG
+    if (!(var_index < name_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
+    return name_[var_index];
+  }
+  std::vector<bool> const& VarIsConstant() const { return is_constant_; }
+  json::Node const& Root() const { return root_; }
 };
+
+class VarsContextInterface {
+ public:
+  ~VarsContextInterface() = default;
+  virtual bool IsFrozen() const = 0;
+  virtual VarsMapperConfig const& DoGetVarsMapperConfig() = 0;
+#ifndef NDEBUG
+  virtual uint32_t AllocateNewVarInDebugMode(std::string var_name) = 0;
+#else
+  virtual uint32_t AllocateNewVar() = 0;
+#endif
+  virtual void MarkVarAsConstant(size_t var_index) = 0;
+};
+// Forward declaration for the default constuctor of `VarsMapper` below.
+inline VarsContextInterface& ActiveVarsContextViaInterface();
 
 // To also be implemented for `value_t` in `../expression/expression.h`; the `value_t` type is unknown to `vars/`.
 inline ExpressionNodeIndex ExpressionNodeIndexFromExpressionNodeOrValue(ExpressionNodeIndex index) { return index; }
 
 class VarsMapper final {
  private:
-  VarsMapperConfig const config_;
+  VarsMapperConfig const& config_;
   std::vector<double> value_;
 
   class AccessorNode final {
@@ -212,9 +266,11 @@ class VarsMapper final {
   AccessorNode const root_;
 
  public:
-  std::vector<double> const& x;  // `x` is a const reference `value_`, for easy read-only access to dense vars.
-  explicit VarsMapper(VarsMapperConfig config)
-      : config_(config), value_(config.x0), root_(value_, config_.root), x(value_) {}
+  // `x` is a const reference `value_`, for easy read-only access to the vars. NOTE(dkorolev): Possible reshuffled vars!
+  std::vector<double> const& x = value_;
+
+  explicit VarsMapper(VarsMapperConfig const& config = ActiveVarsContextViaInterface().DoGetVarsMapperConfig())
+      : config_(config), value_(config.StartingPoint()), root_(value_, config_.Root()) {}
   VarsMapperConfig const& Config() const { return config_; }
   AccessorNode operator[](size_t i) const { return root_[i]; }
   AccessorNode operator[](std::string const& s) const { return root_[s]; }
@@ -237,20 +293,6 @@ class VarsMapper final {
     value_ = std::move(new_value);
   }
 };
-
-class VarsContextInterface {
- public:
-  ~VarsContextInterface() = default;
-  virtual bool IsFrozen() const = 0;
-  virtual VarsMapperConfig ReindexVars() = 0;
-  virtual VarsMapperConfig Freeze() = 0;
-  virtual void Unfreeze() = 0;
-  virtual uint32_t AllocateVar(std::string var_name) = 0;
-  // TODO(dkorolev): Var finalized index stamping is something I'll need to refactor.
-  virtual void MarkVarAsConstant(size_t var_internal_index) = 0;
-};
-
-class VarsContext;  // : public VarsContextInterface
 
 class VarsManager final {
  private:
@@ -292,24 +334,26 @@ class VarsManager final {
   VarsContextInterface& ActiveViaInterface() { return *active_context_interface_; }
 };
 
+inline VarsContextInterface& ActiveVarsContextViaInterface() { return VarsManager::TLS().ActiveViaInterface(); }
+
 class StringOrInt {
  private:
-  Optional<std::string> s;
-  size_t i = static_cast<size_t>(-1);
+  Optional<std::string> string_;  // NOTE(dkorolev): An empty string is a valid variable or variable node name.
+  size_t size_t_ = static_cast<size_t>(-1);
 
  public:
   StringOrInt() = default;
-  StringOrInt(std::string s) : s(std::move(s)) {}
-  StringOrInt(size_t i) : i(i) {}
+  StringOrInt(std::string string_) : string_(std::move(string_)) {}
+  StringOrInt(size_t size_t_) : size_t_(size_t_) {}
 
-  operator bool() const { return Exists(s) || i != static_cast<size_t>(-1); }
+  operator bool() const { return Exists(string_) || size_t_ != static_cast<size_t>(-1); }
 
   std::string AsString() const {
-    CURRENT_ASSERT(!Exists(s) == (i != static_cast<size_t>(-1)));
-    if (Exists(s)) {
-      return JSON(s);
+    CURRENT_ASSERT(!Exists(string_) == (size_t_ != static_cast<size_t>(-1)));
+    if (Exists(string_)) {
+      return JSON(string_);
     } else {
-      return current::ToString(i);
+      return current::ToString(size_t_);
     }
   }
 };
@@ -319,17 +363,16 @@ struct VarNode {
   VarNode const* parent = nullptr;  // To reconstruct the "full name" of the var going up.
   StringOrInt key;                  // The of this very var node, string or int.
   VarNodeType type = VarNodeType::Unset;
-  std::vector<VarNode> children_vector;                  // `type == Vector`.
-  std::map<size_t, VarNode> children_int_map;            // `type == IntMap`.
-  std::map<std::string, VarNode> children_string_map;    // `type == StringMap`.
-  Optional<double> value;                                // `type == Value`, unset if introduced w/o assignment.
-  bool is_constant = false;                              // `type == Value`.
-  size_t internal_var_index;                             // `type == Value`.
-  uint32_t finalized_index = static_cast<uint32_t>(-1);  // `type == Value`.
+  std::vector<VarNode> children_vector;                // `type == Vector`.
+  std::map<size_t, VarNode> children_int_map;          // `type == IntMap`.
+  std::map<std::string, VarNode> children_string_map;  // `type == StringMap`.
+  Optional<double> value;                              // `type == Value`, unset if introduced w/o assignment.
+  bool is_constant = false;                            // `type == Value`.
+  size_t var_index;                                    // `type == Value`.
 
   void DenseDoubleVector(size_t dim) {
     if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
-      CURRENT_THROW(VarsFrozenException());
+      CURRENT_THROW(NoNewVarsCanBeAddedException());
     }
     if (!dim || dim > static_cast<size_t>(1e6)) {
       // NOTE(dkorolev): The `1M` size cutoff is somewhat arbitrary here, but I honestly don't believe
@@ -358,7 +401,7 @@ struct VarNode {
           return cit->second;
         }
       }
-      CURRENT_THROW(VarsFrozenException());
+      CURRENT_THROW(NoNewVarsCanBeAddedException());
     }
     if (type == VarNodeType::Vector) {
       if (i < children_vector.size()) {
@@ -389,7 +432,7 @@ struct VarNode {
           return cit->second;
         }
       }
-      CURRENT_THROW(VarsFrozenException());
+      CURRENT_THROW(NoNewVarsCanBeAddedException());
     }
     if (type == VarNodeType::Unset) {
       type = VarNodeType::StringMap;
@@ -407,7 +450,7 @@ struct VarNode {
 
   void operator=(double x) {
     if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
-      CURRENT_THROW(VarsFrozenException());
+      CURRENT_THROW(NoNewVarsCanBeAddedException());
     }
     if (type != VarNodeType::Unset) {
       if (type == VarNodeType::Value) {
@@ -422,18 +465,24 @@ struct VarNode {
     }
     type = VarNodeType::Value;
     value = x;
-    internal_var_index = VarsManager::TLS().ActiveViaInterface().AllocateVar(FullVarName());
+#ifndef NDEBUG
+    var_index = VarsManager::TLS().ActiveViaInterface().AllocateNewVarInDebugMode(FullVarName());
+#else
+    var_index = VarsManager::TLS().ActiveViaInterface().AllocateNewVar();
+#endif
   }
 
   void SetConstant() {
     if (VarsManager::TLS().ActiveViaInterface().IsFrozen()) {
-      CURRENT_THROW(VarsFrozenException());
+      CURRENT_THROW(NoNewVarsCanBeAddedException());
     }
+#ifndef NDEBUG
     if (type != VarNodeType::Value) {
       CURRENT_THROW(VarNodeTypeMismatchException());
     }
+#endif
     is_constant = true;
-    VarsManager::TLS().ActiveViaInterface().MarkVarAsConstant(internal_var_index);
+    VarsManager::TLS().ActiveViaInterface().MarkVarAsConstant(var_index);
   }
 
   void SetConstant(double x) {
@@ -447,7 +496,7 @@ struct VarNode {
     do {
       path.push_back(node);
       node = node->parent;
-      CURRENT_ASSERT(node);  // The very root node has no key, so the `while` loop would terminate. But it exists.
+      CURRENT_ASSERT(node);  // The very root node exists but has no key, so the `while` loop would terminate. -- D.K.
     } while (node->key);
 
     std::ostringstream os;
@@ -456,32 +505,47 @@ struct VarNode {
       os << '[' << (*crit)->key.AsString() << ']';
     }
 
-    if (finalized_index != static_cast<uint32_t>(-1)) {
-      os << '{' << finalized_index << '}';
-    }
-
     return os.str();
   }
 
-  size_t InternalVarIndex() const {
+  size_t VarIndex() const {
     if (type != VarNodeType::Value) {
       CURRENT_THROW(VarIsNotLeafException());
     }
-    return internal_var_index;
+    return var_index;
   }
 
   struct FrozenVariablesSetBeingPopulated {
+    size_t const size;
+
+#ifndef NDEBUG
+    std::vector<bool> initialized;
+#endif
+
     std::vector<double> x0;
     std::vector<std::string> name;
     std::vector<bool> is_constant;
-    std::vector<size_t> dense_index;
+    explicit FrozenVariablesSetBeingPopulated(size_t size)
+        : size(size),
+#ifndef NDEBUG
+          initialized(size),
+#endif
+          x0(size),
+          name(size),
+          is_constant(size) {
+    }
 
-    explicit FrozenVariablesSetBeingPopulated(size_t leaves_allocated)
-        : dense_index(leaves_allocated, static_cast<size_t>(-1)) {}
+#ifndef NDEBUG
+    ~FrozenVariablesSetBeingPopulated() {
+      if (initialized != std::vector<bool>(size, true)) {
+        TriggerSegmentationFault();
+      }
+    }
+#endif
   };
   void DSFStampDenseIndexesForJIT(FrozenVariablesSetBeingPopulated& state) {
     if (type == VarNodeType::Vector) {
-      for (size_t i = 0; i < children_vector.size(); ++i) {
+      for (size_t i = 0u; i < children_vector.size(); ++i) {
         children_vector[i].DSFStampDenseIndexesForJIT(state);
       }
     } else if (type == VarNodeType::IntMap) {
@@ -493,11 +557,17 @@ struct VarNode {
         e.second.DSFStampDenseIndexesForJIT(state);
       }
     } else if (type == VarNodeType::Value) {
-      finalized_index = state.x0.size();
-      state.dense_index[internal_var_index] = state.x0.size();
-      state.x0.push_back(Exists(value) ? Value(value) : 0.0);  // TODO(dkorolev): Collect `uninitialized` as well?
-      state.name.push_back(FullVarName());
-      state.is_constant.push_back(is_constant);
+#ifndef NDEBUG
+      if (!(var_index < state.size)) {
+        TriggerSegmentationFault();
+      }
+#endif
+      state.x0[var_index] = Exists(value) ? Value(value) : 0.0;  // TODO(dkorolev): Collect `uninitialized` as well?
+      state.name[var_index] = FullVarName();
+      state.is_constant[var_index] = is_constant;
+#ifndef NDEBUG
+      state.initialized[var_index] = true;
+#endif
     } else if (type != VarNodeType::Unset) {
       CURRENT_THROW(VarsManagementException("Attempted to `DSFStampDenseIndexesForJIT()` on an invalid var node."));
     }
@@ -524,7 +594,7 @@ struct VarNode {
       }
       return sparse_by_string;
     } else if (type == VarNodeType::Value) {
-      return json::X(value, is_constant, static_cast<uint32_t>(internal_var_index), finalized_index);
+      return json::X(var_index, value, is_constant);
     } else if (type == VarNodeType::Unset) {
       return json::U();
     } else {
@@ -536,155 +606,139 @@ struct VarNode {
 class VarsContext final : public VarsContextInterface {
  private:
   VarNode root_;
-  bool frozen_ = false;
-  // In the dense indexes universe.
-  std::vector<std::string> var_name_;  // `var index => name`, w/ or w/o dense index, whether it's stamped.
-  std::vector<size_t> dense_index_;    // `var index => node index` mapping, or `static_cast<size_t>(-1)`.
-  // In the "as they are added" indexes universe.
+
+#ifndef NDEBUG
+  std::vector<std::string> allocated_var_debug_name_;
+#endif
+
   std::vector<bool> allocated_var_is_constant_;
-  std::vector<size_t> dense_reverse_index_;  // `node index => var index` mapping, always valid.
   std::vector<ExpressionNodeImpl> expression_nodes_;
 
-  void ConfirmSelfActiveIfInDebugMode() const {
+  // Initialized on the first call to `DoGetVarsMapperConfig`, and no new vars can be introduced after that call.
+  std::unique_ptr<VarsMapperConfig> vars_mapper_config_;
+
 #ifndef NDEBUG
-    VarsManager::TLS().ConfirmActive(this, this);
+  void ConfirmSelfActiveIfInDebugMode() const { VarsManager::TLS().ConfirmActive(this, this); }
 #endif
-  }
 
  public:
   VarsContext() { VarsManager::TLS().SetActive(this, this); }
   ~VarsContext() { VarsManager::TLS().ClearActive(this, this); }
 
-  size_t NumberOfVars() const { return dense_index_.size(); }
+  size_t NumberOfVars() const { return allocated_var_is_constant_.size(); }
   size_t NumberOfNodes() const { return expression_nodes_.size(); }
 
-  std::string const& VarNameByOriginalIndex(size_t i) const { return var_name_[dense_reverse_index_[i]]; }
+#ifndef NDEBUG
+  std::string const& DebugVarNameByIndex(size_t i) const {
+    if (!(i < allocated_var_debug_name_.size())) {
+      TriggerSegmentationFault();
+    }
+    return allocated_var_debug_name_[i];
+  }
+  std::string VarName(size_t i) const { return DebugVarNameByIndex(i); }
+#else
+  // NOTE(dkorolev): Important to keep in mind that in `NDEBUG` mode the variable names are just `x[0]` and onwards.
+  // The exported `VarsMapperConfig` will have all the fully-specified variable names collected,
+  // but the calls to `DebugAsString()` would return erroneus results unless the very variables were introduced
+  // specifically in the order of `x[0]`, `x[1]`, etc.
+  std::string VarName(size_t i) const { return "x[" + current::ToString(i) + ']'; }
+#endif
 
   VarNode& RootNode() {
+#ifndef NDEBUG
     ConfirmSelfActiveIfInDebugMode();
+#endif
     return root_;
   }
 
   bool IsFrozen() const override {
+#ifndef NDEBUG
     ConfirmSelfActiveIfInDebugMode();
-    return frozen_;
+#endif
+    return vars_mapper_config_ != nullptr;
   }
 
-  VarsMapperConfig ReindexVars() override {
-    ConfirmSelfActiveIfInDebugMode();
-    size_t const vars_count = allocated_var_is_constant_.size();
-    VarNode::FrozenVariablesSetBeingPopulated state(vars_count);
-    root_.DSFStampDenseIndexesForJIT(state);
-    if (state.dense_index.size() != vars_count || state.x0.size() != vars_count || state.name.size() != vars_count ||
-        state.is_constant.size() != vars_count) {
+  VarsMapperConfig const& DoGetVarsMapperConfig() override {
 #ifndef NDEBUG
-      TriggerSegmentationFault();
+    ConfirmSelfActiveIfInDebugMode();
+#endif
+    if (!vars_mapper_config_) {
+      size_t const vars_count = NumberOfVars();
+      VarNode::FrozenVariablesSetBeingPopulated state(vars_count);
+      root_.DSFStampDenseIndexesForJIT(state);
+      if (state.name.size() != vars_count || state.x0.size() != vars_count || state.is_constant.size() != vars_count) {
+#ifndef NDEBUG
+        TriggerSegmentationFault();
 #else
-      CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `ReindexVars()`."));
+        CURRENT_THROW(VarsManagementException("Internal error: invariant failure during `GetVarsMapperConfig()`."));
 #endif
-    }
-    var_name_ = state.name;
-    dense_index_ = state.dense_index;
-    dense_reverse_index_.resize(vars_count);
-    for (size_t i = 0; i < vars_count; ++i) {
-      dense_reverse_index_[dense_index_[i]] = i;
-    }
-    return VarsMapperConfig(
-        vars_count, expression_nodes_.size(), dense_index_, state.x0, state.name, state.is_constant, root_.DoDump());
-  }
-
-  VarsMapperConfig Freeze() override {
-    if (frozen_) {
-      CURRENT_THROW(VarsAlreadyFrozenException());
-    } else {
-      frozen_ = true;
-      return ReindexVars();
-    }
-  }
-
-  void Unfreeze() override {
-    ConfirmSelfActiveIfInDebugMode();
-    if (!frozen_) {
-      CURRENT_THROW(VarsNotFrozenException());
-    } else {
-      frozen_ = false;
-    }
-  }
-
-  uint32_t AllocateVar(std::string var_name) override {
-    ConfirmSelfActiveIfInDebugMode();
-    if (frozen_) {
-      CURRENT_THROW(VarsManagementException("Attempted to `AllocateVar()` after the vars context is frozen."));
-    } else {
-      uint32_t const newly_allocated_var_index = static_cast<uint32_t>(allocated_var_is_constant_.size());
-      allocated_var_is_constant_.push_back(false);
-      var_name_.push_back(std::move(var_name));
-      dense_index_.push_back(static_cast<size_t>(-1));
-      dense_reverse_index_.push_back(newly_allocated_var_index);
-      return newly_allocated_var_index;
-    }
-  }
-
-  void MarkVarAsConstant(size_t var_internal_index) override {
-    ConfirmSelfActiveIfInDebugMode();
-    if (frozen_) {
-      CURRENT_THROW(VarsManagementException("Attempted to `MarkVarAsConstant()` after the vars context is frozen."));
-    }
-    if (!(var_internal_index < allocated_var_is_constant_.size())) {
-      CURRENT_THROW(VarIndexOutOfBoundsException());
-    }
-    allocated_var_is_constant_[var_internal_index] = true;
-  }
-
-  bool IsVarNotConstant(size_t var_internal_index) const {
-    ConfirmSelfActiveIfInDebugMode();
+      }
+      vars_mapper_config_ = std::make_unique<VarsMapperConfig>(vars_count,
+                                                               NumberOfNodes(),
 #ifndef NDEBUG
-    if (frozen_) {
-      CURRENT_THROW(
-          VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` when the vars context is frozen."));
-    }
-    if (!(var_internal_index < dense_index_.size())) {
-      CURRENT_THROW(VarIndexOutOfBoundsException());
-    }
-    if (dense_index_[var_internal_index] == static_cast<size_t>(-1)) {
-      CURRENT_THROW(
-          VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` on unidexed vars, run `ReindexVars()`."));
-    }
-    if (dense_index_.size() != allocated_var_is_constant_.size()) {
-      TriggerSegmentationFault();
-    }
+                                                               this,
 #endif
-    return !allocated_var_is_constant_[var_internal_index];
+                                                               state.x0,
+                                                               state.name,
+                                                               state.is_constant,
+                                                               root_.DoDump());
+    }
+    return *vars_mapper_config_;
   }
 
-  bool IsVarTheNonConstantOneBeingDifferentiatedBy(size_t var_internal_index,
-                                                   size_t derivative_per_finalized_var_index) const {
-    ConfirmSelfActiveIfInDebugMode();
 #ifndef NDEBUG
-    if (frozen_) {
-      CURRENT_THROW(
-          VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` when the vars context is frozen."));
-    }
-    if (!(var_internal_index < dense_index_.size())) {
+  uint32_t AllocateNewVarInDebugMode(std::string var_name) override {
+    ConfirmSelfActiveIfInDebugMode();
+    uint32_t const newly_allocated_var_index = static_cast<uint32_t>(allocated_var_is_constant_.size());
+    allocated_var_is_constant_.push_back(false);
+    allocated_var_debug_name_.push_back(std::move(var_name));
+    return newly_allocated_var_index;
+  }
+#else
+  uint32_t AllocateNewVar() override {
+    uint32_t const newly_allocated_var_index = static_cast<uint32_t>(allocated_var_is_constant_.size());
+    allocated_var_is_constant_.push_back(false);
+    return newly_allocated_var_index;
+  }
+#endif
+
+  void MarkVarAsConstant(size_t var_index) override {
+#ifndef NDEBUG
+    ConfirmSelfActiveIfInDebugMode();
+    if (!(var_index < allocated_var_is_constant_.size())) {
       CURRENT_THROW(VarIndexOutOfBoundsException());
     }
-    if (dense_index_[var_internal_index] == static_cast<size_t>(-1)) {
-      CURRENT_THROW(
-          VarsManagementException("Attempted to `LeafDerivativeZeroOrOne()` on unidexed vars, run `ReindexVars()`."));
-    }
-    if (dense_index_.size() != allocated_var_is_constant_.size()) {
-      TriggerSegmentationFault();
+#endif
+    allocated_var_is_constant_[var_index] = true;
+  }
+
+  bool IsVarNotConstant(size_t var_index) const {
+#ifndef NDEBUG
+    ConfirmSelfActiveIfInDebugMode();
+    if (!(var_index < allocated_var_is_constant_.size())) {
+      CURRENT_THROW(VarIndexOutOfBoundsException());
     }
 #endif
-    return (dense_index_[var_internal_index] == derivative_per_finalized_var_index &&
-            !allocated_var_is_constant_[var_internal_index]);
+    return !allocated_var_is_constant_[var_index];
+  }
+
+  bool IsVarTheNonConstantOneBeingDifferentiatedBy(size_t var_index, size_t derivative_per_var_index) const {
+#ifndef NDEBUG
+    ConfirmSelfActiveIfInDebugMode();
+    if (!(var_index < allocated_var_is_constant_.size())) {
+      CURRENT_THROW(VarIndexOutOfBoundsException());
+    }
+#endif
+    return (var_index == derivative_per_var_index && !allocated_var_is_constant_[var_index]);
   }
 
   template <typename... ARGS>
   size_t DoEmplace(ARGS&&... args) {
+#ifndef NDEBUG
     ConfirmSelfActiveIfInDebugMode();
-    if (frozen_) {
-      CURRENT_THROW(VarsManagementException("Attempted to `DoEmplace()` after the vars context is frozen."));
+#endif
+    if (IsFrozen()) {
+      CURRENT_THROW(NoNewNodesCanBeAddedException());
     }
     size_t const new_node_index = expression_nodes_.size();
     expression_nodes_.emplace_back(std::forward<ARGS>(args)...);
@@ -716,8 +770,7 @@ struct VarsAccessor final {
   void DenseDoubleVector(size_t dim) { VarsManager::TLS().Active().RootNode().DenseDoubleVector(dim); }
   VarNode& operator[](size_t i) { return VarsManager::TLS().Active().RootNode()[i]; }
   VarNode& operator[](std::string const& s) { return VarsManager::TLS().Active().RootNode()[s]; }
-  VarsMapperConfig Freeze() const { return VarsManager::TLS().Active().Freeze(); }
-  void Unfreeze() const { VarsManager::TLS().Active().Unfreeze(); }
+  VarsMapperConfig GetVarsMapperConfig() const { return VarsManager::TLS().Active().DoGetVarsMapperConfig(); }
   json::Node InternalDebugDump() const { return VarsManager::TLS().Active().RootNode().DoDump(); }
 };
 

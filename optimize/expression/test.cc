@@ -69,21 +69,21 @@ TEST(OptimizationExpression, AddingImmediatesToVars) {
 
   VarsContext vars_context;
 
-  x["test"] = 0.0;
-  value_t const v(x["test"]);
+  x[0] = 0.0;
+  value_t const v(x[0]);
   value_t const v_sum_1 = v + 1.0;
   value_t const v_sum_2 = 1.0 + v;
 
-  EXPECT_EQ("x['test']", SingleQuoted(v.DebugAsString()));
+  EXPECT_EQ("x[0]", v.DebugAsString());
 
-  EXPECT_EQ("(x['test']+1.000000)", SingleQuoted(v_sum_1.DebugAsString()));
-  EXPECT_EQ("(1.000000+x['test'])", SingleQuoted(v_sum_2.DebugAsString()));
+  EXPECT_EQ("(x[0]+1.000000)", v_sum_1.DebugAsString());
+  EXPECT_EQ("(1.000000+x[0])", v_sum_2.DebugAsString());
 
-  EXPECT_EQ("(x['test']+1.000000)", SingleQuoted((v + 1.0).DebugAsString()));
-  EXPECT_EQ("(1.000000+x['test'])", SingleQuoted((1.0 + v).DebugAsString()));
+  EXPECT_EQ("(x[0]+1.000000)", (v + 1.0).DebugAsString());
+  EXPECT_EQ("(1.000000+x[0])", (1.0 + v).DebugAsString());
 
-  EXPECT_EQ("(x['test']+1.000000)", SingleQuoted((x["test"] + 1.0).DebugAsString()));
-  EXPECT_EQ("(1.000000+x['test'])", SingleQuoted((1.0 + x["test"]).DebugAsString()));
+  EXPECT_EQ("(x[0]+1.000000)", (x[0] + 1.0).DebugAsString());
+  EXPECT_EQ("(1.000000+x[0])", (1.0 + x[0]).DebugAsString());
 }
 
 TEST(OptimizationExpression, NestedVarsAddition) {
@@ -91,15 +91,23 @@ TEST(OptimizationExpression, NestedVarsAddition) {
 
   VarsContext vars_context;
 
+#ifndef NDEBUG
   x["foo"] = 0;
   x["bar"] = 0;
   x["baz"] = 0;
-
   EXPECT_EQ("(x['foo']+x['bar'])", SingleQuoted((x["foo"] + x["bar"]).DebugAsString()));
-
   EXPECT_EQ("((x['foo']+x['bar'])+x['baz'])", SingleQuoted((x["foo"] + x["bar"] + x["baz"]).DebugAsString()));
   EXPECT_EQ("((x['foo']+x['bar'])+x['baz'])", SingleQuoted(((x["foo"] + x["bar"]) + x["baz"]).DebugAsString()));
   EXPECT_EQ("(x['foo']+(x['bar']+x['baz']))", SingleQuoted((x["foo"] + (x["bar"] + x["baz"])).DebugAsString()));
+#else
+  x[0] = 0;
+  x[1] = 0;
+  x[2] = 0;
+  EXPECT_EQ("(x[0]+x[1])", (x[0] + x[1]).DebugAsString());
+  EXPECT_EQ("((x[0]+x[1])+x[2])", (x[0] + x[1] + x[2]).DebugAsString());
+  EXPECT_EQ("((x[0]+x[1])+x[2])", ((x[0] + x[1]) + x[2]).DebugAsString());
+  EXPECT_EQ("(x[0]+(x[1]+x[2]))", (x[0] + (x[1] + x[2])).DebugAsString());
+#endif
 }
 
 TEST(OptimizationExpression, OtherOperations) {
@@ -107,15 +115,15 @@ TEST(OptimizationExpression, OtherOperations) {
 
   VarsContext vars_context;
 
-  x["a"] = 0.0;
-  x["b"] = 0.0;
-  value_t const a(x["a"]);
-  value_t const b(x["b"]);
+  x[0] = 0.0;
+  x[1] = 0.0;
+  value_t const a(x[0]);
+  value_t const b(x[1]);
 
-  EXPECT_EQ("(x['a']+x['b'])", SingleQuoted((a + b).DebugAsString()));
-  EXPECT_EQ("(x['a']-x['b'])", SingleQuoted((a - b).DebugAsString()));
-  EXPECT_EQ("(x['a']*x['b'])", SingleQuoted((a * b).DebugAsString()));
-  EXPECT_EQ("(x['a']/x['b'])", SingleQuoted((a / b).DebugAsString()));
+  EXPECT_EQ("(x[0]+x[1])", (a + b).DebugAsString());
+  EXPECT_EQ("(x[0]-x[1])", (a - b).DebugAsString());
+  EXPECT_EQ("(x[0]*x[1])", (a * b).DebugAsString());
+  EXPECT_EQ("(x[0]/x[1])", (a / b).DebugAsString());
 }
 
 TEST(OptimizationExpression, OperationsWithAssignment) {
@@ -123,46 +131,46 @@ TEST(OptimizationExpression, OperationsWithAssignment) {
 
   VarsContext vars_context;
 
-  x["a"] = 0.0;
-  value_t const a(x["a"]);
+  x[0] = 0.0;
+  value_t const a(x[0]);
 
   {
     value_t add = a;
     add += 1.0;
-    EXPECT_EQ("(x['a']+1.000000)", SingleQuoted(add.DebugAsString()));
+    EXPECT_EQ("(x[0]+1.000000)", add.DebugAsString());
 
     value_t sub = a;
     sub -= 2.0;
-    EXPECT_EQ("(x['a']-2.000000)", SingleQuoted(sub.DebugAsString()));
+    EXPECT_EQ("(x[0]-2.000000)", sub.DebugAsString());
 
     value_t mul = a;
     mul *= 3.0;
-    EXPECT_EQ("(x['a']*3.000000)", SingleQuoted(mul.DebugAsString()));
+    EXPECT_EQ("(x[0]*3.000000)", mul.DebugAsString());
 
     value_t div = a;
     div /= 4.0;
-    EXPECT_EQ("(x['a']/4.000000)", SingleQuoted(div.DebugAsString()));
+    EXPECT_EQ("(x[0]/4.000000)", div.DebugAsString());
   }
 
-  x["b"] = 0.0;
-  value_t const b(x["b"]);
+  x[1] = 0.0;
+  value_t const b(x[1]);
 
   {
     value_t add = a;
     add += b;
-    EXPECT_EQ("(x['a']+x['b'])", SingleQuoted(add.DebugAsString()));
+    EXPECT_EQ("(x[0]+x[1])", add.DebugAsString());
 
     value_t sub = a;
     sub -= b;
-    EXPECT_EQ("(x['a']-x['b'])", SingleQuoted(sub.DebugAsString()));
+    EXPECT_EQ("(x[0]-x[1])", sub.DebugAsString());
 
     value_t mul = a;
     mul *= b;
-    EXPECT_EQ("(x['a']*x['b'])", SingleQuoted(mul.DebugAsString()));
+    EXPECT_EQ("(x[0]*x[1])", mul.DebugAsString());
 
     value_t div = a;
     div /= b;
-    EXPECT_EQ("(x['a']/x['b'])", SingleQuoted(div.DebugAsString()));
+    EXPECT_EQ("(x[0]/x[1])", div.DebugAsString());
   }
 }
 
@@ -170,15 +178,15 @@ TEST(OptimizationExpression, UnaryOperations) {
   using namespace current::expression;
 
   VarsContext vars_context;
-  x["a"] = 0.0;
+  x[0] = 0.0;
 
-  EXPECT_EQ("x['a']", SingleQuoted(value_t(x["a"]).DebugAsString()));
-  EXPECT_EQ("x['a']", SingleQuoted((+value_t(x["a"])).DebugAsString()));
-  EXPECT_EQ("x['a']", SingleQuoted((+x["a"]).DebugAsString()));
-  EXPECT_EQ("x['a']", SingleQuoted((+(+x["a"])).DebugAsString()));
-  EXPECT_EQ("(0.000000-x['a'])", SingleQuoted((-value_t(x["a"])).DebugAsString()));
-  EXPECT_EQ("(0.000000-x['a'])", SingleQuoted((-x["a"]).DebugAsString()));
-  EXPECT_EQ("(0.000000-(0.000000-x['a']))", SingleQuoted((-(-x["a"])).DebugAsString()));
+  EXPECT_EQ("x[0]", value_t(x[0]).DebugAsString());
+  EXPECT_EQ("x[0]", (+value_t(x[0])).DebugAsString());
+  EXPECT_EQ("x[0]", (+x[0]).DebugAsString());
+  EXPECT_EQ("x[0]", (+(+x[0])).DebugAsString());
+  EXPECT_EQ("(0.000000-x[0])", (-value_t(x[0])).DebugAsString());
+  EXPECT_EQ("(0.000000-x[0])", (-x[0]).DebugAsString());
+  EXPECT_EQ("(0.000000-(0.000000-x[0]))", (-(-x[0])).DebugAsString());
 }
 
 TEST(OptimizationExpression, SimpleVarsExponentiation) {
@@ -186,24 +194,22 @@ TEST(OptimizationExpression, SimpleVarsExponentiation) {
 
   VarsContext vars_context;
 
-  x["foo"] = 0.0;
+  x[0] = 0.0;
 
-  value_t const v(x["foo"]);
-  EXPECT_EQ("x['foo']", SingleQuoted(v.DebugAsString()));
+  value_t const v(x[0]);
+  EXPECT_EQ("x[0]", v.DebugAsString());
 
   value_t const v_exp = exp(v);
-  EXPECT_EQ("exp(x['foo'])", SingleQuoted(v_exp.DebugAsString()));
+  EXPECT_EQ("exp(x[0])", v_exp.DebugAsString());
 
-  EXPECT_EQ("exp(x['foo'])", SingleQuoted(exp(v).DebugAsString()));
-  EXPECT_EQ("exp(x['foo'])", SingleQuoted(exp(x["foo"]).DebugAsString()));
+  EXPECT_EQ("exp(x[0])", exp(v).DebugAsString());
+  EXPECT_EQ("exp(x[0])", exp(x[0]).DebugAsString());
 
-  // NOTE(dkorolev): The below `EXPECT_EQ` would work just fine w/o "pre-declaring" the "variables", but I'd like
-  // to make sure the order of the "variables" is carved in stone to avoid any and all room for the UB.
-  x["bar"].SetConstant(0.0);
-  x["baz"].SetConstant(0.0);
-  x["blah"].SetConstant(0.0);
-  EXPECT_EQ("((exp(((x['bar']+1.000000)+x['baz']))+2.500000)+exp(exp(x['blah'])))",
-            SingleQuoted((exp(x["bar"] + 1.0 + x["baz"]) + 2.5 + exp(exp(x["blah"]))).DebugAsString()));
+  x[1].SetConstant(0.0);
+  x[2].SetConstant(0.0);
+  x[3].SetConstant(0.0);
+  EXPECT_EQ("((exp(((x[1]+1.000000)+x[2]))+2.500000)+exp(exp(x[3])))",
+            (exp(x[1] + 1.0 + x[2]) + 2.5 + exp(exp(x[3]))).DebugAsString());
 }
 
 TEST(OptimizationExpression, OtherFunctions) {
@@ -211,64 +217,13 @@ TEST(OptimizationExpression, OtherFunctions) {
 
   VarsContext vars_context;
 
-  x["p"] = 0.0;
-  value_t const p(x["p"]);
+  x[0] = 0.0;
+  value_t const p(x[0]);
 
-  EXPECT_EQ("exp(x['p'])", SingleQuoted((exp(p)).DebugAsString()));
-  EXPECT_EQ("log(x['p'])", SingleQuoted((log(p)).DebugAsString()));
-  EXPECT_EQ("sin(x['p'])", SingleQuoted((sin(p)).DebugAsString()));
-  EXPECT_EQ("cos(x['p'])", SingleQuoted((cos(p)).DebugAsString()));
-}
-
-TEST(OptimizationExpression, IndexesAreNonFinalizedIndexes) {
-  using namespace current::expression;
-
-  VarsContext vars_context;
-
-  x[0] = 100;
-  x[2] = 102;
-
-  value_t const v0(x[0]);
-  value_t const v2(x[2]);
-
-  EXPECT_TRUE(!v0.GetExpressionNodeIndex().UnitTestIsNodeIndex());
-  EXPECT_TRUE(!v2.GetExpressionNodeIndex().UnitTestIsNodeIndex());
-  EXPECT_EQ(0u, v0.GetExpressionNodeIndex().UnitTestVarIndex());
-  EXPECT_EQ(1u, v2.GetExpressionNodeIndex().UnitTestVarIndex());
-
-  EXPECT_EQ("x[0]", v0.DebugAsString());
-  EXPECT_EQ("x[2]", v2.DebugAsString());
-
-  vars_context.Freeze();
-  EXPECT_EQ("x[0]{0}", v0.DebugAsString());
-  EXPECT_EQ("x[2]{1}", v2.DebugAsString());
-
-  vars_context.Unfreeze();
-  EXPECT_EQ("x[0]{0}", v0.DebugAsString());
-  EXPECT_EQ("x[2]{1}", v2.DebugAsString());
-
-  x[1] = 101;
-  value_t const v1(x[1]);
-  EXPECT_EQ("x[0]{0}", v0.DebugAsString());
-  EXPECT_EQ("x[1]", v1.DebugAsString());  // No dense index allocated yet for `x[1]` before `Freeze()` was called.
-  EXPECT_EQ("x[2]{1}", v2.DebugAsString());
-
-  EXPECT_TRUE(!v0.GetExpressionNodeIndex().UnitTestIsNodeIndex());
-  EXPECT_TRUE(!v1.GetExpressionNodeIndex().UnitTestIsNodeIndex());
-  EXPECT_TRUE(!v2.GetExpressionNodeIndex().UnitTestIsNodeIndex());
-  EXPECT_EQ(0u, v0.GetExpressionNodeIndex().UnitTestVarIndex());
-  EXPECT_EQ(1u, v2.GetExpressionNodeIndex().UnitTestVarIndex());  // `v2`, which is `x[2]`, has an internal index `1`.
-  EXPECT_EQ(2u, v1.GetExpressionNodeIndex().UnitTestVarIndex());  // `v1`, which is `x[1]`, has an internal index `2`.
-
-  vars_context.Freeze();
-
-  EXPECT_EQ(0u, v0.GetExpressionNodeIndex().UnitTestVarIndex());
-  EXPECT_EQ(1u, v2.GetExpressionNodeIndex().UnitTestVarIndex());
-  EXPECT_EQ(2u, v1.GetExpressionNodeIndex().UnitTestVarIndex());
-
-  EXPECT_EQ("x[0]{0}", v0.DebugAsString());
-  EXPECT_EQ("x[1]{1}", v1.DebugAsString());
-  EXPECT_EQ("x[2]{2}", v2.DebugAsString());  // The allocated frozen index for `x[2]` has changed.
+  EXPECT_EQ("exp(x[0])", (exp(p)).DebugAsString());
+  EXPECT_EQ("log(x[0])", (log(p)).DebugAsString());
+  EXPECT_EQ("sin(x[0])", (sin(p)).DebugAsString());
+  EXPECT_EQ("cos(x[0])", (cos(p)).DebugAsString());
 }
 
 #ifndef NDEBUG
@@ -324,7 +279,7 @@ TEST(OptimizationExpression, VarsContextIsNotRequiredForValuesInNDEBUGMode) {
 
 #endif
 
-TEST(OptimizationExpression, FreezePreventsNodesCreation) {
+TEST(OptimizationExpression, GeneratingVarsMapperPreventsFutherNodesCreation) {
   using namespace current::expression;
 
   VarsContext vars_context;
@@ -338,11 +293,12 @@ TEST(OptimizationExpression, FreezePreventsNodesCreation) {
   EXPECT_EQ(1u, tmp2.GetExpressionNodeIndex().UnitTestNodeIndex());
   EXPECT_EQ(2u, tmp3.GetExpressionNodeIndex().UnitTestNodeIndex());
 
-  VarsMapperConfig const config = vars_context.Freeze();
-  EXPECT_EQ(1u, config.total_leaves);  // Just one variable, `x[0]`.
-  EXPECT_EQ(3u, config.total_nodes);   // Three `+` nodes.
+  VarsMapperConfig const config = vars_context.DoGetVarsMapperConfig();
+  EXPECT_EQ(1u, config.NumberOfVars());   // Just one variable, `x[0]`.
+  EXPECT_EQ(3u, config.NumberOfNodes());  // Three `+` nodes.
 
-  EXPECT_THROW(x[0] + 4.0, VarsManagementException);
+  // After the vars mapper config was exported, no new nodes must be added.
+  EXPECT_THROW(x[0] + 4.0, NoNewNodesCanBeAddedException);
 }
 
 TEST(OptimizationExpression, Lambda) {
@@ -374,11 +330,9 @@ TEST(OptimizationExpression, LambdaFunctionGeneration) {
   value_t const lambda = value_t::lambda();
   std::vector<value_t> substitute({1.0 + 2.0 * lambda, 3.0 + 4.0 * lambda});
 
-  VarsMapperConfig const vars_config = vars_context.ReindexVars();
+  value_t const f2 = Build1DFunction(f, substitute);
 
-  value_t const f2 = Build1DFunction(f, vars_config, substitute);
-
-  EXPECT_EQ("(x[0]{0}+(2.000000*x[1]{1}))", f.DebugAsString());
+  EXPECT_EQ("(x[0]+(2.000000*x[1]))", f.DebugAsString());
   EXPECT_EQ("((1.000000+(2.000000*lambda))+(2.000000*(3.000000+(4.000000*lambda))))", f2.DebugAsString());
 }
 

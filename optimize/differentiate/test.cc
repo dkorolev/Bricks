@@ -35,21 +35,17 @@ TEST(OptimizationDifferentiate, Operations) {
   x[0] = 0.0;
   x[1] = 0.0;
 
-  VarsMapperConfig const config = vars_context.ReindexVars();
-  ASSERT_EQ("x[0]{0}", config.name[0]);
-  ASSERT_EQ("x[1]{1}", config.name[1]);
-
   EXPECT_EQ("1.000000", Differentiate(x[0] + x[1], 0).DebugAsString());
   EXPECT_EQ("1.000000", Differentiate(x[0] + x[1], 1).DebugAsString());
 
   EXPECT_EQ("1.000000", Differentiate(x[0] - x[1], 0).DebugAsString());
   EXPECT_EQ("(-1.000000)", Differentiate(x[0] - x[1], 1).DebugAsString());
 
-  EXPECT_EQ("x[1]{1}", Differentiate(x[0] * x[1], 0).DebugAsString());
-  EXPECT_EQ("x[0]{0}", Differentiate(x[0] * x[1], 1).DebugAsString());
+  EXPECT_EQ("x[1]", Differentiate(x[0] * x[1], 0).DebugAsString());
+  EXPECT_EQ("x[0]", Differentiate(x[0] * x[1], 1).DebugAsString());
 
-  EXPECT_EQ("(x[1]{1}/(x[1]{1}*x[1]{1}))", Differentiate(x[0] / x[1], 0).DebugAsString());
-  EXPECT_EQ("((0.000000-x[0]{0})/(x[1]{1}*x[1]{1}))", Differentiate(x[0] / x[1], 1).DebugAsString());
+  EXPECT_EQ("(x[1]/(x[1]*x[1]))", Differentiate(x[0] / x[1], 0).DebugAsString());
+  EXPECT_EQ("((0.000000-x[0])/(x[1]*x[1]))", Differentiate(x[0] / x[1], 1).DebugAsString());
 }
 
 TEST(OptimizationDifferentiate, Functions) {
@@ -57,20 +53,19 @@ TEST(OptimizationDifferentiate, Functions) {
 
   VarsContext vars_context;
   x[0] = 0.0;
-  vars_context.ReindexVars();
 
-  EXPECT_EQ("exp(x[0]{0})", Differentiate(exp(x[0]), 0).DebugAsString());
-  EXPECT_EQ("(1.000000/x[0]{0})", Differentiate(log(x[0]), 0).DebugAsString());
-  EXPECT_EQ("cos(x[0]{0})", Differentiate(sin(x[0]), 0).DebugAsString());
-  EXPECT_EQ("((-1.000000)*sin(x[0]{0}))", Differentiate(cos(x[0]), 0).DebugAsString());
-  EXPECT_EQ("(1.000000/sqr(cos(x[0]{0})))", Differentiate(tan(x[0]), 0).DebugAsString());
-  EXPECT_EQ("(2.000000*x[0]{0})", Differentiate(sqr(x[0]), 0).DebugAsString());
-  EXPECT_EQ("(1.000000/(2.000000*sqrt(x[0]{0})))", Differentiate(sqrt(x[0]), 0).DebugAsString());
-  EXPECT_EQ("(1.000000/sqrt((1.000000-sqr(x[0]{0}))))", Differentiate(asin(x[0]), 0).DebugAsString());
-  EXPECT_EQ("((-1.000000)/sqrt((1.000000-sqr(x[0]{0}))))", Differentiate(acos(x[0]), 0).DebugAsString());
-  EXPECT_EQ("(1.000000/(1.000000+sqr(x[0]{0})))", Differentiate(atan(x[0]), 0).DebugAsString());
-  EXPECT_EQ("unit_step(x[0]{0})", Differentiate(ramp(x[0]), 0).DebugAsString());
-  EXPECT_EQ("sigmoid((0.000000-x[0]{0}))", Differentiate(log_sigmoid(x[0]), 0).DebugAsString());
+  EXPECT_EQ("exp(x[0])", Differentiate(exp(x[0]), 0).DebugAsString());
+  EXPECT_EQ("(1.000000/x[0])", Differentiate(log(x[0]), 0).DebugAsString());
+  EXPECT_EQ("cos(x[0])", Differentiate(sin(x[0]), 0).DebugAsString());
+  EXPECT_EQ("((-1.000000)*sin(x[0]))", Differentiate(cos(x[0]), 0).DebugAsString());
+  EXPECT_EQ("(1.000000/sqr(cos(x[0])))", Differentiate(tan(x[0]), 0).DebugAsString());
+  EXPECT_EQ("(2.000000*x[0])", Differentiate(sqr(x[0]), 0).DebugAsString());
+  EXPECT_EQ("(1.000000/(2.000000*sqrt(x[0])))", Differentiate(sqrt(x[0]), 0).DebugAsString());
+  EXPECT_EQ("(1.000000/sqrt((1.000000-sqr(x[0]))))", Differentiate(asin(x[0]), 0).DebugAsString());
+  EXPECT_EQ("((-1.000000)/sqrt((1.000000-sqr(x[0]))))", Differentiate(acos(x[0]), 0).DebugAsString());
+  EXPECT_EQ("(1.000000/(1.000000+sqr(x[0])))", Differentiate(atan(x[0]), 0).DebugAsString());
+  EXPECT_EQ("unit_step(x[0])", Differentiate(ramp(x[0]), 0).DebugAsString());
+  EXPECT_EQ("sigmoid((0.000000-x[0]))", Differentiate(log_sigmoid(x[0]), 0).DebugAsString());
 }
 
 TEST(OptimizationDifferentiate, ChainRule) {
@@ -78,9 +73,8 @@ TEST(OptimizationDifferentiate, ChainRule) {
 
   VarsContext vars_context;
   x[0] = 0.0;
-  vars_context.ReindexVars();
 
-  EXPECT_EQ("((2.000000*x[0]{0})/sqr(x[0]{0}))", Differentiate(log(sqr(x[0])), 0).DebugAsString());
+  EXPECT_EQ("((2.000000*x[0])/sqr(x[0]))", Differentiate(log(sqr(x[0])), 0).DebugAsString());
 }
 
 TEST(OptimizationDifferentiate, RegressionTest1DFunctionsExpanded) {
@@ -92,7 +86,6 @@ TEST(OptimizationDifferentiate, RegressionTest1DFunctionsExpanded) {
   using namespace current::expression;
   VarsContext vars_context;
   x[0] = 0.0;
-  vars_context.ReindexVars();
 
   value_t const f = []() {
     value_t const x0 = x[0];
@@ -142,7 +135,6 @@ TEST(OptimizationDifferentiate, RegressionTest1DFunctions) {
   {                                                                                                                   \
     VarsContext vars_context;                                                                                         \
     x[0] = 0.0;                                                                                                       \
-    vars_context.ReindexVars();                                                                                       \
     value_t const f = []() {                                                                                          \
       value_t const x0 = x[0];                                                                                        \
       {                                                                                                               \
@@ -217,7 +209,6 @@ TEST(OptimizationDifferentiate, RegressionTest2DFunctions) {
     VarsContext vars_context;                                                                                        \
     x[0] = 0.0;                                                                                                      \
     x[1] = 0.0;                                                                                                      \
-    vars_context.ReindexVars();                                                                                      \
     value_t const f = []() {                                                                                         \
       value_t const x0 = x[0];                                                                                       \
       value_t const x1 = x[1];                                                                                       \
@@ -294,8 +285,6 @@ TEST(OptimizationDifferentiate, Constants) {
   x[0].SetConstant();
   x[2].SetConstant();
 
-  vars_context.ReindexVars();
-
   EXPECT_EQ("0.000000", Differentiate(x[0], 0).DebugAsString());  // Not `1` because `x[0]` is a constant.
   EXPECT_EQ("0.000000", Differentiate(x[0], 1).DebugAsString());
   EXPECT_EQ("0.000000", Differentiate(x[0], 2).DebugAsString());
@@ -322,12 +311,10 @@ TEST(OptimizationDifferentiate, Gradient) {
   x[0] = 0.0;
   x[1] = 0.0;
 
-  VarsMapperConfig const config = vars_context.ReindexVars();
-
   std::vector<value_t> const g = ComputeGradient(sqr(x[0]) + 2.0 * sqr(x[1]));
   ASSERT_EQ(2u, g.size());
-  EXPECT_EQ("(2.000000*x[0]{0})", g[0].DebugAsString());
-  EXPECT_EQ("(2.000000*(2.000000*x[1]{1}))", g[1].DebugAsString());
+  EXPECT_EQ("(2.000000*x[0])", g[0].DebugAsString());
+  EXPECT_EQ("(2.000000*(2.000000*x[1]))", g[1].DebugAsString());
 }
 
 TEST(OptimizationDifferentiate, DirectionalDerivative) {
@@ -341,10 +328,8 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   // This is a function of order two, with a minimum of `f(2,4) = 0`.
   value_t const f = sqr(x[0] - 2.0) + sqr(x[1] - 4.0);
 
-  VarsMapperConfig const config = vars_context.ReindexVars();
-
   std::vector<value_t> const g = ComputeGradient(f);
-  value_t const l = GenerateLineSearchFunction(config, f, g);
+  value_t const l = GenerateLineSearchFunction(f, g);
 
   value_t const d1 = DifferentiateByLambda(l);
   value_t const d2 = DifferentiateByLambda(d1);
@@ -471,15 +456,13 @@ TEST(OptimizationDifferentiate, GradientComponentsAreNullified) {
     f += exp(x[i]);
   }
 
-  vars_context.ReindexVars();
-
   std::vector<value_t> const g = ComputeGradient(f);
 
   EXPECT_EQ(dim, g.size());
-  EXPECT_EQ("exp(x[0]{0})", g[0].DebugAsString());
-  EXPECT_EQ("exp(x[1]{1})", g[1].DebugAsString());
-  EXPECT_EQ("exp(x[2]{2})", g[2].DebugAsString());
-  EXPECT_EQ("exp(x[3]{3})", g[3].DebugAsString());
+  EXPECT_EQ("exp(x[0])", g[0].DebugAsString());
+  EXPECT_EQ("exp(x[1])", g[1].DebugAsString());
+  EXPECT_EQ("exp(x[2])", g[2].DebugAsString());
+  EXPECT_EQ("exp(x[3])", g[3].DebugAsString());
 }
 
 TEST(OptimizationDifferentiate, NeedBalancedExpressionTree) {
@@ -492,8 +475,6 @@ TEST(OptimizationDifferentiate, NeedBalancedExpressionTree) {
     x[i] = 0.0;
     f += sqr(x[i] - i);
   }
-
-  vars_context.ReindexVars();
 
   // Without `BalanceExpressionTree(f)` the next line should throw. Depth of 2K+ is too much.
   try {
@@ -520,8 +501,6 @@ inline void RunOptimizationDifferentiateGradientStressTest(size_t dim) {
   for (size_t i = 0; i < dim; ++i) {
     f += exp(x[i]);
   }
-
-  vars_context.ReindexVars();
 
   BalanceExpressionTree(f);
 

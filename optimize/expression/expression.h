@@ -44,7 +44,7 @@ struct ExpressionNodeDivisionByZeroDetected final : OptimizeException {};
 
 struct ExpressionVarNodeBoxingException final : OptimizeException {};
 
-struct Build1DFunctionRequiresUpToDateVarsIndexes final : OptimizeException {};
+struct VarsConfigVarsContextMismatch final : OptimizeException {};
 struct Build1DFunctionNumberOfVarsMismatchException final : OptimizeException {};
 
 // When `using namespace current::expression`:
@@ -57,7 +57,7 @@ class value_t final {
   static ExpressionNodeIndex IndexFromVarNodeOrThrow(VarNode const& var_node) {
     if (var_node.type == VarNodeType::Value) {
       // When the most significant bit is set, the node is just a reference to certain index in the input vector.
-      return ExpressionNodeIndex::FromVarIndex(var_node.InternalVarIndex());
+      return ExpressionNodeIndex::FromVarIndex(var_node.VarIndex());
     } else {
       CURRENT_THROW(ExpressionVarNodeBoxingException());
     }
@@ -145,7 +145,7 @@ class value_t final {
 #endif
           }
         },
-        [&](size_t var_index) -> std::string { return VarsManager::TLS().Active().VarNameByOriginalIndex(var_index); },
+        [&](size_t var_index) -> std::string { return VarsManager::TLS().Active().VarName(var_index); },
         [](double value) -> std::string {
           if (value >= 0) {
             return current::ToString(value);
@@ -319,18 +319,8 @@ class Build1DFunctionImpl {
   std::vector<ExpressionNodeIndex> const& substitute_;
 
  public:
-  Build1DFunctionImpl(VarsContext const& vars_context,
-                      VarsMapperConfig const& vars_config,
-                      std::vector<ExpressionNodeIndex> const& substitute)
-      : vars_context_(vars_context), substitute_(substitute) {
-    // TODO(dkorolev): A stricter check that the config matches the context?
-    if (vars_context_.NumberOfVars() != vars_config.name.size()) {
-      CURRENT_THROW(Build1DFunctionRequiresUpToDateVarsIndexes());
-    }
-    if (substitute_.size() != vars_context_.NumberOfVars()) {
-      CURRENT_THROW(Build1DFunctionNumberOfVarsMismatchException());
-    }
-  }
+  Build1DFunctionImpl(VarsContext const& vars_context, std::vector<ExpressionNodeIndex> const& substitute)
+      : vars_context_(vars_context), substitute_(substitute) {}
 
   // TODO(dkorolev): This `DoBuild1DFunction` is a) `Checked`, meaning slow, and b) recursive. Something to fix.
   ExpressionNodeIndex DoBuild1DFunction(ExpressionNodeIndex f) const {
@@ -386,19 +376,17 @@ class Build1DFunctionImpl {
         });
   }
 };
-inline value_t Build1DFunction(value_t f, VarsMapperConfig const& config, std::vector<value_t> const& substitute) {
+inline value_t Build1DFunction(value_t f, std::vector<value_t> const& substitute) {
   std::vector<ExpressionNodeIndex> actual_substitute(substitute.size());
   for (size_t i = 0u; i < substitute.size(); ++i) {
     actual_substitute[i] = substitute[i].GetExpressionNodeIndex();
   }
-  return value_t::FromExpressionNodeIndex(Build1DFunctionImpl(VarsManager::TLS().Active(), config, actual_substitute)
+  return value_t::FromExpressionNodeIndex(Build1DFunctionImpl(VarsManager::TLS().Active(), actual_substitute)
                                               .DoBuild1DFunction(f.GetExpressionNodeIndex()));
 }
-inline value_t Build1DFunction(value_t f,
-                               VarsMapperConfig const& config,
-                               std::vector<ExpressionNodeIndex> const& substitute) {
-  return value_t::FromExpressionNodeIndex(Build1DFunctionImpl(VarsManager::TLS().Active(), config, substitute)
-                                              .DoBuild1DFunction(f.GetExpressionNodeIndex()));
+inline value_t Build1DFunction(value_t f, std::vector<ExpressionNodeIndex> const& substitute) {
+  return value_t::FromExpressionNodeIndex(
+      Build1DFunctionImpl(VarsManager::TLS().Active(), substitute).DoBuild1DFunction(f.GetExpressionNodeIndex()));
 }
 
 }  // namespace current::expression

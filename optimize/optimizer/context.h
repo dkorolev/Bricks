@@ -59,17 +59,18 @@ class LineSearchContext final {
 struct OptimizationContext {
   value_t const f;  // The function to optimize.
 
-  VarsMapperConfig const config;  // The config with the vars indexed.
-  VarsMapper vars_mapper;         // The holder of the starting point, and then the point being optimized.
-
   std::vector<value_t> const g;   // The gradient.
   value_t const l;                // The "line" 1D function f(lambda), to optimize along the gradient.
   std::vector<value_t> const ds;  // The derivatives of the 1D "line" function; one requires, others optional.
 
+  // Vars config and vars mapper, initialized after all the gradients are taken, and all the nodes are edded.
+  VarsMapperConfig const config;  // The config with the vars indexed.
+  VarsMapper vars_mapper;         // The holder of the starting point, and then the point being optimized.
+
   JITCallContext jit_call_context;  // The holder of the RAM block to run the JIT-compiled functions.
   JITCompiler jit_compiler;         // The JIT compiler, single scope for maximum cache reuse.
 
-  // And the JIT-compiled everything.
+  // The JIT-compiled everything.
   JITCompiledFunction const compiled_f;
   JITCompiledFunctionReturningVector const compiled_g;
   JITCompiledFunctionWithArgument const compiled_l;
@@ -113,11 +114,11 @@ struct OptimizationContext {
 
   OptimizationContext(VarsContext& vars_context, value_t f)
       : f(f),
-        config(vars_context.ReindexVars()),
-        vars_mapper(config),
         g(ComputeGradient(f)),
-        l(GenerateLineSearchFunction(config, f, g)),
+        l(GenerateLineSearchFunction(f, g)),
         ds(ComputeDS(l)),
+        config(vars_context.DoGetVarsMapperConfig()),
+        vars_mapper(config),
         jit_call_context(),
         jit_compiler(jit_call_context),
         compiled_f(jit_compiler.Compile(f)),
