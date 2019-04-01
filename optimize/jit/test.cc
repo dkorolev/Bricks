@@ -47,16 +47,16 @@ TEST(OptimizationJIT, SmokeAdd) {
   JITCompiledFunction const f = code_generator.Compile(value);
 
   Vars values;
-  EXPECT_EQ(2.0, f(jit_call_context, values.x));
+  EXPECT_EQ(2.0, f(values.x));
 
   // Other calling semantics.
   values["a"] = 2.0;
-  EXPECT_EQ(4.0, f(jit_call_context, values));
+  EXPECT_EQ(4.0, f(values));
 
   values["a"] = -2.0;
-  EXPECT_EQ(-4.0, f(jit_call_context, &values.x[0]));
+  EXPECT_EQ(-4.0, f(&values.x[0]));
 
-  EXPECT_EQ(5.0, f(jit_call_context, {2.5}));
+  EXPECT_EQ(5.0, f({2.5}));
 }
 
 TEST(OptimizationJIT, SmokeAddConstant) {
@@ -69,22 +69,20 @@ TEST(OptimizationJIT, SmokeAddConstant) {
   Vars::Config const vars_config = vars_context->VarsConfig();
 
   // Compilation still requires the context, because that's where the expression tree is stored.
-  JITCallContext jit_call_compile_context(*vars_context);
-  JITCompiledFunction const f = JITCompiler(jit_call_compile_context).Compile(value);
+  JITCallContext jit_call_context(vars_config);
+  JITCompiledFunction const f = JITCompiler(jit_call_context).Compile(value);
 
   // Once the function is JIT-compiled, the vars context (and the function compilation context) can be freed.
   vars_context = nullptr;
 
-  JITCallContext jit_call_run_context(vars_config);
-
   Vars values(vars_config);
-  EXPECT_EQ(2.0, f(jit_call_context, values.x));
+  EXPECT_EQ(2.0, f(values.x));
 
   values["b"] = 2.0;
-  EXPECT_EQ(3.0, f(jit_call_run_context, values));  // Can pass `values` instead of `values.x`.
+  EXPECT_EQ(3.0, f(values));  // Can pass `values` instead of `values.x`.
 
   values["b"] = -2.0;
-  EXPECT_EQ(-1.0, f(jit_call_run_context, values));
+  EXPECT_EQ(-1.0, f(values));
 }
 
 TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
@@ -104,10 +102,10 @@ TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
     Vars values;
     values["a"] = 10.0;
     values["b"] = 5.0;
-    EXPECT_EQ("[15.0,5.0,50.0,2.0]", JSON(g(jit_call_context, values)));
+    EXPECT_EQ("[15.0,5.0,50.0,2.0]", JSON(g(values)));
   }
 
-  EXPECT_EQ("[6.0,2.0,8.0,2.0]", JSON(g(jit_call_context, {4.0, 2.0})));
+  EXPECT_EQ("[6.0,2.0,8.0,2.0]", JSON(g({4.0, 2.0})));
 }
 
 TEST(OptimizationJIT, Exp) {
@@ -135,19 +133,19 @@ TEST(OptimizationJIT, Exp) {
 
   disposable_code_generator = nullptr;
 
-  EXPECT_EQ(exp(0.0), f(jit_call_context, values));
+  EXPECT_EQ(exp(0.0), f(values));
 
   values["c"] = 1.0;
-  EXPECT_EQ(exp(1.0), f(jit_call_context, values));
+  EXPECT_EQ(exp(1.0), f(values));
 
   values["c"] = 2.0;
-  EXPECT_EQ(exp(2.0), f(jit_call_context, values));
+  EXPECT_EQ(exp(2.0), f(values));
 
   values["c"] = -1.0;
-  EXPECT_EQ(exp(-1.0), f(jit_call_context, values));
+  EXPECT_EQ(exp(-1.0), f(values));
 
   values["c"] = -2.0;
-  EXPECT_EQ(exp(-2.0), f(jit_call_context, values));
+  EXPECT_EQ(exp(-2.0), f(values));
 }
 
 TEST(OptimizationJIT, OtherMathFunctions) {
@@ -181,33 +179,33 @@ TEST(OptimizationJIT, OtherMathFunctions) {
   JITCompiledFunctionReturningVector const f = JITCompiler(ctx).Compile(magic);
 
   // Test `1.5` as a random point that makes sense.
-  EXPECT_EQ(exp(1.5), f(ctx, {1.5})[0]);
-  EXPECT_EQ(log(1.5), f(ctx, {1.5})[1]);
-  EXPECT_EQ(sin(1.5), f(ctx, {1.5})[2]);
-  EXPECT_EQ(cos(1.5), f(ctx, {1.5})[3]);
-  EXPECT_EQ(tan(1.5), f(ctx, {1.5})[4]);
-  EXPECT_EQ(sqr(1.5), f(ctx, {1.5})[5]);
-  EXPECT_EQ(sqrt(1.5), f(ctx, {1.5})[6]);
-  EXPECT_EQ(asin(0.75), f(ctx, {0.75})[7]);  // Obviously, no `1.5` input for asin/acos.
-  EXPECT_EQ(acos(0.75), f(ctx, {0.75})[8]);
-  EXPECT_EQ(atan(1.5), f(ctx, {1.5})[9]);
-  EXPECT_EQ(unit_step(1.5), f(ctx, {1.5})[10]);
-  EXPECT_EQ(ramp(1.5), f(ctx, {1.5})[11]);
-  EXPECT_EQ(sigmoid(1.5), f(ctx, {1.5})[12]);
-  EXPECT_EQ(log_sigmoid(1.5), f(ctx, {1.5})[13]);
+  EXPECT_EQ(exp(1.5), f({1.5})[0]);
+  EXPECT_EQ(log(1.5), f({1.5})[1]);
+  EXPECT_EQ(sin(1.5), f({1.5})[2]);
+  EXPECT_EQ(cos(1.5), f({1.5})[3]);
+  EXPECT_EQ(tan(1.5), f({1.5})[4]);
+  EXPECT_EQ(sqr(1.5), f({1.5})[5]);
+  EXPECT_EQ(sqrt(1.5), f({1.5})[6]);
+  EXPECT_EQ(asin(0.75), f({0.75})[7]);  // Obviously, no `1.5` input for asin/acos.
+  EXPECT_EQ(acos(0.75), f({0.75})[8]);
+  EXPECT_EQ(atan(1.5), f({1.5})[9]);
+  EXPECT_EQ(unit_step(1.5), f({1.5})[10]);
+  EXPECT_EQ(ramp(1.5), f({1.5})[11]);
+  EXPECT_EQ(sigmoid(1.5), f({1.5})[12]);
+  EXPECT_EQ(log_sigmoid(1.5), f({1.5})[13]);
 
   // Make sure custom functions do what they should.
-  EXPECT_EQ(4, f(ctx, {2})[5]);  // sqr()
+  EXPECT_EQ(4, f({2})[5]);  // sqr()
 
-  EXPECT_EQ(1.0, f(ctx, {+0.5})[10]);  // unit_step()
-  EXPECT_EQ(0.0, f(ctx, {-0.5})[10]);  // unit_step()
+  EXPECT_EQ(1.0, f({+0.5})[10]);  // unit_step()
+  EXPECT_EQ(0.0, f({-0.5})[10]);  // unit_step()
 
-  EXPECT_EQ(0.0, f(ctx, {-0.5})[11]);  // ramp()
-  EXPECT_EQ(0.5, f(ctx, {+0.5})[11]);  // ramp()
-  EXPECT_EQ(2.5, f(ctx, {+2.5})[11]);  // ramp()
+  EXPECT_EQ(0.0, f({-0.5})[11]);  // ramp()
+  EXPECT_EQ(0.5, f({+0.5})[11]);  // ramp()
+  EXPECT_EQ(2.5, f({+2.5})[11]);  // ramp()
 
-  EXPECT_EQ(1.0 / (1.0 + exp(-3.5)), f(ctx, {3.5})[12]);        // sigmoid()
-  EXPECT_EQ(log(1.0 / (1.0 + exp(+1.5))), f(ctx, {-1.5})[13]);  // log_sigmoid()
+  EXPECT_EQ(1.0 / (1.0 + exp(-3.5)), f({3.5})[12]);        // sigmoid()
+  EXPECT_EQ(log(1.0 / (1.0 + exp(+1.5))), f({-1.5})[13]);  // log_sigmoid()
 }
 
 TEST(OptimizationJIT, IntermediateResultsAreReused) {
@@ -231,36 +229,36 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
   Vars values;
 
   // Compute for `0`.
-  EXPECT_EQ(0, fa(jit_call_context, {0.0}));
-  EXPECT_EQ(1, fb(jit_call_context, {0.0}));
-  EXPECT_EQ(3, fc(jit_call_context, {0.0}));
+  EXPECT_EQ(0, fa({0.0}));
+  EXPECT_EQ(1, fb({0.0}));
+  EXPECT_EQ(3, fc({0.0}));
 
   // Compute for `1`.
-  EXPECT_EQ(1, fa(jit_call_context, {1.0}));
-  EXPECT_EQ(2, fb(jit_call_context, {1.0}));
-  EXPECT_EQ(4, fc(jit_call_context, {1.0}));
+  EXPECT_EQ(1, fa({1.0}));
+  EXPECT_EQ(2, fb({1.0}));
+  EXPECT_EQ(4, fc({1.0}));
 
   // The values for `b` and `c`, for `p=100`, should be the same,
   // because `a`, which is equal to `x["p"]`, remains cached as `1`.
-  EXPECT_EQ(2, fb(jit_call_context, {100.0}));
-  EXPECT_EQ(4, fc(jit_call_context, {100.0}));
+  EXPECT_EQ(2, fb({100.0}));
+  EXPECT_EQ(4, fc({100.0}));
 
   // If the extra safety measure of `jit_call_context.MarkNewPoint()` is used, the above logical "flaw" will throw.
   jit_call_context.MarkNewPoint();
-  EXPECT_EQ(0, fa(jit_call_context, {0.0}));
-  EXPECT_EQ(1, fb(jit_call_context, {0.0}));
-  EXPECT_EQ(3, fc(jit_call_context, {0.0}));
+  EXPECT_EQ(0, fa({0.0}));
+  EXPECT_EQ(1, fb({0.0}));
+  EXPECT_EQ(3, fc({0.0}));
   jit_call_context.MarkNewPoint();
-  EXPECT_EQ(1, fa(jit_call_context, {1.0}));
-  EXPECT_EQ(2, fb(jit_call_context, {1.0}));
-  EXPECT_EQ(4, fc(jit_call_context, {1.0}));
+  EXPECT_EQ(1, fa({1.0}));
+  EXPECT_EQ(2, fb({1.0}));
+  EXPECT_EQ(4, fc({1.0}));
   jit_call_context.MarkNewPoint();
-  EXPECT_THROW(fb(jit_call_context, {100.0}), JITCompiledFunctionInvokedBeforeItsPrerequisitesException);
-  EXPECT_THROW(fc(jit_call_context, {100.0}), JITCompiledFunctionInvokedBeforeItsPrerequisitesException);
+  EXPECT_THROW(fb({100.0}), JITCompiledFunctionInvokedBeforeItsPrerequisitesException);
+  EXPECT_THROW(fc({100.0}), JITCompiledFunctionInvokedBeforeItsPrerequisitesException);
   jit_call_context.MarkNewPoint();
-  EXPECT_EQ(100, fa(jit_call_context, {100.0}));
-  EXPECT_EQ(101, fb(jit_call_context, {100.0}));
-  EXPECT_EQ(103, fc(jit_call_context, {100.0}));
+  EXPECT_EQ(100, fa({100.0}));
+  EXPECT_EQ(101, fb({100.0}));
+  EXPECT_EQ(103, fc({100.0}));
 }
 
 TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
@@ -275,10 +273,10 @@ TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
   JITCompiledFunction const f = JITCompiler(jit_call_context).Compile(r);
 
   // Should be exactly one, as a machine-imperfect `sqrt(2.0)` is being subtracted from the very same value.
-  EXPECT_EQ(1.0, f(jit_call_context, {sqrt(2.0)}));
+  EXPECT_EQ(1.0, f({sqrt(2.0)}));
 
   // Should be the exact value again.
-  EXPECT_EQ(0.0 - sqrt(2.0) + 1.0, f(jit_call_context, {0.0}));
+  EXPECT_EQ(0.0 - sqrt(2.0) + 1.0, f({0.0}));
 }
 
 TEST(OptimizationJIT, FunctionWithArgument) {
@@ -294,10 +292,10 @@ TEST(OptimizationJIT, FunctionWithArgument) {
   JITCompiler code_generator(jit_call_context);
   JITCompiledFunctionWithArgument const f = code_generator.CompileFunctionWithArgument(formula);
 
-  EXPECT_EQ(1.0, f(jit_call_context, {0.0}, 0.0));
-  EXPECT_EQ(2.0, f(jit_call_context, {1.0}, 0.0));
-  EXPECT_EQ(2.0, f(jit_call_context, {0.0}, 1.0));
-  EXPECT_EQ(3.0, f(jit_call_context, {1.0}, 1.0));
+  EXPECT_EQ(1.0, f({0.0}, 0.0));
+  EXPECT_EQ(2.0, f({1.0}, 0.0));
+  EXPECT_EQ(2.0, f({0.0}, 1.0));
+  EXPECT_EQ(3.0, f({1.0}, 1.0));
 }
 
 TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
@@ -312,9 +310,9 @@ TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
   JITCompiler code_generator(jit_call_context);
   JITCompiledFunctionWithArgument const f = code_generator.CompileFunctionWithArgument(lambda);
 
-  EXPECT_EQ(0.0, f(jit_call_context, {}, 0.0));
-  EXPECT_EQ(0.5, f(jit_call_context, {}, 0.5));
-  EXPECT_EQ(1.0, f(jit_call_context, {}, 1.0));
+  EXPECT_EQ(0.0, f({}, 0.0));
+  EXPECT_EQ(0.5, f({}, 0.5));
+  EXPECT_EQ(1.0, f({}, 1.0));
 }
 
 inline void RunOptimizationJITStressTest(size_t dim) {
@@ -335,7 +333,7 @@ inline void RunOptimizationJITStressTest(size_t dim) {
   JITCompiledFunction const compiled_f = JITCompiler(jit_call_context).Compile(f);
 
   // The default constuctor of `Vars()` initializes itself with the starting point.
-  EXPECT_EQ(dim, compiled_f(jit_call_context, Vars()));
+  EXPECT_EQ(dim, compiled_f(Vars()));
 
   // NOTE(dkorolev): The subtraction is because the very first "zero plus ..." node is optimized away.
   EXPECT_EQ(47u * dim - 10u, compiled_f.CodeSize());

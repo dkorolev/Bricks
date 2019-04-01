@@ -23,6 +23,7 @@ SOFTWARE.
 *******************************************************************************/
 
 // TODO(dkorolev): Introduce the "dry run" logic for JIT code generation, to avoid a copy and generate code inplace.
+// TODO(dkorolev): Add a test that no `lambda`-s can be present when compiling an expression as a function w/o argument.
 
 #ifndef OPTIMIZE_JIT_JIT_H
 #define OPTIMIZE_JIT_JIT_H
@@ -30,6 +31,8 @@ SOFTWARE.
 #include "../base.h"
 #include "../expression/expression.h"
 #include "../vars/vars.h"
+
+#include "../../bricks/sync/owned_borrowed.h"  // JIT-compiled funcions have `Borrowed<JITCallContextImpl>`.
 
 #include <cmath>
 
@@ -43,8 +46,6 @@ namespace expression {
 struct JITCompiledFunctionInvokedBeforeItsPrerequisitesException final : OptimizeException {};
 
 static_assert(sizeof(double) == 8u, "The System V JIT is designed for 8-byte `double`-s.");
-
-struct JITCompiledFunctionCallContextMismatchException final : OptimizeException {};
 
 struct JITNotEnoughExtraNodesAllocatedInJITCallContext final : OptimizeException {};
 
@@ -60,10 +61,7 @@ struct JITCallContextFunctionPointers {
 // It's best to refer to the two `Smoke*` tests in `test.cc`, but the gist is:
 //
 // * An instance of `JITCallContext` must live both in order to JIT-compile functions and in order to call them.
-//   It is because `JITCallContext` is what holds the RAM for temporary `double`-s.
-//
-// * An instance of `JITCompiler` requires a const reference to `JITCallContext` upon its construction.
-//   This is to make sure the functions it JIT-compiled can confirm they tie to the right context.
+//   It is because `JITCallContext` is what holds the RAM for the temporary `double`-s.
 //
 // * The very `JITCompiler` can be disposed as soon as it was used to code-generate all the function(s).
 //   The `JITCompiler` contains the scope of what intermediate expression nodes have already been evaluated.
@@ -78,14 +76,13 @@ struct JITCallContextFunctionPointers {
 //   the ultimate values of certain expression nodes.
 //
 //   Needless to say, the above requires the consecutive computations to happen over the same vars/constants vector.
+//
+// * At the end of the day, the JIT-compiled functions need the `JITCallContext`, and they borrow it for their lifetime.
 
-class JITCallContext final {
+class JITCallContextImpl final {
  private:
-  Vars::ThreadLocalContext const& vars_context_;
-  Vars::Config const& vars_config_;
-
-  // TODO(dkorolev): It's probably worth it to add a check that if extra nodes were added, JIT-compilation should abort.
-  size_t const number_of_nodes_;
+  // An instance of `JITCallContext` keeps a copy of `Vars::Config`, as `JITCallContext` may outlive `Vars::Scope`.
+  Vars::Config const vars_config_;
 
   mutable std::vector<double> ram_;  // The temporary buffer that must be allocated to run JIT functions of this config.
 
@@ -94,7 +91,8 @@ class JITCallContext final {
   friend class JITCompiledFunctionWithArgumentImpl;
   friend class JITCompiler;
 
-  double* RAMPointer() const { return &ram_[0]; }
+  double* InternalRAMPointer() const { return &ram_[0]; }
+  size_t LambdaRAMOffset() const { return vars_config_.NumberOfNodes(); }
 
   size_t functions_declared_ = 0u;
   mutable size_t next_legal_function_index_to_compute_ = 0u;
@@ -102,11 +100,8 @@ class JITCallContext final {
  public:
   // Allocate an extra one `double` so that an external parameter could be passed in it,
   // to later intoduce functions of one variable, i.e. for directional derivatives.
-  JITCallContext(Vars::ThreadLocalContext& context = InternalTLS())
-      : vars_context_(context),
-        vars_config_(context.VarsConfig()),
-        number_of_nodes_(vars_context_.NumberOfNodes()),
-        ram_(number_of_nodes_ + 1u) {}
+  JITCallContextImpl(Vars::Config const& vars_config)
+      : vars_config_(vars_config), ram_(vars_config_.NumberOfNodes() + 1u) {}
 
   // The `MarkNewPoint()` mechanism is the means to guard against the situation where the functions compiler later
   // within the same context are called on a new input point before the previous functions have been called.
@@ -128,9 +123,23 @@ class JITCallContext final {
   double const* ConstRAMPointer() const { return &ram_[0]; }
 };
 
+class JITCallContext {
+ private:
+  current::sync::Owned<JITCallContextImpl> impl_;
+
+ public:
+  explicit JITCallContext(Vars::Config const& vars_config) : impl_(vars_config) {}
+  JITCallContext(Vars::ThreadLocalContext& vars_context = InternalTLS()) : JITCallContext(vars_context.VarsConfig()) {}
+
+  current::sync::Borrowed<JITCallContextImpl> BorrowImpl() { return impl_; }
+
+  double const* ConstRAMPointer() const { return impl_->ConstRAMPointer(); }
+  void MarkNewPoint() { impl_->MarkNewPoint(); }
+};
+
 class JITCompiledFunctionImpl final {
  private:
-  JITCallContext const& call_context_;
+  current::sync::Borrowed<JITCallContextImpl> ctx_;
   size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
   size_t const code_size_;
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
@@ -141,18 +150,15 @@ class JITCompiledFunctionImpl final {
   JITCompiledFunctionImpl& operator=(JITCompiledFunctionImpl&&) = delete;
 
  public:
-  JITCompiledFunctionImpl(JITCallContext& call_context, std::vector<uint8_t> code)
-      : call_context_(call_context),
-        this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
+  JITCompiledFunctionImpl(current::sync::Borrowed<JITCallContextImpl> call_context_impl, std::vector<uint8_t> code)
+      : ctx_(std::move(call_context_impl)),
+        this_function_index_in_order_(ctx_->CurrentFunctionIndexAndPostIncrementIt()),
         code_size_(code.size()),
         f_(code) {}
 
-  double CallFunction(JITCallContext const& call_context, double const* x) const {
-    if (&call_context != &call_context_) {
-      CURRENT_THROW(JITCompiledFunctionCallContextMismatchException());
-    }
-    call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
-    return f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
+  double CallFunction(double const* x) const {
+    ctx_->MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
+    return f_(x, ctx_->InternalRAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
   }
 
   size_t CodeSize() const { return code_size_; }
@@ -163,25 +169,19 @@ class JITCompiledFunction final {
   std::unique_ptr<JITCompiledFunctionImpl> f_;
 
   friend class JITCompiler;
-  JITCompiledFunction(JITCallContext& call_context, std::vector<uint8_t> code)
-      : f_(std::make_unique<JITCompiledFunctionImpl>(call_context, code)) {}
+  JITCompiledFunction(current::sync::Borrowed<JITCallContextImpl> call_context_impl, std::vector<uint8_t> code)
+      : f_(std::make_unique<JITCompiledFunctionImpl>(std::move(call_context_impl), code)) {}
 
  public:
-  double operator()(JITCallContext const& call_context, double const* x) const {
-    return f_->CallFunction(call_context, x);
-  }
-  double operator()(JITCallContext const& call_context, std::vector<double> const& x) const {
-    return f_->CallFunction(call_context, &x[0]);
-  }
-  double operator()(JITCallContext const& call_context, Vars const& values) const {
-    return f_->CallFunction(call_context, &values.x[0]);
-  }
+  double operator()(double const* x) const { return f_->CallFunction(x); }
+  double operator()(std::vector<double> const& x) const { return f_->CallFunction(&x[0]); }
+  double operator()(Vars const& values) const { return f_->CallFunction(&values.x[0]); }
   size_t CodeSize() const { return f_->CodeSize(); }
 };
 
 class JITCompiledFunctionReturningVectorImpl final {
  private:
-  JITCallContext const& call_context_;
+  current::sync::Borrowed<JITCallContextImpl> ctx_;
   size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
   size_t const code_size_;
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
@@ -193,31 +193,28 @@ class JITCompiledFunctionReturningVectorImpl final {
   JITCompiledFunctionReturningVectorImpl& operator=(JITCompiledFunctionReturningVectorImpl&&) = delete;
 
  public:
-  JITCompiledFunctionReturningVectorImpl(JITCallContext& call_context,
+  JITCompiledFunctionReturningVectorImpl(current::sync::Borrowed<JITCallContextImpl> call_context_impl,
                                          std::vector<uint8_t> code,
                                          std::vector<ExpressionNodeIndex> output_node_indexes)
-      : call_context_(call_context),
-        this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
+      : ctx_(std::move(call_context_impl)),
+        this_function_index_in_order_(ctx_->CurrentFunctionIndexAndPostIncrementIt()),
         code_size_(code.size()),
         f_(code),
         output_node_indexes_(std::move(output_node_indexes)) {}
 
-  std::vector<double> CallFunctionReturningVector(JITCallContext const& call_context, double const* x) const {
-    if (&call_context != &call_context_) {
-      CURRENT_THROW(JITCompiledFunctionCallContextMismatchException());
-    }
-    call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
+  std::vector<double> CallFunctionReturningVector(double const* x) const {
+    ctx_->MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
     std::vector<double> result(output_node_indexes_.size());
-    f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
+    f_(x, ctx_->InternalRAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
     for (size_t i = 0; i < output_node_indexes_.size(); ++i) {
       result[i] = output_node_indexes_[i].template CheckedDispatch<double>(
-          [&](size_t node_index) -> double { return call_context_.ConstRAMPointer()[node_index]; },
+          [&](size_t node_index) -> double { return ctx_->ConstRAMPointer()[node_index]; },
           [&](size_t var_index) -> double { return x[var_index]; },
           [&](double value) -> double { return value; },
           [&]() -> double {
-// No `lambda`-s should be encountered when the gradient is being evaluated,
-// because the lambdas are the territory of `JITCompiledFunctionWithArgument`.
 #ifndef NDEBUG
+            // No `lambda`-s should be encountered when the gradient is being evaluated,
+            // because the lambdas are the territory of `JITCompiledFunctionWithArgument`.
             TriggerSegmentationFault();
             throw false;
 #else
@@ -236,28 +233,22 @@ class JITCompiledFunctionReturningVector final {
   std::unique_ptr<JITCompiledFunctionReturningVectorImpl> f_;
 
   friend class JITCompiler;
-  JITCompiledFunctionReturningVector(JITCallContext& call_context,
+  JITCompiledFunctionReturningVector(current::sync::Borrowed<JITCallContextImpl> call_context_impl,
                                      std::vector<uint8_t> code,
                                      std::vector<ExpressionNodeIndex> output_node_indexes)
       : f_(std::make_unique<JITCompiledFunctionReturningVectorImpl>(
-            call_context, code, std::move(output_node_indexes))) {}
+            std::move(call_context_impl), code, std::move(output_node_indexes))) {}
 
  public:
-  std::vector<double> operator()(JITCallContext const& call_context, double const* x) const {
-    return f_->CallFunctionReturningVector(call_context, x);
-  }
-  std::vector<double> operator()(JITCallContext const& call_context, std::vector<double> const& x) const {
-    return f_->CallFunctionReturningVector(call_context, &x[0]);
-  }
-  std::vector<double> operator()(JITCallContext const& call_context, Vars const& values) const {
-    return f_->CallFunctionReturningVector(call_context, &values.x[0]);
-  }
+  std::vector<double> operator()(double const* x) const { return f_->CallFunctionReturningVector(x); }
+  std::vector<double> operator()(std::vector<double> const& x) const { return f_->CallFunctionReturningVector(&x[0]); }
+  std::vector<double> operator()(Vars const& values) const { return f_->CallFunctionReturningVector(&values.x[0]); }
   size_t CodeSize() const { return f_->CodeSize(); }
 };
 
 class JITCompiledFunctionWithArgumentImpl final {
  private:
-  JITCallContext const& call_context_;
+  current::sync::Borrowed<JITCallContextImpl> ctx_;
   size_t const this_function_index_in_order_;  // For the `MarkNewPoint()` check.
   size_t const code_size_;
   current::fncas::x64_native_jit::CallableVectorUInt8 f_;
@@ -268,19 +259,17 @@ class JITCompiledFunctionWithArgumentImpl final {
   JITCompiledFunctionWithArgumentImpl& operator=(JITCompiledFunctionWithArgumentImpl&&) = delete;
 
  public:
-  JITCompiledFunctionWithArgumentImpl(JITCallContext& call_context, std::vector<uint8_t> code)
-      : call_context_(call_context),
-        this_function_index_in_order_(call_context.CurrentFunctionIndexAndPostIncrementIt()),
+  JITCompiledFunctionWithArgumentImpl(current::sync::Borrowed<JITCallContextImpl> call_context_impl,
+                                      std::vector<uint8_t> code)
+      : ctx_(std::move(call_context_impl)),
+        this_function_index_in_order_(ctx_->CurrentFunctionIndexAndPostIncrementIt()),
         code_size_(code.size()),
         f_(code) {}
 
-  double CallFunctionWithArgument(JITCallContext const& call_context, double const* x, double p) const {
-    if (&call_context != &call_context_) {
-      CURRENT_THROW(JITCompiledFunctionCallContextMismatchException());
-    }
-    call_context.MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
-    call_context_.RAMPointer()[call_context_.number_of_nodes_] = p;
-    return f_(x, call_context_.RAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
+  double CallFunctionWithArgument(double const* x, double p) const {
+    ctx_->MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
+    ctx_->InternalRAMPointer()[ctx_->LambdaRAMOffset()] = p;
+    return f_(x, ctx_->InternalRAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
   }
 
   size_t CodeSize() const { return code_size_; }
@@ -291,25 +280,31 @@ class JITCompiledFunctionWithArgument final {
   std::unique_ptr<JITCompiledFunctionWithArgumentImpl> f_;
 
   friend class JITCompiler;
-  JITCompiledFunctionWithArgument(JITCallContext& call_context, std::vector<uint8_t> code)
-      : f_(std::make_unique<JITCompiledFunctionWithArgumentImpl>(call_context, code)) {}
+  JITCompiledFunctionWithArgument(current::sync::Borrowed<JITCallContextImpl> call_context_impl,
+                                  std::vector<uint8_t> code)
+      : f_(std::make_unique<JITCompiledFunctionWithArgumentImpl>(std::move(call_context_impl), code)) {}
 
  public:
-  double operator()(JITCallContext const& call_context, double const* x, double p) const {
-    return f_->CallFunctionWithArgument(call_context, x, p);
-  }
-  double operator()(JITCallContext const& call_context, std::vector<double> const& x, double p) const {
-    return f_->CallFunctionWithArgument(call_context, &x[0], p);
-  }
-  double operator()(JITCallContext const& call_context, Vars const& values, double p) const {
-    return f_->CallFunctionWithArgument(call_context, &values.x[0], p);
-  }
+  double operator()(double const* x, double p) const { return f_->CallFunctionWithArgument(x, p); }
+  double operator()(std::vector<double> const& x, double p) const { return f_->CallFunctionWithArgument(&x[0], p); }
+  double operator()(Vars const& values, double p) const { return f_->CallFunctionWithArgument(&values.x[0], p); }
   size_t CodeSize() const { return f_->CodeSize(); }
 };
 
 class JITCompiler final {
  private:
-  JITCallContext& context_;
+  // All the JIT-compiled functions will borrow this borrowed context and tie to it.
+  current::sync::Borrowed<JITCallContextImpl> jit_call_context_impl_;
+
+  // The vars context is where all the expression nodes are stored, and it's essential
+  // it exists during the lifetime of the very `JITCompiler`.
+  Vars::ThreadLocalContext const& vars_context_;
+
+  // Effecively, the offset in the array of `double`-s where the `lambda` is stored.
+  size_t const number_of_nodes_;
+
+  // Each node is computed only once per the instance of `JITCompiler`, hence if multiple functions were compiled per
+  // one `JITCompiler`, the user must, for any new point or for any new lambda, call them in the order of compilation.
   std::vector<bool> node_computed_;
 
   // The "recursive" call to `*EnsureNodeComputed` should not be recursive because of the possibility of large depth.
@@ -373,34 +368,32 @@ class JITCompiler final {
 #endif
         if (!node_computed_[current_node_index]) {
           using namespace current::fncas::x64_native_jit;
-          ExpressionNodeImpl const& node = context_.vars_context_[current_node_index];
+          ExpressionNodeImpl const& node = vars_context_[current_node_index];
           ExpressionNodeType const type = node.Type();
           if (false) {
-#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                  \
-  }                                                                                                       \
-  else if (type == ExpressionNodeType::Operation_##name) {                                                \
-    ExpressionNodeIndex const lhs = node.LHSIndex();                                                      \
-    ExpressionNodeIndex const rhs = node.RHSIndex();                                                      \
-    if (!ready_to_compute) {                                                                              \
-      PushNodeToStack(ExpressionNodeIndex::FromNodeIndex(current_node_index), true);                      \
-      PushNodeToStack(rhs, false);                                                                        \
-      PushNodeToStack(lhs, false);                                                                        \
-    } else {                                                                                              \
-      lhs.CheckedDispatch(                                                                                \
-          [&](size_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                \
-          [&](size_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, var); },                \
-          [&](double val) { opcodes::load_immediate_to_xmm0(code, val); },                                \
-          [&]() { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, context_.number_of_nodes_); });   \
-      rhs.CheckedDispatch(                                                                                \
-          [&](size_t idx) { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, idx); },              \
-          [&](size_t var) { opcodes::name##_from_memory_by_rdi_offset_to_xmm0(code, var); },              \
-          [&](double val) {                                                                               \
-            opcodes::load_immediate_to_xmm1(code, val);                                                   \
-            opcodes::name##_xmm1_xmm0(code);                                                              \
-          },                                                                                              \
-          [&]() { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, context_.number_of_nodes_); }); \
-      opcodes::store_xmm0_to_memory_by_rbx_offset(code, current_node_index);                              \
-      node_computed_[current_node_index] = true;                                                          \
+#define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                         \
+  }                                                                                                              \
+  else if (type == ExpressionNodeType::Operation_##name) {                                                       \
+    ExpressionNodeIndex const lhs = node.LHSIndex();                                                             \
+    ExpressionNodeIndex const rhs = node.RHSIndex();                                                             \
+    if (!ready_to_compute) {                                                                                     \
+      PushNodeToStack(ExpressionNodeIndex::FromNodeIndex(current_node_index), true);                             \
+      PushNodeToStack(rhs, false);                                                                               \
+      PushNodeToStack(lhs, false);                                                                               \
+    } else {                                                                                                     \
+      lhs.CheckedDispatch([&](size_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },       \
+                          [&](size_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, var); },       \
+                          [&](double val) { opcodes::load_immediate_to_xmm0(code, val); },                       \
+                          [&]() { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, number_of_nodes_); });   \
+      rhs.CheckedDispatch([&](size_t idx) { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, idx); },     \
+                          [&](size_t var) { opcodes::name##_from_memory_by_rdi_offset_to_xmm0(code, var); },     \
+                          [&](double val) {                                                                      \
+                            opcodes::load_immediate_to_xmm1(code, val);                                          \
+                            opcodes::name##_xmm1_xmm0(code);                                                     \
+                          },                                                                                     \
+                          [&]() { opcodes::name##_from_memory_by_rbx_offset_to_xmm0(code, number_of_nodes_); }); \
+      opcodes::store_xmm0_to_memory_by_rbx_offset(code, current_node_index);                                     \
+      node_computed_[current_node_index] = true;                                                                 \
     }
 #include "../math_operations.inl"
 #undef CURRENT_EXPRESSION_MATH_OPERATION
@@ -418,7 +411,7 @@ class JITCompiler final {
           [&](size_t idx) { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, idx); },                     \
           [&](size_t var) { opcodes::load_from_memory_by_rdi_offset_to_xmm0(code, var); },                     \
           [&](double val) { opcodes::load_immediate_to_memory_by_rbx_offset(code, current_node_index, val); }, \
-          [&]() { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, context_.number_of_nodes_); });        \
+          [&]() { opcodes::load_from_memory_by_rbx_offset_to_xmm0(code, number_of_nodes_); });                 \
       opcodes::push_rdi(code);                                                                                 \
       opcodes::push_rdx(code);                                                                                 \
       opcodes::call_function_from_rdx_pointers_array_by_index(                                                 \
@@ -447,7 +440,11 @@ class JITCompiler final {
   }
 
  public:
-  explicit JITCompiler(JITCallContext& context) : context_(context), node_computed_(context_.number_of_nodes_) {}
+  JITCompiler(JITCallContext& jit_call_context, Vars::ThreadLocalContext& vars_context = InternalTLS())
+      : jit_call_context_impl_(jit_call_context.BorrowImpl()),
+        vars_context_(vars_context),
+        number_of_nodes_(vars_context.VarsConfig().NumberOfNodes()),
+        node_computed_(number_of_nodes_) {}
 
   JITCompiledFunction Compile(value_t node) {
     using namespace current::fncas::x64_native_jit;
@@ -475,11 +472,11 @@ class JITCompiler final {
         },
         [&]() {
           // Lambda. Just load its value into xmm0.
-          opcodes::load_from_memory_by_rsi_offset_to_xmm0(code, context_.number_of_nodes_);
+          opcodes::load_from_memory_by_rsi_offset_to_xmm0(code, number_of_nodes_);
         });
     opcodes::ret(code);
 
-    return JITCompiledFunction(context_, std::move(code));
+    return JITCompiledFunction(jit_call_context_impl_, std::move(code));
   }
 
   JITCompiledFunctionReturningVector Compile(std::vector<value_t> const& nodes) {
@@ -506,7 +503,7 @@ class JITCompiler final {
     opcodes::pop_rbx(code);
     opcodes::ret(code);
 
-    return JITCompiledFunctionReturningVector(context_, std::move(code), std::move(output_node_indexes));
+    return JITCompiledFunctionReturningVector(jit_call_context_impl_, std::move(code), std::move(output_node_indexes));
   }
 
   JITCompiledFunctionWithArgument CompileFunctionWithArgument(value_t node) {
@@ -537,11 +534,11 @@ class JITCompiler final {
         },
         [&]() {
           // Lambda. Just load its value into xmm0.
-          opcodes::load_from_memory_by_rsi_offset_to_xmm0(code, context_.number_of_nodes_);
+          opcodes::load_from_memory_by_rsi_offset_to_xmm0(code, number_of_nodes_);
         });
     opcodes::ret(code);
 
-    return JITCompiledFunctionWithArgument(context_, std::move(code));
+    return JITCompiledFunctionWithArgument(jit_call_context_impl_, std::move(code));
   }
 };
 

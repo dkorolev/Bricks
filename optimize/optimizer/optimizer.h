@@ -61,8 +61,7 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
 
   LineSearchContext const line_search_context(optimization_context);
 
-  double const starting_value =
-      optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_values.x);
+  double const starting_value = optimization_context.compiled_f(optimization_context.vars_values.x);
 
   result.values.push_back(starting_value);
   result.trace.push_back(optimization_context.vars_values.x);
@@ -70,7 +69,7 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
   result.iterations = 1;
   Optional<double> step;
   do {
-    optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_values.x);
+    optimization_context.compiled_g(optimization_context.vars_values.x);
 
     step = LineSearch(line_search_context, line_search_parameters, step).best_step;
     if (-Value(step) < kMinStep) {
@@ -84,8 +83,7 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
     result.steps.push_back(Value(step));
     result.trace.push_back(optimization_context.vars_values.x);
 
-    result.values.push_back(
-        optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_values.x));
+    result.values.push_back(optimization_context.compiled_f(optimization_context.vars_values.x));
 
     if (result.values.size() >= 2 &&
         ((*(result.values.rbegin() + 1) - result.values.back()) < kMinImprovementPerIteration)) {

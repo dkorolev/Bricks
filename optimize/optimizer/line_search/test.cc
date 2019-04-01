@@ -50,16 +50,14 @@ TEST(OptimizationOptimizerLineSearch, FunctionOfOrderTwo) {
   // this will happen organically, as no line search begins w/o computing the gradient (and computing the function is
   // the prerequisite for computing the gradient). In the case of explicitly testing the 1D optimizer, the compuatation
   // of both the function and the gradient must be invoked manually beforehand, for each starting point.
-  optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_values.x);
-  optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_values.x);
+  optimization_context.compiled_f(optimization_context.vars_values.x);
+  optimization_context.compiled_g(optimization_context.vars_values.x);
 
   // In case of the function of order two, see `../differentiate/test.cc`, the first and best step is always  `-0.5`.
   EXPECT_NEAR(-0.5, LineSearch(line_search_context).best_step, 1e-6);
 
   // This step should take the function to its optimum, which, in this case, is the minimum, equals to zero.
-  EXPECT_EQ(
-      0.0,
-      optimization_context.compiled_l(optimization_context.jit_call_context, optimization_context.vars_values.x, -0.5));
+  EXPECT_EQ(0.0, optimization_context.compiled_l(optimization_context.vars_values.x, -0.5));
 
   EXPECT_EQ("[0.0]", JSON(optimization_context.CurrentPoint()));
   EXPECT_EQ(9.0, optimization_context.UnitTestComputeCurrentObjectiveFunctionValue());
@@ -93,28 +91,16 @@ inline void SavePlotAndLineSearchPath(std::string const& test_name,
           .YLabel("f(x), f'(x), steps")
           .Plot(WithMeta([&result, &optimization_context, derivative_value](Plotter p) {
                   for (current::expression::optimizer::LineSearchIntermediatePoint const& pt : result.path1) {
-                    double const y1 = optimization_context.compiled_f(optimization_context.jit_call_context,
-                                                                      {
-                                                                          pt.x * derivative_value,
-                                                                      });
-                    double const y2 = optimization_context.compiled_g(optimization_context.jit_call_context,
-                                                                      {
-                                                                          pt.x * derivative_value,
-                                                                      })[0];
+                    double const y1 = optimization_context.compiled_f({pt.x * derivative_value});
+                    double const y2 = optimization_context.compiled_g({pt.x * derivative_value})[0];
                     p(pt.x * derivative_value, 0);
                     p(pt.x * derivative_value, y1);
                     p(pt.x * derivative_value, y2);
                     p(pt.x * derivative_value, 0);
                   }
                   for (current::expression::optimizer::LineSearchIntermediatePoint const& pt : result.path2) {
-                    double const y1 = optimization_context.compiled_f(optimization_context.jit_call_context,
-                                                                      {
-                                                                          pt.x * derivative_value,
-                                                                      });
-                    double const y2 = optimization_context.compiled_g(optimization_context.jit_call_context,
-                                                                      {
-                                                                          pt.x * derivative_value,
-                                                                      })[0];
+                    double const y1 = optimization_context.compiled_f({pt.x * derivative_value});
+                    double const y2 = optimization_context.compiled_g({pt.x * derivative_value})[0];
                     p(pt.x * derivative_value, 0);
                     p(pt.x * derivative_value, y1);
                     p(pt.x * derivative_value, y2);
@@ -125,8 +111,8 @@ inline void SavePlotAndLineSearchPath(std::string const& test_name,
                     current::expression::optimizer::LineSearchIntermediatePoint const& pt =
                         result.path2[result.path2.size() - 1u - i];
                     double const x = pt.x * derivative_value;
-                    optimization_context.compiled_f(optimization_context.jit_call_context, {x});
-                    double const y = optimization_context.compiled_g(optimization_context.jit_call_context, {x})[0];
+                    optimization_context.compiled_f({x});
+                    double const y = optimization_context.compiled_g({x})[0];
                     p(x, y);
                   }
 #endif
@@ -137,7 +123,7 @@ inline void SavePlotAndLineSearchPath(std::string const& test_name,
           .Plot(WithMeta([&optimization_context](Plotter p) {
                   for (int i = -50; i <= +1050; ++i) {
                     double const x = 0.01 * i;
-                    double const y = optimization_context.compiled_f(optimization_context.jit_call_context, {x});
+                    double const y = optimization_context.compiled_f({x});
                     p(x, y);
                   }
                 })
@@ -147,10 +133,9 @@ inline void SavePlotAndLineSearchPath(std::string const& test_name,
           .Plot(WithMeta([&optimization_context](Plotter p) {
                   for (int i = -50; i <= +1050; ++i) {
                     double const x = 0.01 * i;
-                    double const unused_but_MUST_be_computed =
-                        optimization_context.compiled_f(optimization_context.jit_call_context, {x});
+                    double const unused_but_MUST_be_computed = optimization_context.compiled_f({x});
                     static_cast<void>(unused_but_MUST_be_computed);
-                    double const y = optimization_context.compiled_g(optimization_context.jit_call_context, {x})[0];
+                    double const y = optimization_context.compiled_g({x})[0];
                     p(x, y);
                   }
                 })
@@ -191,32 +176,31 @@ inline void ExpectCommentsMatchIfInParanoidMode(std::string const& expected_comm
 #endif  // CURRENT_OPTIMIZE_PARANOID_CHECKS
 }
 
-#define TEST_1D_LINE_SEARCH(                                                                                           \
-    test_name, function_body, expected_final_value, expected_path1_steps, expected_path2_steps, expected_comments)     \
-  TEST(OptimizationOptimizerLineSearch, RegressionTest##test_name) {                                                   \
-    using namespace current::expression;                                                                               \
-    Vars::ThreadLocalContext vars_context;                                                                             \
-    x[0] = 0.0;                                                                                                        \
-    value_t const f = [](value_t x) { return function_body; }(x[0]);                                                   \
-    using namespace current::expression::optimizer;                                                                    \
-    OptimizationContext optimization_context(f, vars_context);                                                         \
-    LineSearchContext const line_search_context(optimization_context);                                                 \
-    optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_values.x);        \
-    double const derivative_value =                                                                                    \
-        optimization_context.compiled_g(optimization_context.jit_call_context, optimization_context.vars_values.x)[0]; \
-    LineSearchResult const result = LineSearch(line_search_context);                                                   \
-    EXPECT_EQ(expected_path1_steps, result.path1.size()) << "number of path1 steps.";                                  \
-    EXPECT_EQ(expected_path2_steps, result.path2.size()) << "number of path2 steps.";                                  \
-    double const step_size = result.best_step;                                                                         \
-    optimization_context.MovePointAlongGradient(step_size);                                                            \
-    double const final_value = optimization_context.UnitTestComputeCurrentObjectiveFunctionValue();                    \
-    if (FLAGS_save_line_search_test_plots) {                                                                           \
-      SavePlotAndLineSearchPath(#test_name, #function_body, optimization_context, result, derivative_value);           \
-    }                                                                                                                  \
-    ExpectCommentsMatchIfInParanoidMode(expected_comments, result);                                                    \
-    if (!std::isnan(expected_final_value)) {                                                                           \
-      EXPECT_NEAR(expected_final_value, final_value, 1e-6);                                                            \
-    }                                                                                                                  \
+#define TEST_1D_LINE_SEARCH(                                                                                       \
+    test_name, function_body, expected_final_value, expected_path1_steps, expected_path2_steps, expected_comments) \
+  TEST(OptimizationOptimizerLineSearch, RegressionTest##test_name) {                                               \
+    using namespace current::expression;                                                                           \
+    Vars::ThreadLocalContext vars_context;                                                                         \
+    x[0] = 0.0;                                                                                                    \
+    value_t const f = [](value_t x) { return function_body; }(x[0]);                                               \
+    using namespace current::expression::optimizer;                                                                \
+    OptimizationContext optimization_context(f, vars_context);                                                     \
+    LineSearchContext const line_search_context(optimization_context);                                             \
+    optimization_context.compiled_f(optimization_context.vars_values.x);                                           \
+    double const derivative_value = optimization_context.compiled_g(optimization_context.vars_values.x)[0];        \
+    LineSearchResult const result = LineSearch(line_search_context);                                               \
+    EXPECT_EQ(expected_path1_steps, result.path1.size()) << "number of path1 steps.";                              \
+    EXPECT_EQ(expected_path2_steps, result.path2.size()) << "number of path2 steps.";                              \
+    double const step_size = result.best_step;                                                                     \
+    optimization_context.MovePointAlongGradient(step_size);                                                        \
+    double const final_value = optimization_context.UnitTestComputeCurrentObjectiveFunctionValue();                \
+    if (FLAGS_save_line_search_test_plots) {                                                                       \
+      SavePlotAndLineSearchPath(#test_name, #function_body, optimization_context, result, derivative_value);       \
+    }                                                                                                              \
+    ExpectCommentsMatchIfInParanoidMode(expected_comments, result);                                                \
+    if (!std::isnan(expected_final_value)) {                                                                       \
+      EXPECT_NEAR(expected_final_value, final_value, 1e-6);                                                        \
+    }                                                                                                              \
   }
 
 // This is a simple order-two function, with a clearly visible minumum at `x = 6`, found in a single extrapolation step.

@@ -41,19 +41,17 @@ class LineSearchContext final {
  private:
   friend class LineSearchImpl;
 
-  JITCallContext const& jit_call_context;
   Vars const& vars_values;
   JITCompiledFunctionWithArgument const& l;
   JITCompiledFunctionWithArgument const& d;
   std::vector<JITCompiledFunctionWithArgument const*> const& more_ds;
 
  public:
-  LineSearchContext(JITCallContext const& jit_call_context,
-                    Vars const& vars_values,
+  LineSearchContext(Vars const& vars_values,
                     JITCompiledFunctionWithArgument const& l,
                     JITCompiledFunctionWithArgument const& d,
                     std::vector<JITCompiledFunctionWithArgument const*> const& more_ds)
-      : jit_call_context(jit_call_context), vars_values(vars_values), l(l), d(d), more_ds(more_ds) {}
+      : vars_values(vars_values), l(l), d(d), more_ds(more_ds) {}
 };
 
 struct OptimizationContext {
@@ -136,14 +134,14 @@ struct OptimizationContext {
   std::vector<double> const CurrentPoint() const { return vars_values.x; }
 
   // This method is only used for the unit tests, as the context keeps the value at the current point.
-  double UnitTestComputeCurrentObjectiveFunctionValue() const { return compiled_f(jit_call_context, vars_values); }
+  double UnitTestComputeCurrentObjectiveFunctionValue() const { return compiled_f(vars_values); }
 
   void MovePointAlongGradient(double gradient_k) {
     vars_values.MovePoint(jit_call_context.ConstRAMPointer(), g, gradient_k);
   }
 
   operator LineSearchContext() const {
-    return LineSearchContext(jit_call_context, vars_values, compiled_l, *compiled_ds.front(), compiled_ds_pointers);
+    return LineSearchContext(vars_values, compiled_l, *compiled_ds.front(), compiled_ds_pointers);
   }
 };
 

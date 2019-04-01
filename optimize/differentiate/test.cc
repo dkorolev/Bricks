@@ -102,26 +102,20 @@ TEST(OptimizationDifferentiate, RegressionTest1DFunctionsExpanded) {
   double const delta = 1e-5;
   double const eps = 1e-5;
 
-  EXPECT_EQ(4, compiled(ctx, {0.0})[0]);
-  EXPECT_EQ(8, compiled(ctx, {0.0})[1]);
-  EXPECT_NEAR(
-      (sqr(sqr(0.0 + delta + 1) + 1) - sqr(sqr(0.0 - delta + 1) + 1)) / (delta * 2), compiled(ctx, {0.0})[1], eps);
-  EXPECT_NEAR(
-      (compiled(ctx, {0.0 + delta})[0] - compiled(ctx, {0.0 - delta})[0]) / (delta * 2), compiled(ctx, {0.0})[1], eps);
+  EXPECT_EQ(4, compiled({0.0})[0]);
+  EXPECT_EQ(8, compiled({0.0})[1]);
+  EXPECT_NEAR((sqr(sqr(0.0 + delta + 1) + 1) - sqr(sqr(0.0 - delta + 1) + 1)) / (delta * 2), compiled({0.0})[1], eps);
+  EXPECT_NEAR((compiled({0.0 + delta})[0] - compiled({0.0 - delta})[0]) / (delta * 2), compiled({0.0})[1], eps);
 
-  EXPECT_EQ(25, compiled(ctx, {1.0})[0]);
-  EXPECT_EQ(40, compiled(ctx, {1.0})[1]);
-  EXPECT_NEAR(
-      (sqr(sqr(1.0 + delta + 1) + 1) - sqr(sqr(1.0 - delta + 1) + 1)) / (delta * 2), compiled(ctx, {1.0})[1], eps);
-  EXPECT_NEAR(
-      (compiled(ctx, {1.0 + delta})[0] - compiled(ctx, {1.0 - delta})[0]) / (delta * 2), compiled(ctx, {1.0})[1], eps);
+  EXPECT_EQ(25, compiled({1.0})[0]);
+  EXPECT_EQ(40, compiled({1.0})[1]);
+  EXPECT_NEAR((sqr(sqr(1.0 + delta + 1) + 1) - sqr(sqr(1.0 - delta + 1) + 1)) / (delta * 2), compiled({1.0})[1], eps);
+  EXPECT_NEAR((compiled({1.0 + delta})[0] - compiled({1.0 - delta})[0]) / (delta * 2), compiled({1.0})[1], eps);
 
-  EXPECT_EQ(100, compiled(ctx, {2.0})[0]);
-  EXPECT_EQ(120, compiled(ctx, {2.0})[1]);
-  EXPECT_NEAR(
-      (sqr(sqr(1.0 + delta + 1) + 1) - sqr(sqr(1.0 - delta + 1) + 1)) / (delta * 2), compiled(ctx, {1.0})[1], eps);
-  EXPECT_NEAR(
-      (compiled(ctx, {2.0 + delta})[0] - compiled(ctx, {2.0 - delta})[0]) / (delta * 2), compiled(ctx, {2.0})[1], eps);
+  EXPECT_EQ(100, compiled({2.0})[0]);
+  EXPECT_EQ(120, compiled({2.0})[1]);
+  EXPECT_NEAR((sqr(sqr(1.0 + delta + 1) + 1) - sqr(sqr(1.0 - delta + 1) + 1)) / (delta * 2), compiled({1.0})[1], eps);
+  EXPECT_NEAR((compiled({2.0 + delta})[0] - compiled({2.0 - delta})[0]) / (delta * 2), compiled({2.0})[1], eps);
 }
 
 TEST(OptimizationDifferentiate, RegressionTest1DFunctions) {
@@ -149,10 +143,10 @@ TEST(OptimizationDifferentiate, RegressionTest1DFunctions) {
     std::vector<double> const test_points_vector test_points_in_parens;                                               \
     for (double const x_value : test_points_vector) {                                                                 \
       double const true_f_x = eval_x(x_value);                                                                        \
-      double const jit_computed_f_x = compiled(ctx, {x_value})[0];                                                    \
+      double const jit_computed_f_x = compiled({x_value})[0];                                                         \
       EXPECT_EQ(true_f_x, jit_computed_f_x) << "VALUE " << #function_of_x << " @ " << x_value;                        \
       double const approximated_df_dx = (eval_x(x_value + delta) - eval_x(x_value - delta)) / (delta * 2);            \
-      double const jit_computed_df_dx = compiled(ctx, {x_value})[1];                                                  \
+      double const jit_computed_df_dx = compiled({x_value})[1];                                                       \
       EXPECT_GT(jit_computed_df_dx, approximated_df_dx - eps) << "DERIVATIVE LEFT BOUND " << #function_of_x << " @ "  \
                                                               << x_value;                                             \
       EXPECT_LT(jit_computed_df_dx, approximated_df_dx + eps) << "DERIVATIVE RIGHT BOUND " << #function_of_x << " @ " \
@@ -228,19 +222,19 @@ TEST(OptimizationDifferentiate, RegressionTest2DFunctions) {
       double const x_value = x_y_values.first;                                                                       \
       double const y_value = x_y_values.second;                                                                      \
       double const true_f_x_y = eval_x_y(x_value, y_value);                                                          \
-      double const jit_computed_f_x_y = compiled(ctx, {x_value, y_value})[0];                                        \
+      double const jit_computed_f_x_y = compiled({x_value, y_value})[0];                                             \
       EXPECT_EQ(true_f_x_y, jit_computed_f_x_y) << "VALUE " << #function_of_x_and_y << " @ (" << x_value << ", "     \
                                                 << y_value << ")";                                                   \
       double const approximated_df_dx =                                                                              \
           (eval_x_y(x_value + delta, y_value) - eval_x_y(x_value - delta, y_value)) / (delta * 2);                   \
-      double const jit_computed_df_dx = compiled(ctx, {x_value, y_value})[1];                                        \
+      double const jit_computed_df_dx = compiled({x_value, y_value})[1];                                             \
       EXPECT_GT(jit_computed_df_dx, approximated_df_dx - eps) << "X DERIVATIVE LEFT BOUND " << #function_of_x_and_y  \
                                                               << " @ (" << x_value << ", " << y_value << ")";        \
       EXPECT_LT(jit_computed_df_dx, approximated_df_dx + eps) << "X DERIVATIVE RIGHT BOUND " << #function_of_x_and_y \
                                                               << " @ (" << x_value << ", " << y_value << ")";        \
       double const approximated_df_dy =                                                                              \
           (eval_x_y(x_value, y_value + delta) - eval_x_y(x_value, y_value - delta)) / (delta * 2);                   \
-      double const jit_computed_df_dy = compiled(ctx, {x_value, y_value})[2];                                        \
+      double const jit_computed_df_dy = compiled({x_value, y_value})[2];                                             \
       EXPECT_GT(jit_computed_df_dy, approximated_df_dy - eps) << "Y DERIVATIVE LEFT BOUND " << #function_of_x_and_y  \
                                                               << " @ (" << x_value << ", " << y_value << ")";        \
       EXPECT_LT(jit_computed_df_dy, approximated_df_dy + eps) << "Y DERIVATIVE RIGHT BOUND " << #function_of_x_and_y \
@@ -346,97 +340,96 @@ TEST(OptimizationDifferentiate, DirectionalDerivative) {
   JITCompiledFunctionWithArgument const compiled_d3 = compiler.CompileFunctionWithArgument(d3);
 
   // Everything is zero at `f(2,4)`, as it is the minumum.
-  EXPECT_EQ(0.0, compiled_f(ctx, {2.0, 4.0}));
-  EXPECT_EQ("[0.0,0.0]", JSON(compiled_g(ctx, {2.0, 4.0})));
-  compiled_l(ctx, {2.0, 4.0}, 0.0);  // Need to evalute `l` after `g` and before `d1`.
-  EXPECT_EQ(0.0, compiled_d1(ctx, {2.0, 4.0}, 0.0));
-  EXPECT_EQ(0.0, compiled_d2(ctx, {2.0, 4.0}, 0.0));
-  EXPECT_EQ(0.0, compiled_d3(ctx, {2.0, 4.0}, 0.0));
+  EXPECT_EQ(0.0, compiled_f({2.0, 4.0}));
+  EXPECT_EQ("[0.0,0.0]", JSON(compiled_g({2.0, 4.0})));
+  compiled_l({2.0, 4.0}, 0.0);  // Need to evalute `l` after `g` and before `d1`.
+  EXPECT_EQ(0.0, compiled_d1({2.0, 4.0}, 0.0));
+  EXPECT_EQ(0.0, compiled_d2({2.0, 4.0}, 0.0));
+  EXPECT_EQ(0.0, compiled_d3({2.0, 4.0}, 0.0));
 
   // A step towards the minimum is required from `{1,1}`.
   std::vector<double> p({1.0, 1.0});
-  EXPECT_EQ(10.0, compiled_f(ctx, p));
-  EXPECT_EQ("[-2.0,-6.0]", JSON(compiled_g(ctx, p)));
-  compiled_l(ctx, p, 0.0);
-  EXPECT_EQ(40.0, compiled_d1(ctx, p, 0.0));
+  EXPECT_EQ(10.0, compiled_f(p));
+  EXPECT_EQ("[-2.0,-6.0]", JSON(compiled_g(p)));
+  compiled_l(p, 0.0);
+  EXPECT_EQ(40.0, compiled_d1(p, 0.0));
 
-  EXPECT_EQ(80.0,
-            compiled_d2(ctx, p, 0.0));  // The 2nd derivative by lambda is a constant, as the function is of oder two.
-  EXPECT_EQ(80.0, compiled_d2(ctx, p, -1.0));
-  EXPECT_EQ(80.0, compiled_d2(ctx, p, +1.0));
-  EXPECT_EQ(80.0, compiled_d2(ctx, p, -5.0));
-  EXPECT_EQ(80.0, compiled_d2(ctx, p, +5.0));
+  EXPECT_EQ(80.0, compiled_d2(p, 0.0));  // The 2nd derivative by lambda is a constant, as the function is of oder two.
+  EXPECT_EQ(80.0, compiled_d2(p, -1.0));
+  EXPECT_EQ(80.0, compiled_d2(p, +1.0));
+  EXPECT_EQ(80.0, compiled_d2(p, -5.0));
+  EXPECT_EQ(80.0, compiled_d2(p, +5.0));
 
-  EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));  // The 3rd derivative by lambda is zero, as the function is of order two.
-  EXPECT_EQ(0.0, compiled_d3(ctx, p, -1.0));
-  EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
-  EXPECT_EQ(0.0, compiled_d3(ctx, p, -5.0));
-  EXPECT_EQ(0.0, compiled_d3(ctx, p, +5.0));
+  EXPECT_EQ(0.0, compiled_d3(p, 0.0));  // The 3rd derivative by lambda is zero, as the function is of order two.
+  EXPECT_EQ(0.0, compiled_d3(p, -1.0));
+  EXPECT_EQ(0.0, compiled_d3(p, +1.0));
+  EXPECT_EQ(0.0, compiled_d3(p, -5.0));
+  EXPECT_EQ(0.0, compiled_d3(p, +5.0));
 
   // Effectively, as the function is of order two, making a step of `lambda = -f_lambda'(x)/f_lambda''(x)` hits the min.
-  EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
-  double const step = -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+  EXPECT_EQ(0.5, compiled_d1(p, 0.0) / compiled_d2(p, 0.0));
+  double const step = -(compiled_d1(p, 0.0) / compiled_d2(p, 0.0));
 
   // For the new value of lambda (step size, in this case), need to re-evalute `l` before `d1`.
   // In this case of a function of order two, the first step takes us to the minimum, which is zero.
-  EXPECT_EQ(0.0, compiled_l(ctx, p, step));
+  EXPECT_EQ(0.0, compiled_l(p, step));
   // The derivative is also zero, an it would be (approximately) zero even for the functions that are not of order two.
-  EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
+  EXPECT_EQ(0.0, compiled_d1(p, -(compiled_d1(p, 0.0) / compiled_d2(p, 0.0))));
 
   // Now, the above should work for any starting point, given the function being tested is of order two.
   {
     p = {1.5, 3.5};
-    compiled_f(ctx, p);
-    compiled_g(ctx, p);
-    compiled_l(ctx, p, 0.0);
-    EXPECT_EQ(2, compiled_d1(ctx, p, 0.0));
-    EXPECT_EQ(4, compiled_d2(ctx, p, 0.0));
-    EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
-    EXPECT_EQ(0.0, compiled_l(ctx, p, -0.5));
-    EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +1.0));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -5.0));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +5.0));
-    EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));
-    EXPECT_EQ(0.0, compiled_d3(ctx, p, -1.0));
-    EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
+    compiled_f(p);
+    compiled_g(p);
+    compiled_l(p, 0.0);
+    EXPECT_EQ(2, compiled_d1(p, 0.0));
+    EXPECT_EQ(4, compiled_d2(p, 0.0));
+    EXPECT_EQ(0.5, compiled_d1(p, 0.0) / compiled_d2(p, 0.0));
+    EXPECT_EQ(0.0, compiled_l(p, -0.5));
+    EXPECT_EQ(0.0, compiled_d1(p, -(compiled_d1(p, 0.0) / compiled_d2(p, 0.0))));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, -1.0));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, +1.0));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, -5.0));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, +5.0));
+    EXPECT_EQ(0.0, compiled_d3(p, 0.0));
+    EXPECT_EQ(0.0, compiled_d3(p, -1.0));
+    EXPECT_EQ(0.0, compiled_d3(p, +1.0));
   }
 
   // And step size will always be 0.5.
   {
     p = {-9.25, 17.75};
-    compiled_f(ctx, p);
-    compiled_g(ctx, p);
-    compiled_l(ctx, p, 0.0);
-    EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+    compiled_f(p);
+    compiled_g(p);
+    compiled_l(p, 0.0);
+    EXPECT_EQ(0.5, compiled_d1(p, 0.0) / compiled_d2(p, 0.0));
     // For the new value of lambda (step size `-0.5`), need to re-evalute `l` before `d1` and other `d`-s.
-    EXPECT_EQ(0, compiled_l(ctx, p, -0.5));
-    EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +1.0));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -5.0));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +5.0));
-    EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));
-    EXPECT_EQ(0.0, compiled_d3(ctx, p, -1.0));
-    EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
+    EXPECT_EQ(0, compiled_l(p, -0.5));
+    EXPECT_EQ(0.0, compiled_d1(p, -(compiled_d1(p, 0.0) / compiled_d2(p, 0.0))));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, -1.0));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, +1.0));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, -5.0));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, +5.0));
+    EXPECT_EQ(0.0, compiled_d3(p, 0.0));
+    EXPECT_EQ(0.0, compiled_d3(p, -1.0));
+    EXPECT_EQ(0.0, compiled_d3(p, +1.0));
   }
   {
     p = {131.75, +293.25};
-    compiled_f(ctx, p);
-    compiled_g(ctx, p);
-    compiled_l(ctx, p, 0.0);
-    EXPECT_EQ(0.5, compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0));
+    compiled_f(p);
+    compiled_g(p);
+    compiled_l(p, 0.0);
+    EXPECT_EQ(0.5, compiled_d1(p, 0.0) / compiled_d2(p, 0.0));
     // For the new value of lambda (step size `-0.5`), need to re-evalute `l` before `d1` and other `d`-s.
-    EXPECT_EQ(0, compiled_l(ctx, p, -0.5));
-    EXPECT_EQ(0.0, compiled_d1(ctx, p, -(compiled_d1(ctx, p, 0.0) / compiled_d2(ctx, p, 0.0))));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -1.0));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +1.0));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, -5.0));
-    EXPECT_EQ(compiled_d2(ctx, p, 0.0), compiled_d2(ctx, p, +5.0));
-    EXPECT_EQ(0.0, compiled_d3(ctx, p, 0.0));
-    EXPECT_EQ(0.0, compiled_d3(ctx, p, -1.0));
-    EXPECT_EQ(0.0, compiled_d3(ctx, p, +1.0));
+    EXPECT_EQ(0, compiled_l(p, -0.5));
+    EXPECT_EQ(0.0, compiled_d1(p, -(compiled_d1(p, 0.0) / compiled_d2(p, 0.0))));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, -1.0));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, +1.0));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, -5.0));
+    EXPECT_EQ(compiled_d2(p, 0.0), compiled_d2(p, +5.0));
+    EXPECT_EQ(0.0, compiled_d3(p, 0.0));
+    EXPECT_EQ(0.0, compiled_d3(p, -1.0));
+    EXPECT_EQ(0.0, compiled_d3(p, +1.0));
   }
 }
 

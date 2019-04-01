@@ -172,8 +172,8 @@ class LineSearchImpl final {
     LineSearchResult result;
 
     // Copmute the value and the derivative at the starting point.
-    double const value_at_0 = self.l(self.jit_call_context, self.vars_values.x, 0.0);
-    double const derivative_at_0 = self.d(self.jit_call_context, self.vars_values.x, 0.0);
+    double const value_at_0 = self.l(self.vars_values.x, 0.0);
+    double const derivative_at_0 = self.d(self.vars_values.x, 0.0);
 
     result.path1.push_back(LineSearchIntermediatePoint(0.0, value_at_0, derivative_at_0));
 
@@ -222,8 +222,8 @@ class LineSearchImpl final {
         CURRENT_THROW(OptimizationException("Too many unsuccessful range search iterations."));
       }
 
-      value_at_right_end_of_range = self.l(self.jit_call_context, self.vars_values.x, right_end_of_range);
-      derivative_at_right_end_of_range = self.d(self.jit_call_context, self.vars_values.x, right_end_of_range);
+      value_at_right_end_of_range = self.l(self.vars_values.x, right_end_of_range);
+      derivative_at_right_end_of_range = self.d(self.vars_values.x, right_end_of_range);
 
       if (!IsNormal(value_at_right_end_of_range) || !IsNormal(derivative_at_right_end_of_range)) {
         // Entered the NaNs territory, but all is not necessarily lost.
@@ -352,8 +352,8 @@ class LineSearchImpl final {
 #ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
           {
             {
-              double const value_at_lhs = self.l(self.jit_call_context, self.vars_values.x, left_end_of_range);
-              double const derivative_at_lhs = self.d(self.jit_call_context, self.vars_values.x, left_end_of_range);
+              double const value_at_lhs = self.l(self.vars_values.x, left_end_of_range);
+              double const derivative_at_lhs = self.d(self.vars_values.x, left_end_of_range);
               if (!IsNormal(value_at_lhs) || !IsNormal(derivative_at_lhs)) {
                 CURRENT_THROW(OptimizationException("Internal error: inexplicable."));
               }
@@ -362,8 +362,8 @@ class LineSearchImpl final {
               }
             }
             {
-              double const value_at_rhs = self.l(self.jit_call_context, self.vars_values.x, right_end_of_range);
-              double const derivative_at_rhs = self.d(self.jit_call_context, self.vars_values.x, right_end_of_range);
+              double const value_at_rhs = self.l(self.vars_values.x, right_end_of_range);
+              double const derivative_at_rhs = self.d(self.vars_values.x, right_end_of_range);
               if (!IsNormal(value_at_rhs) || !IsNormal(derivative_at_rhs)) {
                 CURRENT_THROW(OptimizationException("Internal error: inexplicable."));
               }
@@ -408,8 +408,8 @@ class LineSearchImpl final {
               return result;
             }
 
-            double const value_at_midpoint = self.l(self.jit_call_context, self.vars_values.x, midpoint);
-            double const derivative_at_midpoint = self.d(self.jit_call_context, self.vars_values.x, midpoint);
+            double const value_at_midpoint = self.l(self.vars_values.x, midpoint);
+            double const derivative_at_midpoint = self.d(self.vars_values.x, midpoint);
             result.path2.push_back(LineSearchIntermediatePoint(midpoint, value_at_midpoint, derivative_at_midpoint));
             if (derivative_at_midpoint == 0.0) {
 #ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
