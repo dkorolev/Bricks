@@ -111,7 +111,7 @@ CURRENT_STRUCT(I) { CURRENT_FIELD(z, (std::map<uint32_t, Node>)); };
 CURRENT_STRUCT(S) { CURRENT_FIELD(z, (std::map<std::string, Node>)); };
 }  // namespace current::expression::json
 
-class InternalVarsContext;
+class InternalVarsScope;
 
 // The information about the variables set, as well as their initial values and which are the constants.
 class InternalVarsConfig final {
@@ -119,7 +119,7 @@ class InternalVarsConfig final {
   size_t const number_of_variables_;  // The number of vars, including the constant (`x[...].SetConstant(...)`) ones.
   size_t const number_of_nodes_;
 #ifndef NDEBUG
-  InternalVarsContext const* vars_context_;
+  InternalVarsScope const* scope_;
 #endif
   std::vector<double> const x0_;
   std::vector<std::string> const name_;
@@ -130,7 +130,7 @@ class InternalVarsConfig final {
   InternalVarsConfig(size_t number_of_variables,
                      size_t number_of_nodes,
 #ifndef NDEBUG
-                     InternalVarsContext const* vars_context,
+                     InternalVarsScope const* scope,
 #endif
 
                      std::vector<double> x0,
@@ -140,7 +140,7 @@ class InternalVarsConfig final {
       : number_of_variables_(number_of_variables),
         number_of_nodes_(number_of_nodes),
 #ifndef NDEBUG
-        vars_context_(vars_context),
+        scope_(scope),
 #endif
 
         x0_(std::move(x0)),
@@ -150,9 +150,8 @@ class InternalVarsConfig final {
   }
 
 #ifndef NDEBUG
-  bool DebugConfigMatchesContext(InternalVarsContext const* candidate_vars_context,
-                                 size_t candidate_number_of_variables) const {
-    return candidate_vars_context == vars_context_ && candidate_number_of_variables == number_of_variables_;
+  bool DebugConfigMatchesScope(InternalVarsScope const* candidate_scope, size_t candidate_number_of_variables) const {
+    return candidate_scope == scope_ && candidate_number_of_variables == number_of_variables_;
   }
 #endif
 
@@ -172,9 +171,9 @@ class InternalVarsConfig final {
   json::Node const& Root() const { return root_; }
 };
 
-class InternalVarsContextInterface {
+class InternalVarsScopeInterface {
  public:
-  ~InternalVarsContextInterface() = default;
+  ~InternalVarsScopeInterface() = default;
 
   // After the call to `VarsConfig()`, the expression is "frozen", and no new vars or nodes can be added.
   virtual InternalVarsConfig const& VarsConfig() = 0;
@@ -188,7 +187,7 @@ class InternalVarsContextInterface {
   virtual void MarkVarAsConstant(size_t var_index) = 0;
 };
 // Forward declaration for the default constuctor of `Vars` below.
-inline InternalVarsContextInterface& InternalTLSInterface();
+inline InternalVarsScopeInterface& InternalTLSInterface();
 
 // To also be implemented for `value_t` in `../expression/expression.h`; the `value_t` type is unknown to `vars/`.
 inline ExpressionNodeIndex ExpressionNodeIndexFromExpressionNodeOrValue(ExpressionNodeIndex index) { return index; }
@@ -269,7 +268,7 @@ class Vars final {
   AccessorNode const root_;
 
  public:
-  using ThreadLocalContext = InternalVarsContext;
+  using Scope = InternalVarsScope;
   using Config = InternalVarsConfig;
 
   // `x` is a const reference `value_`, for easy read-only access to the vars. NOTE(dkorolev): Possibly reshuffled vars!
@@ -309,30 +308,30 @@ class Vars final {
 
 class VarsManager final {
  private:
-  InternalVarsContext* active_context_ = nullptr;
-  InternalVarsContextInterface* active_context_interface_ = nullptr;
+  InternalVarsScope* active_context_ = nullptr;
+  InternalVarsScopeInterface* active_context_interface_ = nullptr;
 
  public:
   static VarsManager& StaticInternalTLS() { return ThreadLocalSingleton<VarsManager>(); }
-  InternalVarsContext& ActiveContext() const {
+  InternalVarsScope& ActiveScope() const {
     if (!active_context_) {
       CURRENT_THROW(VarsManagementException("The variables context is required."));
     }
     return *active_context_;
   }
-  void SetActive(InternalVarsContext* ptr1, InternalVarsContextInterface* ptr2) {
+  void SetActive(InternalVarsScope* ptr1, InternalVarsScopeInterface* ptr2) {
     if (active_context_) {
       CURRENT_THROW(VarsManagementException("Attempted to create a nested variables context."));
     }
     active_context_ = ptr1;
     active_context_interface_ = ptr2;
   }
-  void ConfirmActive(InternalVarsContext const* ptr1, InternalVarsContextInterface const* ptr2) const {
+  void ConfirmActive(InternalVarsScope const* ptr1, InternalVarsScopeInterface const* ptr2) const {
     if (!(active_context_ == ptr1 && active_context_interface_ == ptr2)) {
-      CURRENT_THROW(VarsManagementException("Mismatch of active `current::expression::InternalVarsContext`."));
+      CURRENT_THROW(VarsManagementException("Mismatch of active `current::expression::InternalVarsScope`."));
     }
   }
-  void ClearActive(InternalVarsContext const* ptr1, InternalVarsContextInterface const* ptr2) {
+  void ClearActive(InternalVarsScope const* ptr1, InternalVarsScopeInterface const* ptr2) {
     if (!(active_context_ == ptr1 && active_context_interface_ == ptr2)) {
       std::cerr << "Internal error when deleting variables context." << std::endl;
 #ifndef NDEBUG
@@ -344,11 +343,11 @@ class VarsManager final {
     active_context_ = nullptr;
     active_context_interface_ = nullptr;
   }
-  InternalVarsContextInterface& ActiveContextViaInterface() { return *active_context_interface_; }
+  InternalVarsScopeInterface& ActiveScopeViaInterface() { return *active_context_interface_; }
 };
 
-inline InternalVarsContextInterface& InternalTLSInterface() {
-  return VarsManager::StaticInternalTLS().ActiveContextViaInterface();
+inline InternalVarsScopeInterface& InternalTLSInterface() {
+  return VarsManager::StaticInternalTLS().ActiveScopeViaInterface();
 }
 
 class StringOrInt {
@@ -618,7 +617,7 @@ struct VarNode {
   }
 };
 
-class InternalVarsContext final : public InternalVarsContextInterface {
+class InternalVarsScope final : public InternalVarsScopeInterface {
  private:
   VarNode root_;
 
@@ -637,8 +636,8 @@ class InternalVarsContext final : public InternalVarsContextInterface {
 #endif
 
  public:
-  InternalVarsContext() { VarsManager::StaticInternalTLS().SetActive(this, this); }
-  ~InternalVarsContext() { VarsManager::StaticInternalTLS().ClearActive(this, this); }
+  InternalVarsScope() { VarsManager::StaticInternalTLS().SetActive(this, this); }
+  ~InternalVarsScope() { VarsManager::StaticInternalTLS().ClearActive(this, this); }
 
   size_t NumberOfVars() const { return allocated_var_is_constant_.size(); }
   size_t NumberOfNodes() const { return expression_nodes_.size(); }
@@ -782,7 +781,7 @@ class InternalVarsContext final : public InternalVarsContextInterface {
   }
 };
 
-inline InternalVarsContext& InternalTLS() { return VarsManager::StaticInternalTLS().ActiveContext(); }
+inline InternalVarsScope& InternalTLS() { return VarsManager::StaticInternalTLS().ActiveScope(); }
 
 struct VarsAccessor final {
   // Vars creators and accessors.

@@ -36,13 +36,13 @@ TEST(OptimizationOptimizerLineSearch, FunctionOfOrderTwo) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x[0] = 0.0;
 
   value_t const f = sqr(x[0] - 3.0);
 
-  OptimizationContext optimization_context(f, vars_context);
+  OptimizationContext optimization_context(f, scope);
   LineSearchContext const line_search_context(optimization_context);
 
   // The function and its gradient must be computed prior to the line search being invoked, in order for the internal
@@ -180,11 +180,11 @@ inline void ExpectCommentsMatchIfInParanoidMode(std::string const& expected_comm
     test_name, function_body, expected_final_value, expected_path1_steps, expected_path2_steps, expected_comments) \
   TEST(OptimizationOptimizerLineSearch, RegressionTest##test_name) {                                               \
     using namespace current::expression;                                                                           \
-    Vars::ThreadLocalContext vars_context;                                                                         \
+    Vars::Scope scope;                                                                                             \
     x[0] = 0.0;                                                                                                    \
     value_t const f = [](value_t x) { return function_body; }(x[0]);                                               \
     using namespace current::expression::optimizer;                                                                \
-    OptimizationContext optimization_context(f, vars_context);                                                     \
+    OptimizationContext optimization_context(f, scope);                                                            \
     LineSearchContext const line_search_context(optimization_context);                                             \
     optimization_context.compiled_f(optimization_context.vars_values.x);                                           \
     double const derivative_value = optimization_context.compiled_g(optimization_context.vars_values.x)[0];        \

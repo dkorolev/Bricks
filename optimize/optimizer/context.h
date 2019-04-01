@@ -116,12 +116,12 @@ struct OptimizationContext {
 
   // NOTE(dkorolev): Important to initialize `vars_values` after the differentiation took place,
   // as differentiating adds nodes to the expression tree, which is frozen after the vars context is exported.
-  OptimizationContext(value_t f, Vars::ThreadLocalContext& vars_context = InternalTLS())
+  OptimizationContext(value_t f, Vars::Scope& scope = InternalTLS())
       : f(f),
         g(ComputeGradient(f)),
         l(GenerateLineSearchFunction(f, g)),
         ds(ComputeDS(l)),
-        vars_config(vars_context.VarsConfig()),
+        vars_config(scope.VarsConfig()),
         vars_values(vars_config),
         jit_call_context(),
         jit_compiler(jit_call_context),

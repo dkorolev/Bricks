@@ -30,7 +30,7 @@ SOFTWARE.
 TEST(OptimizationDifferentiate, Operations) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x[0] = 0.0;
   x[1] = 0.0;
@@ -51,7 +51,7 @@ TEST(OptimizationDifferentiate, Operations) {
 TEST(OptimizationDifferentiate, Functions) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
   x[0] = 0.0;
 
   EXPECT_EQ("exp(x[0])", Differentiate(exp(x[0]), 0).DebugAsString());
@@ -71,7 +71,7 @@ TEST(OptimizationDifferentiate, Functions) {
 TEST(OptimizationDifferentiate, ChainRule) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
   x[0] = 0.0;
 
   EXPECT_EQ("((2.000000*x[0])/sqr(x[0]))", Differentiate(log(sqr(x[0])), 0).DebugAsString());
@@ -84,7 +84,7 @@ TEST(OptimizationDifferentiate, RegressionTest1DFunctionsExpanded) {
   // 2) That the derivative, approximated as `(f(x+d) - f(x-d)) / (d*2)`, matches the derived and JIT-compiled one.
 
   using namespace current::expression;
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
   x[0] = 0.0;
 
   value_t const f = []() {
@@ -127,7 +127,7 @@ TEST(OptimizationDifferentiate, RegressionTest1DFunctions) {
 
 #define TEST_1D_FUNCTION(function_of_x, test_points_in_parens)                                                        \
   {                                                                                                                   \
-    Vars::ThreadLocalContext vars_context;                                                                            \
+    Vars::Scope scope;                                                                                                \
     x[0] = 0.0;                                                                                                       \
     value_t const f = []() {                                                                                          \
       value_t const x0 = x[0];                                                                                        \
@@ -200,7 +200,7 @@ TEST(OptimizationDifferentiate, RegressionTest2DFunctions) {
 
 #define TEST_2D_FUNCTION(function_of_x_and_y, test_points_pairs_in_parens)                                           \
   {                                                                                                                  \
-    Vars::ThreadLocalContext vars_context;                                                                           \
+    Vars::Scope scope;                                                                                               \
     x[0] = 0.0;                                                                                                      \
     x[1] = 0.0;                                                                                                      \
     value_t const f = []() {                                                                                         \
@@ -270,7 +270,7 @@ TEST(OptimizationDifferentiate, RegressionTest2DFunctions) {
 TEST(OptimizationDifferentiate, Constants) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x[0] = 0.0;
   x[1] = 0.0;
@@ -300,7 +300,7 @@ TEST(OptimizationDifferentiate, Constants) {
 TEST(OptimizationDifferentiate, Gradient) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x[0] = 0.0;
   x[1] = 0.0;
@@ -314,7 +314,7 @@ TEST(OptimizationDifferentiate, Gradient) {
 TEST(OptimizationDifferentiate, DirectionalDerivative) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x[0] = 0.0;
   x[1] = 0.0;
@@ -438,7 +438,7 @@ TEST(OptimizationDifferentiate, GradientComponentsAreNullified) {
 
   size_t const dim = 4;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   for (size_t i = 0; i < dim; ++i) {
     x[i] = 0.0;
@@ -461,7 +461,7 @@ TEST(OptimizationDifferentiate, GradientComponentsAreNullified) {
 TEST(OptimizationDifferentiate, NeedBalancedExpressionTree) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   value_t f = 0.0;
   for (size_t i = 0; i < 2000; ++i) {
@@ -484,7 +484,7 @@ TEST(OptimizationDifferentiate, NeedBalancedExpressionTree) {
 inline void RunOptimizationDifferentiateGradientStressTest(size_t dim) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   for (size_t i = 0; i < dim; ++i) {
     x[i] = 0.0;

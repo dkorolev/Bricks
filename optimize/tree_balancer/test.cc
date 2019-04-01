@@ -30,17 +30,17 @@ SOFTWARE.
 // Will fail on very deep trees because it is, well, recursive.
 namespace current {
 namespace expression {
-inline size_t UnitTestRecursiveExpressionNodeIndexTreeHeight(
-    ExpressionNodeIndex index, Vars::ThreadLocalContext const& vars_context = InternalTLS()) {
+inline size_t UnitTestRecursiveExpressionNodeIndexTreeHeight(ExpressionNodeIndex index,
+                                                             Vars::Scope const& scope = InternalTLS()) {
   return index.template CheckedDispatch<size_t>(
-      [&vars_context](size_t node_index) -> size_t {
-        ExpressionNodeImpl const& node = vars_context[node_index];
+      [&scope](size_t node_index) -> size_t {
+        ExpressionNodeImpl const& node = scope[node_index];
         ExpressionNodeType const node_type = node.Type();
         if (IsOperationNode(node_type)) {
-          return 1u + std::max(UnitTestRecursiveExpressionNodeIndexTreeHeight(node.LHSIndex(), vars_context),
-                               UnitTestRecursiveExpressionNodeIndexTreeHeight(node.RHSIndex(), vars_context));
+          return 1u + std::max(UnitTestRecursiveExpressionNodeIndexTreeHeight(node.LHSIndex(), scope),
+                               UnitTestRecursiveExpressionNodeIndexTreeHeight(node.RHSIndex(), scope));
         } else if (IsFunctionNode(node_type)) {
-          return 1u + UnitTestRecursiveExpressionNodeIndexTreeHeight(node.ArgumentIndex(), vars_context);
+          return 1u + UnitTestRecursiveExpressionNodeIndexTreeHeight(node.ArgumentIndex(), scope);
         } else {
 #ifndef NDEBUG
           TriggerSegmentationFault();
@@ -54,9 +54,8 @@ inline size_t UnitTestRecursiveExpressionNodeIndexTreeHeight(
       [](double) -> size_t { return 1u; },
       []() -> size_t { return 1u; });
 }
-inline size_t UnitTestRecursiveExpressionTreeHeight(value_t value,
-                                                    Vars::ThreadLocalContext const& vars_context = InternalTLS()) {
-  return UnitTestRecursiveExpressionNodeIndexTreeHeight(value.GetExpressionNodeIndex(), vars_context);
+inline size_t UnitTestRecursiveExpressionTreeHeight(value_t value, Vars::Scope const& scope = InternalTLS()) {
+  return UnitTestRecursiveExpressionNodeIndexTreeHeight(value.GetExpressionNodeIndex(), scope);
 }
 }  // namespace current::expression
 }  // namespace current
@@ -64,7 +63,7 @@ inline size_t UnitTestRecursiveExpressionTreeHeight(value_t value,
 TEST(OptimizationExpressionTreeBalancer, Smoke) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 #ifdef NDEBUG
   // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
   x[0u] = 0.0;
@@ -89,7 +88,7 @@ TEST(OptimizationExpressionTreeBalancer, Smoke) {
 TEST(OptimizationExpressionTreeBalancer, MixingAdditionAndMultiplication) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 #ifdef NDEBUG
   // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
   x[0u] = 0.0;
@@ -117,7 +116,7 @@ TEST(OptimizationExpressionTreeBalancer, MixingAdditionAndMultiplication) {
 TEST(OptimizationExpressionTreeBalancer, RebalanceWhatWasAddedLater) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 #ifdef NDEBUG
   // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
   x[0u] = 0.0;
@@ -158,7 +157,7 @@ TEST(OptimizationExpressionTreeBalancer, RebalanceWhatWasAddedLater) {
 TEST(OptimizationExpressionTreeBalancer, BalancedStaysBalanced) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 #ifdef NDEBUG
   // Make sure the vars are numbered from `x[1]`, not `x[0]`, in the return values of `.DebugAsString()`.
   x[0u] = 0.0;
@@ -216,7 +215,7 @@ TEST(OptimizationExpressionTreeBalancer, BalancedStaysBalanced) {
 #define SMOKE_LO(count, perfect_height, s_before, s_after)                                    \
   TEST(OptimizationExpressionTreeBalancer, LowNodesCountWithRecursiveSanityCheck##count) {    \
     using namespace current::expression;                                                      \
-    Vars::ThreadLocalContext vars_context;                                                    \
+    Vars::Scope scope;                                                                        \
     x[0u] = 0.0;                                                                              \
     value_t v = 0.0;                                                                          \
     for (size_t i = 0u; i < static_cast<size_t>(count); ++i) {                                \
@@ -237,7 +236,7 @@ TEST(OptimizationExpressionTreeBalancer, BalancedStaysBalanced) {
 #define SMOKE_HI(count, perfect_height)                                                                              \
   TEST(OptimizationExpressionTreeBalancer, HighNodesCountWithNoRecursion##count) {                                   \
     using namespace current::expression;                                                                             \
-    Vars::ThreadLocalContext vars_context;                                                                           \
+    Vars::Scope scope;                                                                                               \
     x[0u] = 0.0;                                                                                                     \
     value_t v = 0.0;                                                                                                 \
     for (size_t i = 0u; i < static_cast<size_t>(count); ++i) {                                                       \

@@ -40,7 +40,7 @@ SOFTWARE.
 
 TEST(OptimizationVars, SparseByInt) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x[1] = 2;
   x[100] = 101;
   x[42] = 0;
@@ -70,7 +70,7 @@ TEST(OptimizationVars, SparseByInt) {
 
 TEST(OptimizationVars, SparseByString) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x["foo"] = 1;
   x["bar"] = 2;
   x["baz"] = 3;
@@ -95,7 +95,7 @@ TEST(OptimizationVars, SparseByString) {
 
 TEST(OptimizationVars, EmptyStringAllowedAsVarName) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x["ok"] = 1;
   x[""] = 2;
   x["nested"]["also ok"] = 3;
@@ -108,7 +108,7 @@ TEST(OptimizationVars, EmptyStringAllowedAsVarName) {
 
 TEST(OptimizationVars, DenseVector) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x.DenseDoubleVector(5);
   x[2] = 2;
   x[4] = 4;
@@ -128,7 +128,7 @@ TEST(OptimizationVars, DenseVector) {
 
 TEST(OptimizationVars, InternalVarIndexes) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x["foo"][1] = 2;
   CHECK_VAR_NAME(x["foo"][1]);
   // Should keep track of allocated internal leaf indexes.
@@ -143,7 +143,7 @@ TEST(OptimizationVars, InternalVarIndexes) {
 
 TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x["dense"].DenseDoubleVector(2);
   x["sparse"][42] = 42;
   x["strings"]["foo"] = 1;
@@ -164,7 +164,7 @@ TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
 
 TEST(OptimizationVars, MultiDimensionalIntInt) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x[1][2] = 3;
   x[4][5] = 6;
   EXPECT_EQ("{'I':{'z':[[1,{'I':{'z':[[2,{'X':{'i':0,'x':3.0}}]]}}],[4,{'I':{'z':[[5,{'X':{'i':1,'x':6.0}}]]}}]]}}",
@@ -180,7 +180,7 @@ TEST(OptimizationVars, MultiDimensionalIntInt) {
 
 TEST(OptimizationVars, MultiDimensionalIntString) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x[1]["foo"] = 2;
   x[3]["bar"] = 4;
   EXPECT_EQ("{'I':{'z':[[1,{'S':{'z':{'foo':{'X':{'i':0,'x':2.0}}}}}],[3,{'S':{'z':{'bar':{'X':{'i':1,'x':4.0}}}}}]]}}",
@@ -196,7 +196,7 @@ TEST(OptimizationVars, MultiDimensionalIntString) {
 
 TEST(OptimizationVars, MultiDimensionalStringInt) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x["foo"][1] = 2;
   x["bar"][3] = 4;
   EXPECT_EQ("{'S':{'z':{'bar':{'I':{'z':[[3,{'X':{'i':1,'x':4.0}}]]}},'foo':{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}]]}}}}}",
@@ -212,7 +212,7 @@ TEST(OptimizationVars, MultiDimensionalStringInt) {
 
 TEST(OptimizationVars, Constants) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x["one"] = 1;
   x["two"] = 2;
   x["three"] = 3;
@@ -239,7 +239,7 @@ TEST(OptimizationVars, Constants) {
 
 TEST(OptimizationVars, DenseRepresentation) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   x["x"]["x1"] = 101;  // Add the values in an arbitrary order to test they get sorted before being flattened.
   x["x"]["x3"] = 103;
   x["x"]["x2"] = 102;
@@ -329,7 +329,7 @@ TEST(OptimizationVars, DenseRepresentation) {
 
 TEST(OptimizationVars, DenseVectorDimensions) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
+  Vars::Scope scope;
   ASSERT_THROW(x.DenseDoubleVector(0), VarsManagementException);
   ASSERT_THROW(x.DenseDoubleVector(static_cast<size_t>(1e6) + 1), VarsManagementException);
 }
@@ -343,8 +343,8 @@ TEST(OptimizationVars, NeedContext) {
 
 TEST(OptimizationVars, NoNestedContextsAllowed) {
   using namespace current::expression;
-  Vars::ThreadLocalContext context;
-  ASSERT_THROW(Vars::ThreadLocalContext illegal_inner_context, VarsManagementException);
+  Vars::Scope scope;
+  ASSERT_THROW(Vars::Scope illegal_inner_context, VarsManagementException);
 }
 
 #undef CHECK_VAR_NAME_AND_INDEX

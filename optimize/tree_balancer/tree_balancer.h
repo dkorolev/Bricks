@@ -32,8 +32,7 @@ SOFTWARE.
 namespace current {
 namespace expression {
 
-inline size_t ExpressionNodeIndexHeight(ExpressionNodeIndex index,
-                                        Vars::ThreadLocalContext const& vars_context = InternalTLS()) {
+inline size_t ExpressionNodeIndexHeight(ExpressionNodeIndex index, Vars::Scope const& scope = InternalTLS()) {
   std::stack<std::pair<size_t, size_t>> stack;
   size_t max_depth = 0u;
 
@@ -48,7 +47,7 @@ inline size_t ExpressionNodeIndexHeight(ExpressionNodeIndex index,
 
   // There are no cycles, but the same node can be reached via different paths, esp. w/ 1D lambda-based optimization.
   // Do not re-visit the nodes unless the new path from the root is longer (thus increasing the depth).
-  std::vector<size_t> seen_at_depth(vars_context.NumberOfNodes());
+  std::vector<size_t> seen_at_depth(scope.NumberOfNodes());
 
   while (!stack.empty()) {
     size_t const current_index = stack.top().first;
@@ -62,7 +61,7 @@ inline size_t ExpressionNodeIndexHeight(ExpressionNodeIndex index,
     }
     seen_at_depth[current_index] = current_depth;
 
-    ExpressionNodeImpl const& node = vars_context[current_index];
+    ExpressionNodeImpl const& node = scope[current_index];
     ExpressionNodeType const node_type = node.Type();
     if (IsOperationNode(node_type)) {
       PushToStack(node.LHSIndex(), current_depth + 1u);
@@ -79,14 +78,14 @@ inline size_t ExpressionNodeIndexHeight(ExpressionNodeIndex index,
   return max_depth;
 }
 
-inline size_t ExpressionTreeHeight(value_t value, Vars::ThreadLocalContext const& vars_context = InternalTLS()) {
-  return ExpressionNodeIndexHeight(value.GetExpressionNodeIndex(), vars_context);
+inline size_t ExpressionTreeHeight(value_t value, Vars::Scope const& scope = InternalTLS()) {
+  return ExpressionNodeIndexHeight(value.GetExpressionNodeIndex(), scope);
 }
 
 // A collection of node indexes united by `+` or by `*`, for further rebalancing.
 class NodesCluster {
  private:
-  Vars::ThreadLocalContext& vars_context_;
+  Vars::Scope& vars_scope_;
   std::vector<size_t> nodes_;                // The indexes of the nodes that form the cluster of `+` or `*` nodes.
   std::vector<ExpressionNodeIndex> leaves_;  // The nodes that are the "leaves" of this cluster, left to right.
   size_t max_height_ = 0u;                   // The height of this expression subtree, to decide if it needs balancing.
@@ -97,7 +96,7 @@ class NodesCluster {
     max_height_ = std::max(max_height_, height);
     if (!index.template Dispatch<bool>(
             [this, desired_node_type, height](size_t node_index) -> bool {
-              ExpressionNodeImpl const& node = vars_context_[node_index];
+              ExpressionNodeImpl const& node = vars_scope_[node_index];
               if (node.Type() == desired_node_type) {
                 nodes_.push_back(node_index);
                 DoBuild(node.LHSIndex(), desired_node_type, height + 1u);
@@ -134,7 +133,7 @@ class NodesCluster {
       bool done = false;
       if (index.UncheckedIsSpecificallyNodeIndex()) {
         size_t const node_index = static_cast<size_t>(index.UncheckedNodeIndex());
-        ExpressionNodeImpl const& node = vars_context_[node_index];
+        ExpressionNodeImpl const& node = vars_scope_[node_index];
         if (node.Type() == desired_node_type) {
           nodes_.push_back(node_index);
           // NOTE(dkorolev): Essential to flip the order of LHS and RHS here!
@@ -166,17 +165,17 @@ class NodesCluster {
     // Never called on an empty set of nodes.
     if (node_end == node_begin + 1u) {
       // One node, to leaves.
-      vars_context_.MutableNodeByIndex(nodes_[node_begin]).InitLHSRHS(leaves_[leaf_begin], leaves_[leaf_begin + 1u]);
+      vars_scope_.MutableNodeByIndex(nodes_[node_begin]).InitLHSRHS(leaves_[leaf_begin], leaves_[leaf_begin + 1u]);
     } else if (node_end == node_begin + 2u) {
       // Two nodes, three leaves. Represent them left-to-right, as the "natural" order would.
-      vars_context_.MutableNodeByIndex(nodes_[node_begin])
+      vars_scope_.MutableNodeByIndex(nodes_[node_begin])
           .InitLHSRHS(ExpressionNodeIndex::FromNodeIndex(nodes_[node_begin + 1u]), leaves_[leaf_end - 1u]);
       DoRecursiveRebalance(node_begin + 1u, node_end, leaf_begin, leaf_end - 1u);
     } else {
       // Three or more nodes, four or more leaves.
       size_t const leaf_midpoint = (leaf_begin + leaf_end + 1u) / 2u;
       size_t const node_midpoint = node_end - (leaf_end - leaf_midpoint) + 1;
-      vars_context_.MutableNodeByIndex(nodes_[node_begin])
+      vars_scope_.MutableNodeByIndex(nodes_[node_begin])
           .InitLHSRHS(ExpressionNodeIndex::FromNodeIndex(nodes_[node_begin + 1u]),
                       ExpressionNodeIndex::FromNodeIndex(nodes_[node_midpoint]));
       DoRecursiveRebalance(node_begin + 1u, node_midpoint, leaf_begin, leaf_midpoint);
@@ -185,7 +184,7 @@ class NodesCluster {
   }
 
  public:
-  NodesCluster(Vars::ThreadLocalContext& vars_context) : vars_context_(vars_context) {}
+  NodesCluster(Vars::Scope& scope) : vars_scope_(scope) {}
 
   void Build(ExpressionNodeIndex index, ExpressionNodeType desired_node_type) {
     nodes_.clear();
@@ -225,8 +224,7 @@ class NodesCluster {
 };
 
 // NOTE(dkorolev): See the warning below, for `BalanceExpressionTree()`.
-inline void BalanceExpressionNodeIndexTree(ExpressionNodeIndex index,
-                                           Vars::ThreadLocalContext& vars_context = InternalTLS()) {
+inline void BalanceExpressionNodeIndexTree(ExpressionNodeIndex index, Vars::Scope& scope = InternalTLS()) {
   std::stack<size_t> stack;
 
   auto const PushToStack = [&stack](ExpressionNodeIndex index) {
@@ -241,11 +239,11 @@ inline void BalanceExpressionNodeIndexTree(ExpressionNodeIndex index,
     size_t const current_index = stack.top();
     stack.pop();
 
-    ExpressionNodeImpl const& node = vars_context[current_index];
+    ExpressionNodeImpl const& node = scope[current_index];
     ExpressionNodeType const node_type = node.Type();
     if (node_type == ExpressionNodeType::Operation_add || node_type == ExpressionNodeType::Operation_mul) {
       // Assemble the cluster. Invariant: It will always be M nodes and (M+1) leaves.
-      NodesCluster cluster(vars_context);
+      NodesCluster cluster(scope);
       cluster.Build(ExpressionNodeIndex::FromNodeIndex(current_index), node_type);
       if (cluster.NeedsRebalancing()) {
 #ifndef NDEBUG
@@ -279,8 +277,8 @@ inline void BalanceExpressionNodeIndexTree(ExpressionNodeIndex index,
 //
 // The user is expected to run `BalanceExpressionTree` at most once, for the top-level cost function to be optimized,
 // prior to it being differentiated and JIT-compiled.
-inline void BalanceExpressionTree(value_t value, Vars::ThreadLocalContext& vars_context = InternalTLS()) {
-  BalanceExpressionNodeIndexTree(value.GetExpressionNodeIndex(), vars_context);
+inline void BalanceExpressionTree(value_t value, Vars::Scope& scope = InternalTLS()) {
+  BalanceExpressionNodeIndexTree(value.GetExpressionNodeIndex(), scope);
 }
 
 }  // namespace current::expression

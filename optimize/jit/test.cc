@@ -33,13 +33,13 @@ SOFTWARE.
 TEST(OptimizationJIT, SmokeAdd) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x["a"] = 1.0;
   value_t const value = x["a"] + x["a"];
 
   // The constuctor of `JITCallContext` allocates the RAM buffer for the temporary computations.
-  JITCallContext jit_call_context(vars_context);
+  JITCallContext jit_call_context(scope);
 
   // The instance of `JITCompiler` can emit one or more compiled functiont, which would all operate on the same
   // instance of `JITCallContext`, so that they, when called in the order of compilation, reuse intermediate results.
@@ -62,18 +62,18 @@ TEST(OptimizationJIT, SmokeAdd) {
 TEST(OptimizationJIT, SmokeAddConstant) {
   using namespace current::expression;
 
-  std::unique_ptr<Vars::ThreadLocalContext> vars_context = std::make_unique<Vars::ThreadLocalContext>();
+  std::unique_ptr<Vars::Scope> scope = std::make_unique<Vars::Scope>();
 
   x["b"] = 1.0;
   value_t const value = x["b"] + 1.0;
-  Vars::Config const vars_config = vars_context->VarsConfig();
+  Vars::Config const vars_config = scope->VarsConfig();
 
   // Compilation still requires the context, because that's where the expression tree is stored.
   JITCallContext jit_call_context(vars_config);
   JITCompiledFunction const f = JITCompiler(jit_call_context).Compile(value);
 
   // Once the function is JIT-compiled, the vars context (and the function compilation context) can be freed.
-  vars_context = nullptr;
+  scope = nullptr;
 
   Vars values(vars_config);
   EXPECT_EQ(2.0, f(values.x));
@@ -88,7 +88,7 @@ TEST(OptimizationJIT, SmokeAddConstant) {
 TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x["a"] = 1.0;
   x["b"] = 1.0;
@@ -111,12 +111,12 @@ TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
 TEST(OptimizationJIT, Exp) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x["c"] = 0.0;
   value_t const value = exp(x["c"]);
 
-  // No need to provide the `vars_context`, the thread-local singleton one will be used by default.
+  // No need to provide the `scope`, the thread-local singleton one will be used by default.
   JITCallContext jit_call_context;
 
   // Confirm that the lifetime of `JITCompiler` is not necessary for the functions to be called.
@@ -153,7 +153,7 @@ TEST(OptimizationJIT, OtherMathFunctions) {
 
   EXPECT_EQ(14u, static_cast<size_t>(ExpressionFunctionIndex::TotalFunctionsCount));
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x["p"] = 0.0;
   value_t const p = x["p"];
@@ -211,7 +211,7 @@ TEST(OptimizationJIT, OtherMathFunctions) {
 TEST(OptimizationJIT, IntermediateResultsAreReused) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x["p"] = 0.0;
   value_t const a = sqrt(1.0 + (2.0 + sqr(x["p"])) - 3.0);  // To make sure `a` is not "optimized away" :-) -- D.K.
@@ -264,7 +264,7 @@ TEST(OptimizationJIT, IntermediateResultsAreReused) {
 TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x["t"] = 0.0;
   value_t const r = x["t"] - sqrt(2.0) + 1.0;
@@ -282,7 +282,7 @@ TEST(OptimizationJIT, DoublesAreStoredWithPerfectMachinePrecision) {
 TEST(OptimizationJIT, FunctionWithArgument) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x["a"] = 0.0;
   value_t const lambda = value_t::lambda();
@@ -303,7 +303,7 @@ TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
   // never actually has to "compute" the expression node of the respective type. -- D.K.
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
   value_t const lambda = value_t::lambda();
 
   JITCallContext jit_call_context;
@@ -318,7 +318,7 @@ TEST(OptimizationJIT, FunctionWithArgumentReturningArgumentItself) {
 inline void RunOptimizationJITStressTest(size_t dim) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   for (size_t i = 0; i < dim; ++i) {
     x[i] = 0.0;

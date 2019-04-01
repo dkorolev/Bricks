@@ -129,15 +129,15 @@ inline ExpressionNodeIndex DifferentiateFunction(ExpressionNodeType node_type,
 #ifndef NDEBUG
 class RecursivelyEnsureExpressionIsDAGImpl {
  private:
-  Vars::ThreadLocalContext const& vars_context_;
+  Vars::Scope const& vars_scope_;
   std::vector<size_t> seen_count_;
   std::vector<bool> node_in_stack_;
 
  public:
   RecursivelyEnsureExpressionIsDAGImpl()
-      : vars_context_(InternalTLS()),
-        seen_count_(vars_context_.NumberOfNodes()),
-        node_in_stack_(vars_context_.NumberOfNodes()) {}
+      : vars_scope_(InternalTLS()),
+        seen_count_(vars_scope_.NumberOfNodes()),
+        node_in_stack_(vars_scope_.NumberOfNodes()) {}
 
   void Run(ExpressionNodeIndex index) {
     if (index.UncheckedIsSpecificallyNodeIndex()) {
@@ -150,7 +150,7 @@ class RecursivelyEnsureExpressionIsDAGImpl {
         TriggerSegmentationFault();
       }
       ++seen_count_[node_index] = true;
-      ExpressionNodeImpl const& node = vars_context_[node_index];
+      ExpressionNodeImpl const& node = vars_scope_[node_index];
       ExpressionNodeType const type = node.Type();
       if (IsOperationNode(type)) {
         Run(node.LHSIndex());

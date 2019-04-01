@@ -71,18 +71,18 @@ TEST(OptimizationOptimizer, OptimizationDoesNotRequireVarsContext) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  std::unique_ptr<Vars::ThreadLocalContext> vars_context = std::make_unique<Vars::ThreadLocalContext>();
+  std::unique_ptr<Vars::Scope> scope = std::make_unique<Vars::Scope>();
 
   x[0] = 0;
   x[1] = 0;
 
   value_t const f = sqr(x[0] - 3) + sqr(x[1] - 5);
 
-  OptimizationContext optimization_context(f, *vars_context);
+  OptimizationContext optimization_context(f, *scope);
 
-  Vars::Config const vars_config = vars_context->VarsConfig();
+  Vars::Config const vars_config = scope->VarsConfig();
 
-  vars_context = nullptr;
+  scope = nullptr;
 
   OptimizationResult const result = Optimize(optimization_context);
 
@@ -106,7 +106,7 @@ TEST(OptimizationOptimizer, TrivialSingleStepOptimization) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x[0] = 0;
   x[1] = 0;
@@ -137,7 +137,7 @@ TEST(OptimizationOptimizer, MultiStepOptimization) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x[0] = 0.0;
   x[1] = 0.0;
@@ -175,7 +175,7 @@ TEST(OptimizationOptimizer, RosenbrockFunction) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x[0] = -3.0;
   x[1] = -4.0;
@@ -205,7 +205,7 @@ TEST(OptimizationOptimizer, HimmelblauFunction) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
-  Vars::ThreadLocalContext vars_context;
+  Vars::Scope scope;
 
   x[0] = 5.0;
   x[1] = 5.0;

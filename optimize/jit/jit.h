@@ -129,7 +129,7 @@ class JITCallContext {
 
  public:
   explicit JITCallContext(Vars::Config const& vars_config) : impl_(vars_config) {}
-  JITCallContext(Vars::ThreadLocalContext& vars_context = InternalTLS()) : JITCallContext(vars_context.VarsConfig()) {}
+  JITCallContext(Vars::Scope& scope = InternalTLS()) : JITCallContext(scope.VarsConfig()) {}
 
   current::sync::Borrowed<JITCallContextImpl> BorrowImpl() { return impl_; }
 
@@ -298,7 +298,7 @@ class JITCompiler final {
 
   // The vars context is where all the expression nodes are stored, and it's essential
   // it exists during the lifetime of the very `JITCompiler`.
-  Vars::ThreadLocalContext const& vars_context_;
+  Vars::Scope const& vars_scope_;
 
   // Effecively, the offset in the array of `double`-s where the `lambda` is stored.
   size_t const number_of_nodes_;
@@ -368,7 +368,7 @@ class JITCompiler final {
 #endif
         if (!node_computed_[current_node_index]) {
           using namespace current::fncas::x64_native_jit;
-          ExpressionNodeImpl const& node = vars_context_[current_node_index];
+          ExpressionNodeImpl const& node = vars_scope_[current_node_index];
           ExpressionNodeType const type = node.Type();
           if (false) {
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                                                         \
@@ -440,10 +440,10 @@ class JITCompiler final {
   }
 
  public:
-  JITCompiler(JITCallContext& jit_call_context, Vars::ThreadLocalContext& vars_context = InternalTLS())
+  JITCompiler(JITCallContext& jit_call_context, Vars::Scope& scope = InternalTLS())
       : jit_call_context_impl_(jit_call_context.BorrowImpl()),
-        vars_context_(vars_context),
-        number_of_nodes_(vars_context.VarsConfig().NumberOfNodes()),
+        vars_scope_(scope),
+        number_of_nodes_(scope.VarsConfig().NumberOfNodes()),
         node_computed_(number_of_nodes_) {}
 
   JITCompiledFunction Compile(value_t node) {

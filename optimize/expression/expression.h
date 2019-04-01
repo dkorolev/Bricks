@@ -314,18 +314,18 @@ using namespace current::expression::functions;
 // The usecase of this method is the construction of the "cost function" for line search optimization.
 class Build1DFunctionImpl {
  private:
-  Vars::ThreadLocalContext const& vars_context_;
+  Vars::Scope const& vars_scope_;
   std::vector<ExpressionNodeIndex> const& substitute_;
 
  public:
-  Build1DFunctionImpl(Vars::ThreadLocalContext const& vars_context, std::vector<ExpressionNodeIndex> const& substitute)
-      : vars_context_(vars_context), substitute_(substitute) {}
+  Build1DFunctionImpl(Vars::Scope const& scope, std::vector<ExpressionNodeIndex> const& substitute)
+      : vars_scope_(scope), substitute_(substitute) {}
 
   // TODO(dkorolev): This `DoBuild1DFunction` is a) `Checked`, meaning slow, and b) recursive. Something to fix.
   ExpressionNodeIndex DoBuild1DFunction(ExpressionNodeIndex f) const {
     return f.template CheckedDispatch<ExpressionNodeIndex>(
         [&](size_t node_index) -> ExpressionNodeIndex {
-          ExpressionNodeImpl const& short_lived_node = vars_context_[node_index];
+          ExpressionNodeImpl const& short_lived_node = vars_scope_[node_index];
           ExpressionNodeType const type = short_lived_node.Type();
           if (false) {
 #define CURRENT_EXPRESSION_MATH_OPERATION(op, op2, name)                     \
@@ -374,21 +374,19 @@ class Build1DFunctionImpl {
         });
   }
 };
-inline value_t Build1DFunction(value_t f,
-                               std::vector<value_t> const& substitute,
-                               Vars::ThreadLocalContext& vars_context = InternalTLS()) {
+inline value_t Build1DFunction(value_t f, std::vector<value_t> const& substitute, Vars::Scope& scope = InternalTLS()) {
   std::vector<ExpressionNodeIndex> actual_substitute(substitute.size());
   for (size_t i = 0u; i < substitute.size(); ++i) {
     actual_substitute[i] = substitute[i].GetExpressionNodeIndex();
   }
   return value_t::FromExpressionNodeIndex(
-      Build1DFunctionImpl(vars_context, actual_substitute).DoBuild1DFunction(f.GetExpressionNodeIndex()));
+      Build1DFunctionImpl(scope, actual_substitute).DoBuild1DFunction(f.GetExpressionNodeIndex()));
 }
 inline value_t Build1DFunction(value_t f,
                                std::vector<ExpressionNodeIndex> const& substitute,
-                               Vars::ThreadLocalContext& vars_context = InternalTLS()) {
+                               Vars::Scope& scope = InternalTLS()) {
   return value_t::FromExpressionNodeIndex(
-      Build1DFunctionImpl(vars_context, substitute).DoBuild1DFunction(f.GetExpressionNodeIndex()));
+      Build1DFunctionImpl(scope, substitute).DoBuild1DFunction(f.GetExpressionNodeIndex()));
 }
 
 }  // namespace current::expression
