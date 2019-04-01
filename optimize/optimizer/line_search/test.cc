@@ -42,7 +42,7 @@ TEST(OptimizationOptimizerLineSearch, FunctionOfOrderTwo) {
 
   value_t const f = sqr(x[0] - 3.0);
 
-  OptimizationContext optimization_context(vars_context, f);
+  OptimizationContext optimization_context(f, vars_context);
   LineSearchContext const line_search_context(optimization_context);
 
   // The function and its gradient must be computed prior to the line search being invoked, in order for the internal
@@ -199,7 +199,7 @@ inline void ExpectCommentsMatchIfInParanoidMode(std::string const& expected_comm
     x[0] = 0.0;                                                                                                        \
     value_t const f = [](value_t x) { return function_body; }(x[0]);                                                   \
     using namespace current::expression::optimizer;                                                                    \
-    OptimizationContext optimization_context(vars_context, f);                                                         \
+    OptimizationContext optimization_context(f, vars_context);                                                         \
     LineSearchContext const line_search_context(optimization_context);                                                 \
     optimization_context.compiled_f(optimization_context.jit_call_context, optimization_context.vars_values.x);        \
     double const derivative_value =                                                                                    \

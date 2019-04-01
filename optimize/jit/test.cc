@@ -62,22 +62,29 @@ TEST(OptimizationJIT, SmokeAdd) {
 TEST(OptimizationJIT, SmokeAddConstant) {
   using namespace current::expression;
 
-  Vars::ThreadLocalContext vars_context;
+  std::unique_ptr<Vars::ThreadLocalContext> vars_context = std::make_unique<Vars::ThreadLocalContext>();
 
   x["b"] = 1.0;
   value_t const value = x["b"] + 1.0;
+  Vars::Config const vars_config = vars_context->VarsConfig();
 
-  JITCallContext jit_call_context;
-  JITCompiledFunction const f = JITCompiler(jit_call_context).Compile(value);
+  // Compilation still requires the context, because that's where the expression tree is stored.
+  JITCallContext jit_call_compile_context(*vars_context);
+  JITCompiledFunction const f = JITCompiler(jit_call_compile_context).Compile(value);
 
-  Vars values;
+  // Once the function is JIT-compiled, the vars context (and the function compilation context) can be freed.
+  vars_context = nullptr;
+
+  JITCallContext jit_call_run_context(vars_config);
+
+  Vars values(vars_config);
   EXPECT_EQ(2.0, f(jit_call_context, values.x));
 
   values["b"] = 2.0;
-  EXPECT_EQ(3.0, f(jit_call_context, values));  // Can pass `values` instead of `values.x`.
+  EXPECT_EQ(3.0, f(jit_call_run_context, values));  // Can pass `values` instead of `values.x`.
 
   values["b"] = -2.0;
-  EXPECT_EQ(-1.0, f(jit_call_context, values));
+  EXPECT_EQ(-1.0, f(jit_call_run_context, values));
 }
 
 TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {

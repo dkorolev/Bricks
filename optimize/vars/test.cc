@@ -151,7 +151,7 @@ TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
   CHECK_VAR_NAME(x["dense"][1]);
   CHECK_VAR_NAME(x["sparse"][42]);
   CHECK_VAR_NAME(x["strings"]["foo"]);
-  x.GetConfig();
+  x.VarsConfig();  // This freezes the vars, and no new ones can be added.
   x["dense"][0];
   x["dense"][1];
   x["sparse"][42];
@@ -169,7 +169,7 @@ TEST(OptimizationVars, MultiDimensionalIntInt) {
   x[4][5] = 6;
   EXPECT_EQ("{'I':{'z':[[1,{'I':{'z':[[2,{'X':{'i':0,'x':3.0}}]]}}],[4,{'I':{'z':[[5,{'X':{'i':1,'x':6.0}}]]}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
-  x.GetConfig();
+  x.VarsConfig();  // This freezes the vars, and no new ones can be added.
   EXPECT_EQ(
       "{'I':{'z':["
       "[1,{'I':{'z':[[2,{'X':{'i':0,'x':3.0}}]]}}],"
@@ -185,7 +185,7 @@ TEST(OptimizationVars, MultiDimensionalIntString) {
   x[3]["bar"] = 4;
   EXPECT_EQ("{'I':{'z':[[1,{'S':{'z':{'foo':{'X':{'i':0,'x':2.0}}}}}],[3,{'S':{'z':{'bar':{'X':{'i':1,'x':4.0}}}}}]]}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
-  x.GetConfig();
+  x.VarsConfig();  // This freezes the vars, and no new ones can be added.
   EXPECT_EQ(
       "{'I':{'z':["
       "[1,{'S':{'z':{'foo':{'X':{'i':0,'x':2.0}}}}}],"
@@ -201,7 +201,7 @@ TEST(OptimizationVars, MultiDimensionalStringInt) {
   x["bar"][3] = 4;
   EXPECT_EQ("{'S':{'z':{'bar':{'I':{'z':[[3,{'X':{'i':1,'x':4.0}}]]}},'foo':{'I':{'z':[[1,{'X':{'i':0,'x':2.0}}]]}}}}}",
             SingleQuoted(JSON<JSONFormat::Minimalistic>(x.UnitTestDump())));
-  x.GetConfig();
+  x.VarsConfig();  // This freezes the vars, and no new ones can be added.
   EXPECT_EQ(
       "{'S':{'z':{"
       "'bar':{'I':{'z':[[3,{'X':{'i':1,'x':4.0}}]]}},"
@@ -256,7 +256,7 @@ TEST(OptimizationVars, DenseRepresentation) {
   CHECK_VAR_NAME(x["y"][0][1]);
   CHECK_VAR_NAME(x["y"][1][0]);
   CHECK_VAR_NAME(x["y"][1][1]);
-  Vars::Config const config = x.GetConfig();
+  Vars::Config const config = x.VarsConfig();
   ASSERT_EQ(7u, config.NumberOfVars());
   // The indexes on the right are flipped.
   CHECK_VAR_NAME_AND_INDEX(x["x"]["x1"], 0u);

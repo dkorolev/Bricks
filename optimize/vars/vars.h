@@ -86,8 +86,8 @@ struct VarsMapperException : OptimizeException {};
 struct VarsMapperWrongVarException final : VarsMapperException {};
 struct VarsMapperNodeNotVarException final : VarsMapperException {};
 struct VarsMapperVarIsConstant final : VarsMapperException {};
-struct VarsMapperMovePointDimensionsMismatchException final : VarsMapperException {};
-struct VarsMapperMovePointUnexpectedLambda final : VarsMapperException {};
+struct VarsMapperMovePointUnexpectedLambdaException final : VarsMapperException {};
+struct VarsMapperDimensionMismatchException final : VarsMapperException {};
 
 namespace json {
 // Short names to save on space in these JSONs.
@@ -176,8 +176,8 @@ class InternalVarsContextInterface {
  public:
   ~InternalVarsContextInterface() = default;
 
-  // After the call to `DoGetConfig()`, the expression is "frozen", and no new vars or nodes can be added.
-  virtual InternalVarsConfig const& DoGetConfig() = 0;
+  // After the call to `VarsConfig()`, the expression is "frozen", and no new vars or nodes can be added.
+  virtual InternalVarsConfig const& VarsConfig() = 0;
   virtual bool IsFrozen() const = 0;
 
 #ifndef NDEBUG
@@ -275,18 +275,25 @@ class Vars final {
   // `x` is a const reference `value_`, for easy read-only access to the vars. NOTE(dkorolev): Possibly reshuffled vars!
   std::vector<double> const& x = value_;
 
-  explicit Vars(InternalVarsConfig const& config = InternalTLSInterface().DoGetConfig())
+  explicit Vars(InternalVarsConfig const& config = InternalTLSInterface().VarsConfig())
       : config_(config), value_(config.StartingPoint()), root_(value_, config_.Root()) {}
 
   AccessorNode operator[](size_t i) const { return root_[i]; }
   AccessorNode operator[](std::string const& s) const { return root_[s]; }
+
+  void InjectPoint(std::vector<double> const& point) {
+    if (!(point.size() == value_.size())) {
+      CURRENT_THROW(VarsMapperDimensionMismatchException());
+    }
+    value_ = point;
+  }
 
   // This method is `template`-d to accept both `std::vector<ExpressionNodeIndex>` and `std::vector<value_t>`.
   // The latter type, `value_t`, is not introduced when building `vars.h`.
   template <typename T>
   void MovePoint(double const* ram, T const& direction, double step_size) {
     if (direction.size() != value_.size()) {
-      CURRENT_THROW(VarsMapperMovePointDimensionsMismatchException());
+      CURRENT_THROW(VarsMapperDimensionMismatchException());
     }
     std::vector<double> new_value(value_);
     for (size_t i = 0; i < direction.size(); ++i) {
@@ -294,7 +301,7 @@ class Vars final {
           .CheckedDispatch([&](size_t node_index) { new_value[i] += ram[node_index] * step_size; },
                            [&](size_t var_index) { new_value[i] += value_[var_index] * step_size; },
                            [&](double x) { new_value[i] += x * step_size; },
-                           []() { CURRENT_THROW(VarsMapperMovePointUnexpectedLambda()); });
+                           []() { CURRENT_THROW(VarsMapperMovePointUnexpectedLambdaException()); });
     }
     value_ = std::move(new_value);
   }
@@ -622,7 +629,7 @@ class InternalVarsContext final : public InternalVarsContextInterface {
   std::vector<bool> allocated_var_is_constant_;
   std::vector<ExpressionNodeImpl> expression_nodes_;
 
-  // Initialized on the first call to `DoGetConfig()`, and no new vars or nodes can be added after that call.
+  // Initialized on the first call to `VarsConfig()`, and no new vars or nodes can be added after that call.
   std::unique_ptr<InternalVarsConfig> vars_mapper_config_;
 
 #ifndef NDEBUG
@@ -666,8 +673,8 @@ class InternalVarsContext final : public InternalVarsContextInterface {
     return vars_mapper_config_ != nullptr;
   }
 
-  // After the call to `DoGetConfig()`, the expression is "frozen", and no new vars or nodes can be added.
-  InternalVarsConfig const& DoGetConfig() override {
+  // After the call to `VarsConfig()`, the expression is "frozen", and no new vars or nodes can be added.
+  InternalVarsConfig const& VarsConfig() override {
 #ifndef NDEBUG
     ConfirmSelfActiveIfInDebugMode();
 #endif
@@ -783,8 +790,8 @@ struct VarsAccessor final {
   VarNode& operator[](std::string const& s) { return InternalTLS().RootNode()[s]; }
   void DenseDoubleVector(size_t dim) { InternalTLS().RootNode().DenseDoubleVector(dim); }
 
-  // After the call to `GetConfig()`, the expression is "frozen", and no new vars or nodes can be added.
-  InternalVarsConfig GetConfig() const { return InternalTLS().DoGetConfig(); }
+  // After the call to `VarsConfig()`, the expression is "frozen", and no new vars or nodes can be added.
+  InternalVarsConfig VarsConfig() const { return InternalTLS().VarsConfig(); }
 
   // Used by the unit test only.
   json::Node UnitTestDump() const { return InternalTLS().RootNode().ConstructTree(); }

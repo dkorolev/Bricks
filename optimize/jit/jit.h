@@ -104,7 +104,7 @@ class JITCallContext final {
   // to later intoduce functions of one variable, i.e. for directional derivatives.
   JITCallContext(Vars::ThreadLocalContext& context = InternalTLS())
       : vars_context_(context),
-        vars_config_(context.DoGetConfig()),
+        vars_config_(context.VarsConfig()),
         number_of_nodes_(vars_context_.NumberOfNodes()),
         ram_(number_of_nodes_ + 1u) {}
 

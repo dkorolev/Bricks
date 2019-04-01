@@ -67,6 +67,42 @@ TEST(OptimizationOptimizer, IsNormal) {
   EXPECT_FALSE(IsNormal(acos(-1.5)));
 }
 
+TEST(OptimizationOptimizer, OptimizationDoesNotRequireVarsContext) {
+  using namespace current::expression;
+  using namespace current::expression::optimizer;
+
+  std::unique_ptr<Vars::ThreadLocalContext> vars_context = std::make_unique<Vars::ThreadLocalContext>();
+
+  x[0] = 0;
+  x[1] = 0;
+
+  value_t const f = sqr(x[0] - 3) + sqr(x[1] - 5);
+
+  OptimizationContext optimization_context(f, *vars_context);
+
+  Vars::Config const vars_config = vars_context->VarsConfig();
+
+  vars_context = nullptr;
+
+  OptimizationResult const result = Optimize(optimization_context);
+
+  EXPECT_EQ(2u, result.iterations);
+
+  EXPECT_EQ("[34.0,0.0]", JSON(result.values));
+  EXPECT_EQ("[[0.0,0.0],[3.0,5.0]]", JSON(result.trace));
+  EXPECT_EQ("[-0.5]", JSON(result.steps));
+
+  EXPECT_EQ("[3.0,5.0]", JSON(result.final_point));
+  ASSERT_EQ(2u, result.final_point.size());
+  EXPECT_NEAR(3, result.final_point[0], 1e-6);
+  EXPECT_NEAR(5, result.final_point[1], 1e-6);
+  EXPECT_NEAR(0.0, result.final_value, 1e-6);
+
+  EXPECT_EQ(0.0, optimization_context.compiled_f(optimization_context.jit_call_context, result.final_point));
+  EXPECT_EQ("[0.0,0.0]",
+            JSON(optimization_context.compiled_g(optimization_context.jit_call_context, result.final_point)));
+}
+
 TEST(OptimizationOptimizer, TrivialSingleStepOptimization) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
@@ -78,7 +114,7 @@ TEST(OptimizationOptimizer, TrivialSingleStepOptimization) {
 
   value_t const f = sqr(x[0] - 3) + sqr(x[1] - 5);
 
-  OptimizationContext optimization_context(vars_context, f);
+  OptimizationContext optimization_context(f);
 
   OptimizationResult const result = Optimize(optimization_context);
 
@@ -110,7 +146,7 @@ TEST(OptimizationOptimizer, MultiStepOptimization) {
 
   value_t const f = log(1 + exp(x[0] - 3)) + log(1 + exp(3 - x[0])) + log(1 + exp(x[1] - 5)) + log(1 + exp(5 - x[1]));
 
-  OptimizationContext optimization_context(vars_context, f);
+  OptimizationContext optimization_context(f);
   OptimizationResult const result = Optimize(optimization_context);
 
   EXPECT_EQ(5u, result.iterations);
@@ -152,7 +188,7 @@ TEST(OptimizationOptimizer, RosenbrockFunction) {
   value_t const d2 = (x[1] - x[0] * x[0]);
   value_t const f = d1 * d1 + b * d2 * d2;
 
-  OptimizationContext optimization_context(vars_context, f);
+  OptimizationContext optimization_context(f);
   OptimizationResult const result = Optimize(optimization_context);
 
   EXPECT_EQ( ??? , result.iterations);
@@ -180,7 +216,7 @@ TEST(OptimizationOptimizer, HimmelblauFunction) {
   value_t const d2 = (x[0] + x[1] * x[1] - 7);
   value_t const f = (d1 * d1 + d2 * d2);
 
-  OptimizationContext optimization_context(vars_context, f);
+  OptimizationContext optimization_context(f);
   OptimizationResult const result = Optimize(optimization_context);
 
   EXPECT_EQ("[3.0000001668093208,2.000001044657872]", JSON(result.final_point));

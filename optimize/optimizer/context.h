@@ -63,7 +63,12 @@ struct OptimizationContext {
   value_t const l;                // The "line" 1D function f(lambda), to optimize along the gradient.
   std::vector<value_t> const ds;  // The derivatives of the 1D "line" function; one requires, others optional.
 
+  // The setup for the variables, to operate with vars tree after vars scope is gone.
+  // NOTE(dkorolev): Should absolutely be a copy, not a const reference.
+  Vars::Config const vars_config;
+
   // Vars values, initialized after all the gradients are taken, and all the nodes are added.
+  // Effectively, the starting or the current point of optimization, which is the only "dynamic" part of this context.
   Vars vars_values;
 
   JITCallContext jit_call_context;  // The holder of the RAM block to run the JIT-compiled functions.
@@ -111,12 +116,15 @@ struct OptimizationContext {
     return result;
   }
 
-  OptimizationContext(Vars::ThreadLocalContext& vars_context, value_t f)
+  // NOTE(dkorolev): Important to initialize `vars_values` after the differentiation took place,
+  // as differentiating adds nodes to the expression tree, which is frozen after the vars context is exported.
+  OptimizationContext(value_t f, Vars::ThreadLocalContext& vars_context = InternalTLS())
       : f(f),
         g(ComputeGradient(f)),
         l(GenerateLineSearchFunction(f, g)),
         ds(ComputeDS(l)),
-        vars_values(vars_context.DoGetConfig()),
+        vars_config(vars_context.VarsConfig()),
+        vars_values(vars_config),
         jit_call_context(),
         jit_compiler(jit_call_context),
         compiled_f(jit_compiler.Compile(f)),

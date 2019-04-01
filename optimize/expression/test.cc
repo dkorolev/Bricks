@@ -293,7 +293,7 @@ TEST(OptimizationExpression, GeneratingVarsMapperPreventsFutherNodesCreation) {
   EXPECT_EQ(1u, tmp2.GetExpressionNodeIndex().UnitTestNodeIndex());
   EXPECT_EQ(2u, tmp3.GetExpressionNodeIndex().UnitTestNodeIndex());
 
-  Vars::Config const config = vars_context.DoGetConfig();
+  Vars::Config const config = vars_context.VarsConfig();
   EXPECT_EQ(1u, config.NumberOfVars());   // Just one variable, `x[0]`.
   EXPECT_EQ(3u, config.NumberOfNodes());  // Three `+` nodes.
 
