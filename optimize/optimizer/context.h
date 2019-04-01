@@ -136,9 +136,7 @@ struct OptimizationContext {
   // This method is only used for the unit tests, as the context keeps the value at the current point.
   double UnitTestComputeCurrentObjectiveFunctionValue() const { return compiled_f(vars_values); }
 
-  void MovePointAlongGradient(double gradient_k) {
-    vars_values.MovePoint(jit_call_context.ConstRAMPointer(), g, gradient_k);
-  }
+  void MovePointAlongGradient(double gradient_k) { vars_values.MovePoint(jit_call_context, g, gradient_k); }
 
   operator LineSearchContext() const {
     return LineSearchContext(vars_values, compiled_l, *compiled_ds.front(), compiled_ds_pointers);

@@ -137,6 +137,8 @@ class JITCallContext {
   void MarkNewPoint() { impl_->MarkNewPoint(); }
 };
 
+inline double const* AcceptVariousRAMPointers(JITCallContext const& ctx) { return ctx.ConstRAMPointer(); }
+
 class JITCompiledFunctionImpl final {
  private:
   current::sync::Borrowed<JITCallContextImpl> ctx_;

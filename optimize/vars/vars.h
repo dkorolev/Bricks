@@ -192,6 +192,9 @@ inline InternalVarsScopeInterface& InternalTLSInterface();
 // To also be implemented for `value_t` in `../expression/expression.h`; the `value_t` type is unknown to `vars/`.
 inline ExpressionNodeIndex ExpressionNodeIndexFromExpressionNodeOrValue(ExpressionNodeIndex index) { return index; }
 
+// To also be implemented for `JITCallContext` in `../jit/jit.h`.
+inline double const* AcceptVariousRAMPointers(double const* ptr) { return ptr; }
+
 class Vars final {
  private:
   InternalVarsConfig const& config_;
@@ -289,11 +292,12 @@ class Vars final {
 
   // This method is `template`-d to accept both `std::vector<ExpressionNodeIndex>` and `std::vector<value_t>`.
   // The latter type, `value_t`, is not introduced when building `vars.h`.
-  template <typename T>
-  void MovePoint(double const* ram, T const& direction, double step_size) {
+  template <typename RAM, typename T>
+  void MovePoint(RAM&& ram_argument, T const& direction, double step_size) {
     if (direction.size() != value_.size()) {
       CURRENT_THROW(VarsMapperDimensionMismatchException());
     }
+    double const* ram = AcceptVariousRAMPointers(std::forward<RAM>(ram_argument));
     std::vector<double> new_value(value_);
     for (size_t i = 0; i < direction.size(); ++i) {
       ExpressionNodeIndexFromExpressionNodeOrValue(direction[i])
