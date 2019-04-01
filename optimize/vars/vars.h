@@ -197,7 +197,8 @@ inline double const* AcceptVariousRAMPointers(double const* ptr) { return ptr; }
 
 class Vars final {
  private:
-  InternalVarsConfig const& config_;
+  std::unique_ptr<InternalVarsConfig> config_copy_if_necessary_;
+  InternalVarsConfig const config_;
   std::vector<double> value_;
 
   class AccessorNode final {
@@ -277,8 +278,16 @@ class Vars final {
   // `x` is a const reference `value_`, for easy read-only access to the vars. NOTE(dkorolev): Possibly reshuffled vars!
   std::vector<double> const& x = value_;
 
-  explicit Vars(InternalVarsConfig const& config = InternalTLSInterface().VarsConfig())
-      : config_(config), value_(config.StartingPoint()), root_(value_, config_.Root()) {}
+  explicit Vars(InternalVarsConfig const& config)
+      : config_(config), value_(config_.StartingPoint()), root_(value_, config_.Root()) {}
+
+  // NOTE(dkorolev): The default constructor of `Vars` freezes the vars and nodes set presently existing
+  // as the thread-local singleton, but it makes a copy of the vars config, because the scope may be short-lived.
+  Vars()
+      : config_copy_if_necessary_(std::make_unique<InternalVarsConfig>(InternalTLSInterface().VarsConfig())),
+        config_(*config_copy_if_necessary_),
+        value_(config_.StartingPoint()),
+        root_(value_, config_.Root()) {}
 
   AccessorNode operator[](size_t i) const { return root_[i]; }
   AccessorNode operator[](std::string const& s) const { return root_[s]; }
