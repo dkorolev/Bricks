@@ -195,53 +195,50 @@ inline ExpressionNodeIndex ExpressionNodeIndexFromExpressionNodeOrValue(Expressi
 // To also be implemented for `JITCallContext` in `../jit/jit.h`.
 inline double const* AcceptVariousRAMPointers(double const* ptr) { return ptr; }
 
+struct VarNode;
 class Vars final {
- private:
-  std::unique_ptr<InternalVarsConfig> config_copy_if_necessary_;
-  InternalVarsConfig const config_;
-  std::vector<double> value_;
-
-  class AccessorNode final {
+ public:
+  class ResultNode final {
    private:
     std::vector<double>& value_;
     json::Node const& node_;
 
    public:
-    AccessorNode(std::vector<double>& value, json::Node const& node) : value_(value), node_(node) {}
+    ResultNode(std::vector<double>& value, json::Node const& node) : value_(value), node_(node) {}
 
-    AccessorNode operator[](size_t i) const {
+    ResultNode operator[](size_t i) const {
       if (Exists<json::V>(node_)) {
         auto const& v = Value<json::V>(node_);
         if (i < v.z.size()) {
-          return AccessorNode(value_, v.z[i]);
+          return ResultNode(value_, v.z[i]);
         }
       } else if (Exists<json::I>(node_)) {
         auto const& v = Value<json::I>(node_);
         auto const cit = v.z.find(i);
         if (cit != v.z.end()) {
-          return AccessorNode(value_, cit->second);
+          return ResultNode(value_, cit->second);
         }
       }
       CURRENT_THROW(VarsMapperWrongVarException());
     }
 
-    AccessorNode operator[](std::string const& s) const {
+    ResultNode operator[](std::string const& s) const {
       if (Exists<json::S>(node_)) {
         auto const& v = Value<json::S>(node_);
         auto const cit = v.z.find(s);
         if (cit != v.z.end()) {
-          return AccessorNode(value_, cit->second);
+          return ResultNode(value_, cit->second);
         }
       }
       CURRENT_THROW(VarsMapperWrongVarException());
     }
 
-    AccessorNode operator[](char const* s) const {
+    ResultNode operator[](char const* s) const {
       if (Exists<json::S>(node_)) {
         auto const& v = Value<json::S>(node_);
         auto const cit = v.z.find(s);
         if (cit != v.z.end()) {
-          return AccessorNode(value_, cit->second);
+          return ResultNode(value_, cit->second);
         }
       }
       CURRENT_THROW(VarsMapperWrongVarException());
@@ -269,11 +266,16 @@ class Vars final {
     void SetConstantValue(double x) const { RefEvenForAConstant() = x; }
   };
 
-  AccessorNode const root_;
+ private:
+  std::unique_ptr<InternalVarsConfig> config_copy_if_necessary_;
+  InternalVarsConfig const config_;
+  std::vector<double> value_;
+  ResultNode const root_;
 
  public:
   using Scope = InternalVarsScope;
   using Config = InternalVarsConfig;
+  using DefinitionNode = VarNode;
 
   // `x` is a const reference `value_`, for easy read-only access to the vars. NOTE(dkorolev): Possibly reshuffled vars!
   std::vector<double> const& x = value_;
@@ -289,8 +291,8 @@ class Vars final {
         value_(config_.StartingPoint()),
         root_(value_, config_.Root()) {}
 
-  AccessorNode operator[](size_t i) const { return root_[i]; }
-  AccessorNode operator[](std::string const& s) const { return root_[s]; }
+  ResultNode operator[](size_t i) const { return root_[i]; }
+  ResultNode operator[](std::string const& s) const { return root_[s]; }
 
   void InjectPoint(std::vector<double> const& point) {
     if (!(point.size() == value_.size())) {
