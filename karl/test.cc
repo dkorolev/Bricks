@@ -86,6 +86,8 @@ static current::karl::KarlParameters UnittestKarlParameters() {
   return params;
 }
 
+#ifndef CURRENT_CI_TRAVIS  // NOTE(dkorolev): Disable Karl tests on Travis, as it's overloaded and they often time out.
+
 TEST(Karl, SmokeGenerator) {
   current::time::ResetToZero();
 
@@ -493,8 +495,6 @@ TEST(Karl, DeregisterWithNginx) {
   }
 }
 #endif  // CURRENT_CI
-
-#ifndef CURRENT_CI_TRAVIS  // NOTE(dkorolev): Disable Karl test on Travis, as it's overloaded and they often time out.
 
 TEST(Karl, DisconnectedByTimout) {
   current::time::ResetToZero();
@@ -1262,4 +1262,4 @@ TEST(Karl, Visualization) {
 }
 #endif
 
-#endif  // #ifndef CURRENT_CI_TRAVIS for the second half of Travis tests.
+#endif  // #ifndef CURRENT_CI_TRAVIS
