@@ -334,6 +334,27 @@ TEST(OptimizationVars, DenseVectorDimensions) {
   ASSERT_THROW(x.DenseDoubleVector(static_cast<size_t>(1e6) + 1), VarsManagementException);
 }
 
+TEST(OptimizationVars, RawIndex) {
+  using namespace current::expression;
+  Vars::Scope scope;
+  x["i"][0] = 1.0;
+  x["s"]["foo"] = 2.0;
+  x["i"][2] = 3.0;
+  x["i"][1] = 4.0;
+  x["s"]["bar"] = 5.0;
+  Vars vars;
+  ASSERT_EQ(5u, vars.size());
+  EXPECT_EQ("[1.0,2.0,3.0,4.0,5.0]", JSON(vars.x));
+  EXPECT_EQ(0u, static_cast<size_t>(static_cast<Vars::RawIndex>(vars["i"][0])));
+  EXPECT_EQ(3u, static_cast<size_t>(static_cast<Vars::RawIndex>(vars["i"][1])));  // In the order of initialization.
+  EXPECT_EQ(2u, static_cast<size_t>(static_cast<Vars::RawIndex>(vars["i"][2])));  // In the order of initialization.
+  for (size_t i = 0u; i < vars.size(); ++i) {
+    vars[static_cast<Vars::RawIndex>(i)] *= 1000;
+    vars[static_cast<Vars::RawIndex>(i)] += i + 1;
+  }
+  EXPECT_EQ("[1001.0,2002.0,3003.0,4004.0,5005.0]", JSON(vars.x));
+}
+
 TEST(OptimizationVars, NeedContext) {
   using namespace current::expression;
   ASSERT_THROW(x["should fail"], VarsManagementException);

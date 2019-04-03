@@ -198,6 +198,8 @@ inline double const* AcceptVariousRAMPointers(double const* ptr) { return ptr; }
 struct VarNode;
 class Vars final {
  public:
+  enum class RawIndex : size_t {};
+
   class ResultNode final {
    private:
     std::vector<double>& value_;
@@ -221,6 +223,8 @@ class Vars final {
       }
       CURRENT_THROW(VarsMapperWrongVarException());
     }
+    // This alias is critical, as otherwise `vars["foo"][42]`, w/o `[42u]`, is ambiguous wrt. the `char const*` getter.
+    ResultNode operator[](int i) const { return operator[](static_cast<size_t>(i)); }
 
     ResultNode operator[](std::string const& s) const {
       if (Exists<json::S>(node_)) {
@@ -264,6 +268,13 @@ class Vars final {
     double& RefEvenForAConstant() const { return Ref(true); }
 
     void SetConstantValue(double x) const { RefEvenForAConstant() = x; }
+
+    operator RawIndex() const {
+      if (Exists<json::X>(node_)) {
+        return static_cast<RawIndex>(Value<json::X>(node_).i);
+      }
+      CURRENT_THROW(VarsMapperNodeNotVarException());
+    }
   };
 
  private:
@@ -291,8 +302,14 @@ class Vars final {
         value_(config_.StartingPoint()),
         root_(value_, config_.Root()) {}
 
+  size_t size() const { return value_.size(); }
+
   ResultNode operator[](size_t i) const { return root_[i]; }
   ResultNode operator[](std::string const& s) const { return root_[s]; }
+
+  // NOTE(dkorolev): Maybe unify the accessors, i.e. retire `SetConstantValue()` altogether?
+  double& operator[](RawIndex i) { return value_[static_cast<size_t>(i)]; }
+  double operator[](RawIndex i) const { return value_[static_cast<size_t>(i)]; }
 
   void InjectPoint(std::vector<double> const& point) {
     if (!(point.size() == value_.size())) {
