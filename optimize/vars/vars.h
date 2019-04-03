@@ -453,6 +453,25 @@ struct VarNode {
     return result;
   }
 
+  VarNode const& operator[](size_t i) const {
+    if (type == VarNodeType::Vector) {
+      if (i < children_vector.size()) {
+        return children_vector[i];
+      } else {
+        CURRENT_THROW(VarsManagementException("Out of bounds for the dense variables node."));
+      }
+    } else if (type == VarNodeType::IntMap) {
+      auto const cit = children_int_map.find(i);
+      if (cit != children_int_map.end()) {
+        return cit->second;
+      } else {
+        CURRENT_THROW(VarsManagementException("Const `VarNode` getter should only access already defined variables."));
+      }
+    } else {
+      CURRENT_THROW(VarsManagementException("Const `VarNode` getter should only access already defined variables."));
+    }
+  }
+
   VarNode& operator[](std::string const& s) {
     if (InternalTLSInterface().IsFrozen()) {
       if (type == VarNodeType::StringMap) {
@@ -475,6 +494,16 @@ struct VarNode {
       result.key = StringOrInt(s);
     }
     return result;
+  }
+
+  VarNode const& operator[](std::string const& s) const {
+    if (type == VarNodeType::StringMap) {
+      auto const cit = children_string_map.find(s);
+      if (cit != children_string_map.end()) {
+        return cit->second;
+      }
+    }
+    CURRENT_THROW(VarsManagementException("Const `VarNode` getter should only access already defined variables."));
   }
 
   void operator=(double x) {
