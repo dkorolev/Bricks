@@ -45,6 +45,11 @@ namespace expression {
 
 struct JITCompiledFunctionInvokedBeforeItsPrerequisitesException final : OptimizeException {};
 
+#ifndef NDEBUG
+// Invariant checked by `JITCompiledFunctionReturningVector::AddTo(point, std::vector<double>& output)`.
+struct JITReturnVectorDimensionsMismatch final : OptimizeException {};
+#endif
+
 static_assert(sizeof(double) == 8u, "The System V JIT is designed for 8-byte `double`-s.");
 
 struct JITNotEnoughExtraNodesAllocatedInJITCallContext final : OptimizeException {};
@@ -231,6 +236,25 @@ class JITCompiledFunctionReturningVectorImpl final {
     return result;
   }
 
+  void CallFunctionReturningVectorAddTo(double const* x, double* output) const {
+    ctx_->MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
+    f_(x, ctx_->InternalRAMPointer(), &current::Singleton<JITCallContextFunctionPointers>().fns[0]);
+    for (size_t i = 0; i < output_node_indexes_.size(); ++i) {
+      output_node_indexes_[i].template CheckedDispatch(
+          [&](size_t node_index) { output[i] += ctx_->ConstRAMPointer()[node_index]; },
+          [&](size_t var_index) { output[i] += x[var_index]; },
+          [&](double value) { output[i] += value; },
+          [&]() {
+#ifndef NDEBUG
+            // No `lambda`-s should be encountered when the gradient is being evaluated,
+            // because the lambdas are the territory of `JITCompiledFunctionWithArgument`.
+            TriggerSegmentationFault();
+#endif
+          });
+    }
+  }
+
+  size_t Dim() const { return output_node_indexes_.size(); }
   size_t CodeSize() const { return code_size_; }
 };
 
@@ -249,6 +273,40 @@ class JITCompiledFunctionReturningVector final {
   std::vector<double> operator()(double const* x) const { return f_->CallFunctionReturningVector(x); }
   std::vector<double> operator()(std::vector<double> const& x) const { return f_->CallFunctionReturningVector(&x[0]); }
   std::vector<double> operator()(Vars const& values) const { return f_->CallFunctionReturningVector(&values.x[0]); }
+
+  void AddTo(double const* x, double* output) const { return f_->CallFunctionReturningVectorAddTo(x, output); }
+  void AddTo(std::vector<double> const& x, double* output) const {
+    return f_->CallFunctionReturningVectorAddTo(&x[0], output);
+  }
+  void AddTo(Vars const& values, double* output) const {
+    return f_->CallFunctionReturningVectorAddTo(&values.x[0], output);
+  }
+
+  void AddTo(double const* x, std::vector<double>& output) const {
+#ifndef NDEBUG
+    if (!(output.size() == f_->Dim())) {
+      CURRENT_THROW(JITReturnVectorDimensionsMismatch());
+    }
+#endif
+    return f_->CallFunctionReturningVectorAddTo(x, &output[0]);
+  }
+  void AddTo(std::vector<double> const& x, std::vector<double>& output) const {
+#ifndef NDEBUG
+    if (!(output.size() == f_->Dim())) {
+      CURRENT_THROW(JITReturnVectorDimensionsMismatch());
+    }
+#endif
+    return f_->CallFunctionReturningVectorAddTo(&x[0], &output[0]);
+  }
+  void AddTo(Vars const& values, std::vector<double>& output) const {
+#ifndef NDEBUG
+    if (!(output.size() == f_->Dim())) {
+      CURRENT_THROW(JITReturnVectorDimensionsMismatch());
+    }
+#endif
+    return f_->CallFunctionReturningVectorAddTo(&values.x[0], &output[0]);
+  }
+
   size_t CodeSize() const { return f_->CodeSize(); }
 };
 

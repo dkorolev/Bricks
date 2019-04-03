@@ -106,6 +106,21 @@ TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
   }
 
   EXPECT_EQ("[6.0,2.0,8.0,2.0]", JSON(g({4.0, 2.0})));
+
+  {
+    // Also test `AddTo()`.
+    std::vector<double> output(4u, 100.0);
+    EXPECT_EQ("[100.0,100.0,100.0,100.0]", JSON(output));
+    g.AddTo({10.0, 5.0}, output);
+    EXPECT_EQ("[115.0,105.0,150.0,102.0]", JSON(output));
+    g.AddTo({10.0, 5.0}, &output[0]);
+    EXPECT_EQ("[130.0,110.0,200.0,104.0]", JSON(output));
+
+#ifndef NDEBUG
+    output.resize(10u);
+    ASSERT_THROW(g.AddTo({10.0, 5.0}, output), JITReturnVectorDimensionsMismatch);
+#endif
+  }
 }
 
 TEST(OptimizationJIT, Exp) {
