@@ -103,6 +103,8 @@ class JITCallContextImpl final {
   JITCallContextImpl(Vars::Config const& vars_config)
       : vars_config_(vars_config), ram_(vars_config_.NumberOfNodes() + 1u) {}
 
+  Vars::Config const& VarsConfig() const { return vars_config_; }
+
   // The `MarkNewPoint()` mechanism is the means to guard against the situation where the functions compiler later
   // within the same context are called on a new input point before the previous functions have been called.
   // Since, when declared within one JIT context, the later-compiled functions can and do re-use the previously computed
@@ -132,6 +134,8 @@ class JITCallContext {
   JITCallContext(Vars::Scope& scope = InternalTLS()) : JITCallContext(scope.VarsConfig()) {}
 
   current::sync::Borrowed<JITCallContextImpl> BorrowImpl() { return impl_; }
+
+  Vars::Config const& VarsConfig() const { return impl_->VarsConfig(); }
 
   double const* ConstRAMPointer() const { return impl_->ConstRAMPointer(); }
   void MarkNewPoint() { impl_->MarkNewPoint(); }
