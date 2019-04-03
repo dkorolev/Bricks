@@ -82,9 +82,24 @@ struct VarIndexOutOfBoundsException final : OptimizeException {};
 #endif
 
 // For flattened vars vector access, see the unit tests for more details.
-struct VarsMapperException : OptimizeException {};
+struct VarsMapperException : OptimizeException {
+  using OptimizeException::OptimizeException;
+};
+#ifdef NDEBUG
 struct VarsMapperWrongVarException final : VarsMapperException {};
 struct VarsMapperNodeNotVarException final : VarsMapperException {};
+#else
+struct VarsMapperWrongVarException final : VarsMapperException {
+  struct ConstructFromVarFullName {};
+  explicit VarsMapperWrongVarException(ConstructFromVarFullName, std::string message)
+      : VarsMapperException(std::move(message)) {}
+};
+struct VarsMapperNodeNotVarException final : VarsMapperException {
+  struct ConstructFromVarFullName {};
+  explicit VarsMapperNodeNotVarException(ConstructFromVarFullName, std::string message)
+      : VarsMapperException(std::move(message)) {}
+};
+#endif
 struct VarsMapperVarIsConstant final : VarsMapperException {};
 struct VarsMapperMovePointUnexpectedLambdaException final : VarsMapperException {};
 struct VarsMapperDimensionMismatchException final : VarsMapperException {};
@@ -195,6 +210,28 @@ inline ExpressionNodeIndex ExpressionNodeIndexFromExpressionNodeOrValue(Expressi
 // To also be implemented for `JITCallContext` in `../jit/jit.h`.
 inline double const* AcceptVariousRAMPointers(double const* ptr) { return ptr; }
 
+class StringOrInt {
+ private:
+  Optional<std::string> string_;  // NOTE(dkorolev): An empty string is a valid variable or variable node name.
+  size_t size_t_ = static_cast<size_t>(-1);
+
+ public:
+  StringOrInt() = default;
+  StringOrInt(std::string string_) : string_(std::move(string_)) {}
+  StringOrInt(size_t size_t_) : size_t_(size_t_) {}
+
+  operator bool() const { return Exists(string_) || size_t_ != static_cast<size_t>(-1); }
+
+  std::string AsString() const {
+    CURRENT_ASSERT(!Exists(string_) == (size_t_ != static_cast<size_t>(-1)));
+    if (Exists(string_)) {
+      return JSON(string_);
+    } else {
+      return current::ToString(size_t_);
+    }
+  }
+};
+
 struct VarNode;
 class Vars final {
  public:
@@ -205,23 +242,81 @@ class Vars final {
     std::vector<double>& value_;
     json::Node const& node_;
 
+#ifndef NDEBUG
+    ResultNode const* parent_;
+    StringOrInt key_;
+
+    std::string ReconstructVarName() const {
+      if (parent_) {
+        return parent_->ReconstructVarName() + '[' + key_.AsString() + ']';
+      } else {
+        return "x";
+      }
+    }
+#endif
+
    public:
+#ifdef NDEBUG
     ResultNode(std::vector<double>& value, json::Node const& node) : value_(value), node_(node) {}
+#else
+    ResultNode(std::vector<double>& value,
+               json::Node const& node,
+               ResultNode const* parent = nullptr,
+               StringOrInt key = StringOrInt())
+        : value_(value), node_(node), parent_(parent), key_(key) {}
+    std::string NodeType() const {
+      struct Impl {
+        std::string text;
+        void operator()(json::U) { text = "an uninitialized node"; }
+        void operator()(json::V) { text = "an int-indexed dense node"; }
+        void operator()(json::I) { text = "an int-indexed sparse node"; }
+        void operator()(json::S) { text = "a string-indexed node"; }
+        void operator()(json::X) { text = "a variable value"; }
+      };
+      Impl impl;
+      node_.Call(impl);
+      return impl.text;
+    }
+#endif
 
     ResultNode operator[](size_t i) const {
       if (Exists<json::V>(node_)) {
         auto const& v = Value<json::V>(node_);
         if (i < v.z.size()) {
+#ifdef NDEBUG
           return ResultNode(value_, v.z[i]);
+#else
+          return ResultNode(value_, v.z[i], this, i);
+#endif
         }
+#ifndef NDEBUG
+        CURRENT_THROW(VarsMapperWrongVarException(
+            VarsMapperWrongVarException::ConstructFromVarFullName(),
+            ReconstructVarName() + ", a dense int-indexed node does not have key " + current::ToString(i)));
+#endif
       } else if (Exists<json::I>(node_)) {
         auto const& v = Value<json::I>(node_);
         auto const cit = v.z.find(i);
         if (cit != v.z.end()) {
+#ifdef NDEBUG
           return ResultNode(value_, cit->second);
+#else
+          return ResultNode(value_, cit->second, this, i);
+#endif
         }
+#ifndef NDEBUG
+        CURRENT_THROW(VarsMapperWrongVarException(
+            VarsMapperWrongVarException::ConstructFromVarFullName(),
+            ReconstructVarName() + ", a sparse int-indexed node does not have key " + current::ToString(i)));
+#endif
       }
+#ifdef NDEBUG
       CURRENT_THROW(VarsMapperWrongVarException());
+#else
+      CURRENT_THROW(
+          VarsMapperWrongVarException(VarsMapperWrongVarException::ConstructFromVarFullName(),
+                                      ReconstructVarName() + ", expected an int-indexed node, seeing " + NodeType()));
+#endif
     }
     // This alias is critical, as otherwise `vars["foo"][42]`, w/o `[42u]`, is ambiguous wrt. the `char const*` getter.
     ResultNode operator[](int i) const { return operator[](static_cast<size_t>(i)); }
@@ -231,10 +326,25 @@ class Vars final {
         auto const& v = Value<json::S>(node_);
         auto const cit = v.z.find(s);
         if (cit != v.z.end()) {
+#ifdef NDEBUG
           return ResultNode(value_, cit->second);
+#else
+          return ResultNode(value_, cit->second, this, s);
+#endif
         }
+#ifndef NDEBUG
+        CURRENT_THROW(VarsMapperWrongVarException(
+            VarsMapperWrongVarException::ConstructFromVarFullName(),
+            ReconstructVarName() + ", a string-indexed node does not have key '" + s + "'"));
+#endif
       }
+#ifdef NDEBUG
       CURRENT_THROW(VarsMapperWrongVarException());
+#else
+      CURRENT_THROW(
+          VarsMapperWrongVarException(VarsMapperWrongVarException::ConstructFromVarFullName(),
+                                      ReconstructVarName() + ", expected a string-indexed node, seeing " + NodeType()));
+#endif
     }
 
     ResultNode operator[](char const* s) const {
@@ -242,10 +352,20 @@ class Vars final {
         auto const& v = Value<json::S>(node_);
         auto const cit = v.z.find(s);
         if (cit != v.z.end()) {
+#ifdef NDEBUG
           return ResultNode(value_, cit->second);
+#else
+          return ResultNode(value_, cit->second, this, std::string(s));
+#endif
         }
       }
+#ifdef NDEBUG
       CURRENT_THROW(VarsMapperWrongVarException());
+#else
+      CURRENT_THROW(
+          VarsMapperWrongVarException(VarsMapperWrongVarException::ConstructFromVarFullName(),
+                                      ReconstructVarName() + ", expected a string-indexed node, seeing " + NodeType()));
+#endif
     }
 
     double& Ref(bool allow_modifying_constants = false) const {
@@ -258,7 +378,13 @@ class Vars final {
           return value_[Value(v.i)];
         }
       }
+#ifdef NDEBUG
       CURRENT_THROW(VarsMapperNodeNotVarException());
+#else
+      CURRENT_THROW(
+          VarsMapperNodeNotVarException(VarsMapperNodeNotVarException::ConstructFromVarFullName(),
+                                        ReconstructVarName() + ", expected a leaf variable, seeing " + NodeType()));
+#endif
     }
 
     operator double() const { return Ref(); }
@@ -273,7 +399,13 @@ class Vars final {
       if (Exists<json::X>(node_)) {
         return static_cast<RawIndex>(Value<json::X>(node_).i);
       }
+#ifdef NDEBUG
       CURRENT_THROW(VarsMapperNodeNotVarException());
+#else
+      CURRENT_THROW(
+          VarsMapperNodeNotVarException(VarsMapperNodeNotVarException::ConstructFromVarFullName(),
+                                        ReconstructVarName() + ", expected a leaf variable, seeing " + NodeType()));
+#endif
     }
   };
 
@@ -381,28 +513,6 @@ class VarsManager final {
 inline InternalVarsScopeInterface& InternalTLSInterface() {
   return VarsManager::StaticInternalTLS().ActiveScopeViaInterface();
 }
-
-class StringOrInt {
- private:
-  Optional<std::string> string_;  // NOTE(dkorolev): An empty string is a valid variable or variable node name.
-  size_t size_t_ = static_cast<size_t>(-1);
-
- public:
-  StringOrInt() = default;
-  StringOrInt(std::string string_) : string_(std::move(string_)) {}
-  StringOrInt(size_t size_t_) : size_t_(size_t_) {}
-
-  operator bool() const { return Exists(string_) || size_t_ != static_cast<size_t>(-1); }
-
-  std::string AsString() const {
-    CURRENT_ASSERT(!Exists(string_) == (size_t_ != static_cast<size_t>(-1)));
-    if (Exists(string_)) {
-      return JSON(string_);
-    } else {
-      return current::ToString(size_t_);
-    }
-  }
-};
 
 enum class VarNodeType { Unset, Vector, IntMap, StringMap, Value };
 struct VarNode {
