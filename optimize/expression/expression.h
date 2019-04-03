@@ -307,7 +307,7 @@ inline double log_sigmoid(double x) {
 #undef CURRENT_EXPRESSION_MATH_FUNCTION
 }  // namespace current::expression::functions
 
-using namespace current::expression::functions;
+using namespace expression::functions;
 
 // A helper method to generate a one-dimensional function from a multi-dimensional one,
 // by replacing each occurrence of each variable by a respective provided formula.
@@ -391,5 +391,12 @@ inline value_t Build1DFunction(value_t f,
 
 }  // namespace current::expression
 }  // namespace current
+
+// Expose mathematical functions defined on `value_t`, such as `exp()` or `sqrt()`, to the global namespace.
+// So that user-defined functions, that take some `template <typename T> ... (T& result, std::vector<T> const& x)`,
+// could invoke `result += log(exp(x[i]) + 1.0)` on `value_t`-s, without having to use `namespace current::expression`.
+#define CURRENT_EXPRESSION_MATH_FUNCTION(fn) using current::expression::functions::fn;
+#include "../math_functions.inl"
+#undef CURRENT_EXPRESSION_MATH_FUNCTION
 
 #endif  // #ifndef OPTIMIZE_EXPRESSION_EXPRESSION_H
