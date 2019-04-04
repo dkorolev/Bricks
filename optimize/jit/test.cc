@@ -116,8 +116,12 @@ TEST(OptimizationJIT, SmokeJITCompiledFunctionReturningVector) {
     g.AddTo({10.0, 5.0}, &output[0]);
     EXPECT_EQ("[130.0,110.0,200.0,104.0]", JSON(output));
 
+    g({20.0, 4.0}, output);
+    EXPECT_EQ("[24.0,16.0,80.0,5.0]", JSON(output));
+
 #ifndef NDEBUG
     output.resize(10u);
+    ASSERT_THROW(g({10.0, 5.0}, output), JITReturnVectorDimensionsMismatch);
     ASSERT_THROW(g.AddTo({10.0, 5.0}, output), JITReturnVectorDimensionsMismatch);
 #endif
   }
