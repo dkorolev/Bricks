@@ -226,8 +226,14 @@ class LineSearchImpl final {
       derivative_at_right_end_of_range = self.d(self.vars_values.x, right_end_of_range);
 
       if (!IsNormal(value_at_right_end_of_range) || !IsNormal(derivative_at_right_end_of_range)) {
-        // Entered the NaNs territory, but all is not necessarily lost.
-        CURRENT_THROW(OptimizationException("TODO(dkorolev): Don't just fail here, check smaller steps first."));
+        if (-right_end_of_range < 1e-25) {
+          // Entered the NaNs territory, but all is not necessarily lost.
+          CURRENT_THROW(OptimizationException("TODO(dkorolev): Don't just fail here, check smaller steps first."));
+        } else {
+          // Keep shrinking, for the very first step may well have to be very small.
+          right_end_of_range *= 0.5;
+          continue;
+        }
       }
 
       result.path1.push_back(LineSearchIntermediatePoint(
