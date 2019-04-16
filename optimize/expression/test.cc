@@ -409,3 +409,37 @@ TEST(OptimizationExpression, DoubleValuesMustBeRegular) {
     EXPECT_EQ("-0.000000, -0x1.286d80ec190dcp-256, 0xaff286d80ec190dc", e.OriginalDescription());
   }
 }
+
+TEST(OptimizationExpression, RespectsPreAllocatedNodesCount) {
+  using namespace current::expression;
+
+  Vars::Scope scope(Vars::Scope::PreAllocateNodes(5u));
+
+  x[0] = 0.0;
+  x[1] = 0.0;
+
+  value_t const v0(x[0]);
+  value_t const v1(x[1]);
+
+  // Use up four nodes.
+  v0 + v1;
+  v0 - v1;
+  v0* v1;
+  v0 / v1;
+
+  ASSERT_EQ(4u, scope.NumberOfNodes());
+
+  v0 + (2 / 2 - 1);  // No-op arithmetics does not create new nodes.
+  v0*(1 + 2 + 3 - 5);
+  v0 + sin(0);
+  v0* cos(0);
+
+  ASSERT_EQ(4u, scope.NumberOfNodes());
+
+  v0 + (1 + 2 * (-3));  // Use the fifth and last node, note that double-based arithmetics is collapsed.
+
+  ASSERT_EQ(5u, scope.NumberOfNodes());
+
+  // An unary minus would attempt to allocate a new node, which is prohibited in the `PreAllocateNodes` mode.
+  ASSERT_THROW(-v0, ExpressionPreAllocatedNodesExhausted);
+}

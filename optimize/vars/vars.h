@@ -77,6 +77,9 @@ struct NoNewVarsCanBeAddedException final : OptimizeException {};
 // Same for nodes for the "frozen" vars context.
 struct NoNewNodesCanBeAddedException final : OptimizeException {};
 
+// If the scope was created with a pre-allocated number of nodes, and they are all exhausted.
+struct ExpressionPreAllocatedNodesExhausted final : OptimizeException {};
+
 #ifndef NDEBUG
 struct VarIndexOutOfBoundsException final : OptimizeException {};
 #endif
@@ -798,6 +801,7 @@ class InternalVarsScope final : public InternalVarsScopeInterface {
 
   std::vector<bool> allocated_var_is_constant_;
   std::vector<ExpressionNodeImpl> expression_nodes_;
+  size_t const number_of_pre_allocated_nodes_ = 0u;
 
   // Initialized on the first call to `VarsConfig()`, and no new vars or nodes can be added after that call.
   std::unique_ptr<InternalVarsConfig> vars_mapper_config_;
@@ -808,6 +812,19 @@ class InternalVarsScope final : public InternalVarsScopeInterface {
 
  public:
   InternalVarsScope() { VarsManager::StaticInternalTLS().SetActive(this, this); }
+
+  class PreAllocateNodes {
+   private:
+    size_t const number_of_pre_allocated_nodes_;
+
+   public:
+    PreAllocateNodes(size_t n) : number_of_pre_allocated_nodes_(n) {}
+    size_t GetNumber() const { return number_of_pre_allocated_nodes_; }
+  };
+  explicit InternalVarsScope(PreAllocateNodes n) : number_of_pre_allocated_nodes_(n.GetNumber()) {
+    expression_nodes_.reserve(number_of_pre_allocated_nodes_);
+    VarsManager::StaticInternalTLS().SetActive(this, this);
+  }
   ~InternalVarsScope() { VarsManager::StaticInternalTLS().ClearActive(this, this); }
 
   size_t NumberOfVars() const { return allocated_var_is_constant_.size(); }
@@ -928,6 +945,9 @@ class InternalVarsScope final : public InternalVarsScopeInterface {
       CURRENT_THROW(NoNewNodesCanBeAddedException());
     }
     size_t const new_node_index = expression_nodes_.size();
+    if (number_of_pre_allocated_nodes_ && new_node_index >= number_of_pre_allocated_nodes_) {
+      CURRENT_THROW(ExpressionPreAllocatedNodesExhausted());
+    }
     expression_nodes_.emplace_back(std::forward<ARGS>(args)...);
     return new_node_index;
   }
