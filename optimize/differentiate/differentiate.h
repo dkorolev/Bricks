@@ -48,6 +48,8 @@ struct DoNotDifferentiateSigmoidException final : DifferentiationDeliberatelyNot
 struct SeeingLambdaWhileNotDifferentiatingByLambdaException final : OptimizeException {};
 struct DirectionalDerivativeGradientDimMismatchException final : OptimizeException {};
 
+struct DifferentiationRequiresMoreThan4BEpochs final : OptimizeException {};
+
 inline ExpressionNodeIndex DifferentiateOperation(ExpressionNodeType node_type,
                                                   ExpressionNodeIndex a,
                                                   ExpressionNodeIndex b,
@@ -187,8 +189,9 @@ class Differentiator final {
       // Stack index to return the value. stack[i].return_value[0], if the MSB is 0, stack[~i].return_value[1], if 1.
       size_t return_value_index;
     };
-    // TODO(dkorolev): This `static_assert` is obsolete, but the logic must be preserved.
-    // static_assert(sizeof(Entry) == 32, "`Entry` should be 32 bytes.");
+    // NOTE(dkorolev): The checks on size are a) non-critical, and b) platform-dependent. Comment out if necessary.
+    static_assert(sizeof(Entry) == IMPL::manual_entry_size,
+                  "`Differentiator::ManualStack::Entry` should be `IMPL::manual_entry_size` bytes.");
 
    private:
     std::vector<Entry> call_stack_;
@@ -343,11 +346,12 @@ class Differentiator final {
 
 // Various implementations of the differentiator: per var, per lambda, maintaining the whole gradient at once.
 struct DifferentiateBySingleVarImpl {
+  using retval_t = ExpressionNodeIndex;
+  constexpr static size_t manual_entry_size = 32;
+
   size_t const var_index_;
 
   DifferentiateBySingleVarImpl(size_t var_index) : var_index_(var_index) {}
-
-  using retval_t = ExpressionNodeIndex;
 
   void DoAssignZero(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
   void DoReturnDerivativeOfVar(size_t var_index, retval_t& placeholder) const {
@@ -391,6 +395,8 @@ struct DifferentiateBySingleVarImpl {
 // which is the present solution, perhaps introduce a dedicated node type for per-var lambda-based gradient?
 struct DifferentiateByLambdaImpl {
   using retval_t = ExpressionNodeIndex;
+  constexpr static size_t manual_entry_size = 32;
+
   std::vector<bool> cache_valid_;
   std::vector<ExpressionNodeIndex> cache_;
 
@@ -448,34 +454,48 @@ struct DifferentiateByLambdaImpl {
 
 struct DifferentiateByAllVarsTogetherImpl {
   // The somewhat compactly represented and fast to iterate gradient of a node.
+  struct RemovalCandidatesTLS {
+    std::vector<uint32_t> removal_candidates;  // A pre-allocated array to nullify gradient components that became 0.
+    void ReallocateIfNecessary(size_t size) {
+      if (removal_candidates.size() != size) {
+        removal_candidates.resize(size);
+      }
+    }
+  };
   class GradientPiece {
    private:
 #ifndef NDEBUG
     size_t m_;  // The number of components.
 #endif
-    size_t current_epoch_ = 0u;  // The current epoch index, to save on `memset`-s when clearing.
-    std::vector<ExpressionNodeIndex> components_;
-    std::vector<uint64_t> nonzero_index_epoch_version_;
-    std::vector<uint32_t> nonzero_indexes_list_;
-    size_t nonzero_indexes_count_ = 0;
+    uint32_t nonzero_indexes_count_ = 0u;
 
-    std::vector<uint32_t> removal_candidates_;  // A pre-allocated array to nullify gradient components that became 0.
+    // NOTE(dkorolev): I have changed `uint64_t` into `uint32_t` below, and added a sanity check below.
+    uint32_t current_epoch_ = 0u;  // The current epoch index, to save on `memset`-s when clearing.
+    std::vector<uint32_t> nonzero_index_epoch_version_;
+    std::vector<uint32_t> nonzero_indexes_list_;
+
+    std::vector<ExpressionNodeIndex> components_;
 
    public:
     GradientPiece()
 #ifndef NDEBUG
         : m_(InternalTLS().NumberOfVars()),
-          components_(m_),
-#else
-        : components_(InternalTLS().NumberOfVars()),
-#endif
           nonzero_index_epoch_version_(InternalTLS().NumberOfVars()),
+#else
+        : nonzero_index_epoch_version_(InternalTLS().NumberOfVars()),
+#endif
           nonzero_indexes_list_(InternalTLS().NumberOfVars()),
-          removal_candidates_(InternalTLS().NumberOfVars()) {
+          components_(InternalTLS().NumberOfVars()) {
+      ThreadLocalSingleton<RemovalCandidatesTLS>().ReallocateIfNecessary(components_.size());
     }
 
     void Clear() {
       ++current_epoch_;
+      if (current_epoch_ == 0u) {
+        // If you do hit the exception below, change the types of `current_epoch_` and `nonzero_index_epoch_version_`
+        // into `uint64_t`-s, and make sure to tweak or disable the `static_assert`-s on the `sizeof`-s. -- D.K.
+        CURRENT_THROW(DifferentiationRequiresMoreThan4BEpochs());
+      }
       nonzero_indexes_count_ = 0u;
     }
 
@@ -500,6 +520,12 @@ struct DifferentiateByAllVarsTogetherImpl {
                         ExpressionNodeIndex b,
                         GradientPiece const& rhs) {
       size_t removal_candidates_count = 0u;
+      std::vector<uint32_t>& removal_candidates = ThreadLocalSingleton<RemovalCandidatesTLS>().removal_candidates;
+#ifndef NDEBUG
+      if (!(removal_candidates.size() == m_)) {
+        TriggerSegmentationFault();
+      }
+#endif
       for (size_t lhs_index = 0u; lhs_index < nonzero_indexes_count_; ++lhs_index) {
         uint32_t const i = nonzero_indexes_list_[lhs_index];
         if (rhs.Has(i)) {
@@ -508,7 +534,7 @@ struct DifferentiateByAllVarsTogetherImpl {
           components_[i] = DifferentiateOperation(node_type, a, b, components_[i], ExpressionNodeIndex::DoubleZero());
         }
         if (components_[i].IsIndexDoubleZero()) {
-          removal_candidates_[removal_candidates_count++] = lhs_index;
+          removal_candidates[removal_candidates_count++] = lhs_index;
         }
       }
       for (size_t rhs_index = 0u; rhs_index < rhs.nonzero_indexes_count_; ++rhs_index) {
@@ -528,7 +554,7 @@ struct DifferentiateByAllVarsTogetherImpl {
         }
       }
       for (size_t removal_index = 0u; removal_index < removal_candidates_count; ++removal_index) {
-        uint32_t const i = removal_candidates_[removal_index];
+        uint32_t const i = removal_candidates[removal_index];
         nonzero_index_epoch_version_[nonzero_indexes_list_[i]] = current_epoch_ - 1u;
         nonzero_indexes_list_[i] = nonzero_indexes_list_[--nonzero_indexes_count_];
       }
@@ -536,15 +562,21 @@ struct DifferentiateByAllVarsTogetherImpl {
 
     void ApplyFunction(ExpressionNodeType node_type, ExpressionNodeIndex f, ExpressionNodeIndex x) {
       size_t removal_candidates_count = 0u;
+      std::vector<uint32_t>& removal_candidates = ThreadLocalSingleton<RemovalCandidatesTLS>().removal_candidates;
+#ifndef NDEBUG
+      if (!(removal_candidates.size() == m_)) {
+        TriggerSegmentationFault();
+      }
+#endif
       for (size_t index = 0u; index < nonzero_indexes_count_; ++index) {
         uint32_t const i = nonzero_indexes_list_[index];
         components_[i] = DifferentiateFunction(node_type, f, x, components_[i]);
         if (components_[i].IsIndexDoubleZero()) {
-          removal_candidates_[removal_candidates_count++] = index;
+          removal_candidates[removal_candidates_count++] = index;
         }
       }
       for (size_t removal_index = 0u; removal_index < removal_candidates_count; ++removal_index) {
-        uint32_t const i = removal_candidates_[removal_index];
+        uint32_t const i = removal_candidates[removal_index];
         nonzero_index_epoch_version_[nonzero_indexes_list_[i]] = current_epoch_ - 1u;
         nonzero_indexes_list_[i] = nonzero_indexes_list_[--nonzero_indexes_count_];
       }
@@ -559,9 +591,19 @@ struct DifferentiateByAllVarsTogetherImpl {
     }
   };
 
-  DifferentiateByAllVarsTogetherImpl() {}
-
+#ifdef NDEBUG
+  // NOTE(dkorolev): The checks on size are a) non-critical, and b) platform-dependent. Comment out if necessary.
+  static_assert(sizeof(GradientPiece) == 80, "Two `uint32_t`-s (2*4) and three `std::vector<>`-s (3*24).");
   using retval_t = GradientPiece;
+  constexpr static size_t manual_entry_size = 176;  // 80 * 2 plus twice 8 bytes.
+#else
+  // NOTE(dkorolev): The checks on size are a) non-critical, and b) platform-dependent. Comment out if necessary.
+  static_assert(sizeof(GradientPiece) == 88, "One `int64_t` (8), Two `uint32_t`-s (2*4), and three `vector`-s (3*24).");
+  using retval_t = GradientPiece;
+  constexpr static size_t manual_entry_size = 192;  // 88 * 2 plus twice 8 bytes.
+#endif
+
+  DifferentiateByAllVarsTogetherImpl() {}
 
   void DoAssignZero(GradientPiece& placeholder) const { placeholder.Clear(); }
 
