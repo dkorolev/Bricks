@@ -172,6 +172,7 @@ struct OptimizationContext {
   double SecondsToCompileG() const { return 1e-6 * (ts_after_jit_g - ts_after_jit_f).count(); }
   double SecondsToCompileL() const { return 1e-6 * (ts_after_jit_l - ts_after_jit_g).count(); }
   double SecondsToCompileDS() const { return 1e-6 * (ts_after_jit_ds - ts_after_jit_l).count(); }
+  double SecondsTotal() const { return 1e-6 * (ts_after_jit_ds - ts_begin).count(); }
 };
 
 }  // namespace current::expression::optimizer
