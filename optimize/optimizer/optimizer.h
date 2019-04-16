@@ -48,13 +48,15 @@ struct OptimizationResult {
   std::vector<double> steps;
 };
 
-inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
-  // TODO(dkorolev): These should be parameters.
-  size_t const kMaxIterations = 100;
-  double const kMinImprovementPerIteration = 1e-10;
-  double const kMinImprovementPerTwoIterations = 1e-9;
-  double const kMinStep = 1e-9;
+CURRENT_STRUCT(OptimizationParameters) {
+  CURRENT_FIELD(max_iterations, uint32_t, 100u);
+  CURRENT_FIELD(min_improvement_per_iteration, double, 1e-10);
+  CURRENT_FIELD(min_improvement_per_two_iterations, double, 1e-9);
+  CURRENT_FIELD(min_step, double, 1e-9);
+};
 
+inline OptimizationResult Optimize(OptimizationContext& optimization_context,
+                                   OptimizationParameters const& parameters = OptimizationParameters()) {
   LineSearchParameters line_search_parameters;
 
   OptimizationResult result;
@@ -72,7 +74,7 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
     optimization_context.compiled_g(optimization_context.vars_values.x);
 
     step = LineSearch(line_search_context, line_search_parameters, step).best_step;
-    if (-Value(step) < kMinStep) {
+    if (-Value(step) < parameters.min_step) {
       break;
     }
 
@@ -86,14 +88,14 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context) {
     result.values.push_back(optimization_context.compiled_f(optimization_context.vars_values.x));
 
     if (result.values.size() >= 2 &&
-        ((*(result.values.rbegin() + 1) - result.values.back()) < kMinImprovementPerIteration)) {
+        ((*(result.values.rbegin() + 1) - result.values.back()) < parameters.min_improvement_per_iteration)) {
       break;
     }
     if (result.values.size() >= 3 &&
-        ((*(result.values.rbegin() + 2) - result.values.back()) < kMinImprovementPerTwoIterations)) {
+        ((*(result.values.rbegin() + 2) - result.values.back()) < parameters.min_improvement_per_two_iterations)) {
       break;
     }
-  } while (result.iterations < kMaxIterations);
+  } while (result.iterations < parameters.max_iterations);
 
   result.final_value = result.values.back();
   result.final_point = result.trace.back();
