@@ -67,6 +67,7 @@ constexpr static size_t const kX64NativeJITExecutablePageSize = 4096;
 struct CallableVectorUInt8 final {
   size_t const allocated_size_;
   void* buffer_ = nullptr;
+  uint8_t* ptr_ = nullptr;
 
   explicit CallableVectorUInt8(std::vector<uint8_t> const& data)
       : allocated_size_(kX64NativeJITExecutablePageSize *
@@ -81,6 +82,30 @@ struct CallableVectorUInt8 final {
       std::exit(-1);
     }
     ::memcpy(buffer_, &data[0], data.size());
+  }
+
+  explicit CallableVectorUInt8(size_t projected_size)
+      : allocated_size_(kX64NativeJITExecutablePageSize *
+                        ((projected_size + kX64NativeJITExecutablePageSize - 1) / kX64NativeJITExecutablePageSize)) {
+    buffer_ = ::mmap(NULL, allocated_size_, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (!buffer_) {
+      std::cerr << "`mmap()` failed.\n";
+      std::exit(-1);
+    }
+    ptr_ = reinterpret_cast<uint8_t*>(buffer_);
+    if (::mprotect(buffer_, allocated_size_, PROT_READ | PROT_WRITE | PROT_EXEC)) {
+      std::cerr << "`mprotect()` failed.\n";
+      std::exit(-1);
+    }
+  }
+
+  void push_back(uint8_t raw_code_byte) {
+    if (ptr_ && (ptr_ - reinterpret_cast<uint8_t*>(buffer_)) < static_cast<std::ptrdiff_t>(allocated_size_)) {
+      *ptr_++ = raw_code_byte;
+    } else {
+      std::cerr << "Attempted to `push_back()` an opcode beyond the allocated and `mmap()`-ed/`mprotect()`-ed RAM.\n";
+      std::exit(-1);
+    }
   }
 
   CallableVectorUInt8(CallableVectorUInt8 const&) = delete;

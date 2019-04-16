@@ -477,4 +477,26 @@ TEST(X64NativeJIT, LogExpFunctionsCombination) {
   EXPECT_EQ(a(), j());
 }
 
+TEST(X64NativeJIT, InplaceCodeGeneration) {
+  using namespace current::fncas::x64_native_jit;
+
+  struct GlorifiedPushBack {
+    size_t n = 0u;
+    void push_back(uint8_t) { ++n; }
+  };
+  GlorifiedPushBack size_computer;
+  opcodes::load_immediate_to_xmm0(size_computer, 0.0);  // Values don't matter here.
+  opcodes::load_immediate_to_xmm1(size_computer, 0.0);  // Actually, nothing matter as long as the size if `39u` :-)
+  opcodes::add_xmm1_xmm0(size_computer);
+  opcodes::ret(size_computer);
+  ASSERT_EQ(39u, size_computer.n);
+
+  current::fncas::x64_native_jit::CallableVectorUInt8 jit_code(size_computer.n);
+  opcodes::load_immediate_to_xmm0(jit_code, 1.0);
+  opcodes::load_immediate_to_xmm1(jit_code, 2.5);
+  opcodes::add_xmm1_xmm0(jit_code);
+  opcodes::ret(jit_code);
+  EXPECT_EQ(3.5, jit_code(nullptr, nullptr, nullptr));
+}
+
 #endif  // FNCAS_X64_NATIVE_JIT_ENABLED
