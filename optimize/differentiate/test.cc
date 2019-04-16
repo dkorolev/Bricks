@@ -520,12 +520,19 @@ inline size_t GradientLogRegCostFunctionStressTestExpectedNumberOfNodes(size_t c
   return (1ull << (log2_dim + 2u)) + 1u;
 }
 
-inline void RunGradientLogRegCostFunctionStressTest(size_t const log2_dim, bool test_output) {
+inline void RunGradientLogRegCostFunctionStressTest(size_t const log2_dim, bool test_output, bool pre_allocate) {
   size_t const dim = (1ull << log2_dim);
 
   using namespace current::expression;
 
-  Vars::Scope scope;
+  std::unique_ptr<Vars::Scope> pscope;
+  if (!pre_allocate) {
+    pscope = std::make_unique<Vars::Scope>();
+  } else {
+    pscope = std::make_unique<Vars::Scope>(
+        Vars::Scope::PreAllocateNodes(GradientLogRegCostFunctionStressTestExpectedNumberOfNodes(log2_dim)));
+  }
+  Vars::Scope& scope = *pscope;
 
   for (size_t i = 0; i < dim; ++i) {
     x[i] = 0.0;
@@ -571,15 +578,18 @@ inline void RunGradientLogRegCostFunctionStressTest(size_t const log2_dim, bool 
 }
 
 TEST(OptimizationDifferentiate, GradientLogRegCostFunctionSmokeTest) {
-  RunGradientLogRegCostFunctionStressTest(1u, true);
-  RunGradientLogRegCostFunctionStressTest(2u, true);
-  RunGradientLogRegCostFunctionStressTest(3u, true);
-  RunGradientLogRegCostFunctionStressTest(4u, true);
+  RunGradientLogRegCostFunctionStressTest(1u, true, false);
+  RunGradientLogRegCostFunctionStressTest(2u, true, false);
+  RunGradientLogRegCostFunctionStressTest(3u, true, false);
+  RunGradientLogRegCostFunctionStressTest(4u, true, false);
 }
 
-#define TEST_LOGREG_FUNCTION(log2_dim)                                                  \
-  TEST(OptimizationDifferentiate, GradientLogRegCostFunctionStressTest2Pow##log2_dim) { \
-    RunGradientLogRegCostFunctionStressTest(log2_dim, false);                           \
+#define TEST_LOGREG_FUNCTION(log2_dim)                                                                     \
+  TEST(OptimizationDifferentiate, GradientLogRegCostFunctionStressTest2Pow##log2_dim##WoutPreAllocation) { \
+    RunGradientLogRegCostFunctionStressTest(log2_dim, false, false);                                       \
+  }                                                                                                        \
+  TEST(OptimizationDifferentiate, GradientLogRegCostFunctionStressTest2Pow##log2_dim##WithPreAllocation) { \
+    RunGradientLogRegCostFunctionStressTest(log2_dim, false, true);                                        \
   }
 
 TEST_LOGREG_FUNCTION(1);
