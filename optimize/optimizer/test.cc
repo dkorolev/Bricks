@@ -149,23 +149,14 @@ TEST(OptimizationOptimizer, MultiStepOptimization) {
 
   EXPECT_EQ(5u, result.iterations);
 
-  EXPECT_EQ("[3.0,5.0]", JSON(result.final_point));
   ASSERT_EQ(2u, result.final_point.size());
   EXPECT_NEAR(3, result.final_point[0], 1e-6);
   EXPECT_NEAR(5, result.final_point[1], 1e-6);
   EXPECT_NEAR(4 * log(2), result.final_value, 1e-6);
 
-  EXPECT_EQ(
-      "["
-      "[0.0,0.0],"
-      "[3.8657811794817156,4.213713024184646],"
-      "[3.0039879355307259,5.0043468627150669],"
-      "[2.9999999994601729,5.000000000495253],"
-      "[3.0,5.0]]",
-      JSON(result.trace));
-  EXPECT_EQ("[8.11060540012572,3.105144018869468,2.7725974219447426,2.772588722239781,2.772588722239781]",
-            JSON(result.values));
-  EXPECT_EQ("[-4.270881774245182,-2.1136153885255606,-2.0000029213346766,-2.000000352575796]", JSON(result.steps));
+  EXPECT_EQ(result.iterations, result.trace.size()) << JSON(result.trace);
+  EXPECT_EQ(result.iterations, result.values.size()) << JSON(result.values);
+  EXPECT_EQ(result.iterations - 1u, result.steps.size()) << JSON(result.steps);
 }
 
 #if 0
@@ -217,7 +208,6 @@ TEST(OptimizationOptimizer, HimmelblauFunction) {
   OptimizationContext optimization_context(f);
   OptimizationResult const result = Optimize(optimization_context);
 
-  EXPECT_EQ("[3.0000001668093208,2.000001044657872]", JSON(result.final_point));
   ASSERT_EQ(2u, result.final_point.size());
   EXPECT_NEAR(3, result.final_point[0], 5e-5);
   EXPECT_NEAR(2, result.final_point[1], 5e-5);

@@ -90,6 +90,7 @@ CURRENT_STRUCT(LineSearchParameters) {
   CURRENT_FIELD(range_exp_growth_k, double, 2.5);
   CURRENT_FIELD(min_decrease_in_decreasing_derivative_for_slope_approximation, double, 127.0 / 128);
   CURRENT_FIELD(max_range_search_extrapolation_step_k, double, 4.0);
+  CURRENT_FIELD(good_enough_derivative_zero_for_exp_growth_search, double, 1e-10);
 
   CURRENT_FIELD(zero_search_range_size_small_epsilon, double, 1e-6);
 
@@ -181,8 +182,9 @@ class LineSearchImpl final {
       CURRENT_THROW(OptimizationException("Both f(l) and f'(l) must be normal at the staritng point of line search."));
     }
     if (derivative_at_0 < 0) {
-      // Well, the dircetion of line search is supposed to be the gradient, and the gradient
-      // points in the direction of the function increasing.
+      // Well, the direction of line search is supposed to be the gradient,
+      // and the gradient points in the direction of the function increasing.
+      // Something is wrong if what we are observing is the function decreasing in the direction of the gradient.
       CURRENT_THROW(OptimizationException("The derivative at the starting midpoint should be non-negative."));
     }
     if (derivative_at_0 == 0) {
@@ -226,9 +228,9 @@ class LineSearchImpl final {
       derivative_at_right_end_of_range = self.d(self.vars_values.x, right_end_of_range);
 
       if (!IsNormal(value_at_right_end_of_range) || !IsNormal(derivative_at_right_end_of_range)) {
+        // Entered the NaNs territory, but all is not necessarily lost.
         if (-right_end_of_range < 1e-25) {
-          // Entered the NaNs territory, but all is not necessarily lost.
-          CURRENT_THROW(OptimizationException("TODO(dkorolev): Don't just fail here, check smaller steps first."));
+          CURRENT_THROW(OptimizationException("Even the tinest first step against the gradient results in a NaN."));
         } else {
           // Keep shrinking, for the very first step may well have to be very small.
           right_end_of_range *= 0.5;
@@ -239,7 +241,7 @@ class LineSearchImpl final {
       result.path1.push_back(LineSearchIntermediatePoint(
           right_end_of_range, value_at_right_end_of_range, derivative_at_right_end_of_range));
 
-      if (derivative_at_right_end_of_range == 0) {
+      if (fabs(derivative_at_right_end_of_range) < params.good_enough_derivative_zero_for_exp_growth_search) {
 #ifdef CURRENT_OPTIMIZE_PARANOID_CHECKS
         range_search_comment += " miracle";
         result.comments.push_back(range_search_comment);

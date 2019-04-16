@@ -225,13 +225,12 @@ TEST_1D_LINE_SEARCH(03Sine,
                     "zero search: 1.0*=45.2%*=7.5%*=16.2%*=0.8% reached near zero derivative");
 
 // A piece of a circle.
-TEST_1D_LINE_SEARCH(
-    04CircleArc,
-    10 - sqrt(sqr(9) - sqr(x - 6)),
-    1.0,
-    11u,
-    0u,
-    "range search: *(119.9->4.0)*(40.5->4.0)*(14.0->4.0)*(5.1->4.0)*(1.9)*(1.3)*(1.1)*(1.0)*(1.0) miracle");
+TEST_1D_LINE_SEARCH(04CircleArc,
+                    10 - sqrt(sqr(9) - sqr(x - 6)),
+                    1.0,
+                    10u,
+                    0u,
+                    "range search: *(119.9->4.0)*(40.5->4.0)*(14.0->4.0)*(5.1->4.0)*(1.9)*(1.3)*(1.1)*(1.0) miracle");
 
 // An power-(-2) hump.
 TEST_1D_LINE_SEARCH(
