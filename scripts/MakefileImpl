@@ -46,8 +46,8 @@ ifeq ($(CONTINUOUS_INTEGRATION),true)
   CURRENT_CI=1
 endif
 
-TRAVIS?=0
-ifeq ($(TRAVIS),true)
+TRAVIS?=""
+ifneq ($(TRAVIS),"")
   CURRENT_CI=1
   CPPFLAGS+= -DCURRENT_CI_TRAVIS
 endif
