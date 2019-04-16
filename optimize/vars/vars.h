@@ -812,6 +812,7 @@ class InternalVarsScope final : public InternalVarsScopeInterface {
 
   size_t NumberOfVars() const { return allocated_var_is_constant_.size(); }
   size_t NumberOfNodes() const { return expression_nodes_.size(); }
+  size_t NumberOfAllocatedNodes() const { return expression_nodes_.capacity(); }
 
 #ifndef NDEBUG
   std::string const& DebugVarNameByIndex(size_t i) const {

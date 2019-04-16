@@ -116,6 +116,7 @@ class JITCallContextImpl final {
   // nodes from the previously called functions, on a new input point calling compiled-later functions before the
   // compiler-earlier ones may (and will!) result in unexpected results.
   void MarkNewPoint() { next_legal_function_index_to_compute_ = 0; }
+  size_t TotalRAMSize() const { return ram_.size() * sizeof(double); }
   size_t CurrentFunctionIndexAndPostIncrementIt() { return functions_declared_++; }
   void MarkFunctionComputedOrThrowIfPrerequisitesNotMet(size_t current_function_index) const {
     if (current_function_index > next_legal_function_index_to_compute_) {
@@ -144,6 +145,7 @@ class JITCallContext {
 
   double const* ConstRAMPointer() const { return impl_->ConstRAMPointer(); }
   void MarkNewPoint() { impl_->MarkNewPoint(); }
+  size_t TotalRAMSize() const { return impl_->TotalRAMSize(); }
 };
 
 inline double const* AcceptVariousRAMPointers(JITCallContext const& ctx) { return ctx.ConstRAMPointer(); }
