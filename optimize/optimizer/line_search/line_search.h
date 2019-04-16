@@ -230,7 +230,7 @@ class LineSearchImpl final {
       if (!IsNormal(value_at_right_end_of_range) || !IsNormal(derivative_at_right_end_of_range)) {
         // Entered the NaNs territory, but all is not necessarily lost.
         if (-right_end_of_range < 1e-25) {
-          CURRENT_THROW(OptimizationException("Even the tinest first step against the gradient results in a NaN."));
+          CURRENT_THROW(OptimizationException("Even the tiniest first step against the gradient results in a NaN."));
         } else {
           // Keep shrinking, for the very first step may well have to be very small.
           right_end_of_range *= 0.5;
