@@ -55,11 +55,17 @@ class LineSearchContext final {
 };
 
 struct OptimizationContext {
+  std::chrono::microseconds const ts_begin;
   value_t const f;  // The function to optimize.
 
-  std::vector<value_t> const g;   // The gradient.
-  value_t const l;                // The "line" 1D function f(lambda), to optimize along the gradient.
+  std::vector<value_t> const g;  // The gradient.
+  std::chrono::microseconds const ts_after_g;
+
+  value_t const l;  // The "line" 1D function f(lambda), to optimize along the gradient.
+  std::chrono::microseconds const ts_after_l;
+
   std::vector<value_t> const ds;  // The derivatives of the 1D "line" function; one requires, others optional.
+  std::chrono::microseconds const ts_after_ds;
 
   // The setup for the variables, to operate with vars tree after vars scope is gone.
   // NOTE(dkorolev): Should absolutely be a copy, not a const reference.
@@ -72,11 +78,17 @@ struct OptimizationContext {
   JITCallContext jit_call_context;  // The holder of the RAM block to run the JIT-compiled functions.
   JITCompiler jit_compiler;         // The JIT compiler, single scope for maximum cache reuse.
 
+  std::chrono::microseconds const ts_after_jit_initialized;
+
   // The JIT-compiled everything.
   JITCompiledFunction const compiled_f;
+  std::chrono::microseconds const ts_after_jit_f;
   JITCompiledFunctionReturningVector const compiled_g;
+  std::chrono::microseconds const ts_after_jit_g;
   JITCompiledFunctionWithArgument const compiled_l;
+  std::chrono::microseconds const ts_after_jit_l;
   std::vector<std::unique_ptr<JITCompiledFunctionWithArgument>> const compiled_ds;
+  std::chrono::microseconds const ts_after_jit_ds;
   std::vector<JITCompiledFunctionWithArgument const*> const compiled_ds_pointers;
 
   static std::vector<value_t> ComputeDS(value_t l) {
@@ -117,18 +129,27 @@ struct OptimizationContext {
   // NOTE(dkorolev): Important to initialize `vars_values` after the differentiation took place,
   // as differentiating adds nodes to the expression tree, which is frozen after the vars context is exported.
   OptimizationContext(value_t f, Vars::Scope& scope = InternalTLS())
-      : f(f),
+      : ts_begin(current::time::Now()),
+        f(f),
         g(ComputeGradient(f)),
+        ts_after_g(current::time::Now()),
         l(GenerateLineSearchFunction(f, g)),
+        ts_after_l(current::time::Now()),
         ds(ComputeDS(l)),
+        ts_after_ds(current::time::Now()),
         vars_config(scope.VarsConfig()),
         vars_values(vars_config),
         jit_call_context(),
         jit_compiler(jit_call_context),
+        ts_after_jit_initialized(current::time::Now()),
         compiled_f(jit_compiler.Compile(f)),
+        ts_after_jit_f(current::time::Now()),
         compiled_g(jit_compiler.Compile(g)),
+        ts_after_jit_g(current::time::Now()),
         compiled_l(jit_compiler.CompileFunctionWithArgument(l)),
+        ts_after_jit_l(current::time::Now()),
         compiled_ds(CompileDS(jit_compiler, ds)),
+        ts_after_jit_ds(current::time::Now()),
         compiled_ds_pointers(GetCompiledDSPointers(compiled_ds)) {}
 
   std::vector<double> const CurrentPoint() const { return vars_values.x; }
@@ -141,6 +162,16 @@ struct OptimizationContext {
   operator LineSearchContext() const {
     return LineSearchContext(vars_values, compiled_l, *compiled_ds.front(), compiled_ds_pointers);
   }
+
+  // Getters for the time intervals certain steps took.
+  double SecondsToG() const { return 1e-6 * (ts_after_g - ts_begin).count(); }
+  double SecondsToL() const { return 1e-6 * (ts_after_l - ts_after_g).count(); }
+  double SecondsToDS() const { return 1e-6 * (ts_after_ds - ts_after_l).count(); }
+  double SecondsToInitializeJIT() const { return 1e-6 * (ts_after_jit_initialized - ts_after_ds).count(); }
+  double SecondsToCompileF() const { return 1e-6 * (ts_after_jit_f - ts_after_jit_initialized).count(); }
+  double SecondsToCompileG() const { return 1e-6 * (ts_after_jit_g - ts_after_jit_f).count(); }
+  double SecondsToCompileL() const { return 1e-6 * (ts_after_jit_l - ts_after_jit_g).count(); }
+  double SecondsToCompileDS() const { return 1e-6 * (ts_after_jit_ds - ts_after_jit_l).count(); }
 };
 
 }  // namespace current::expression::optimizer
