@@ -515,3 +515,97 @@ TEST(OptimizationDifferentiate, GradientStressTest3KExponents) {
 TEST(OptimizationDifferentiate, GradientStressTest10KExponents) {
   RunOptimizationDifferentiateGradientStressTest(10000u);
 }
+
+inline size_t GradientLogRegCostFunctionStressTestExpectedNumberOfNodes(size_t const log2_dim) {
+  return (1ull << (log2_dim + 2u)) + 1u;
+}
+
+inline void RunGradientLogRegCostFunctionStressTest(size_t const log2_dim, bool test_output) {
+  size_t const dim = (1ull << log2_dim);
+
+  using namespace current::expression;
+
+  Vars::Scope scope;
+
+  for (size_t i = 0; i < dim; ++i) {
+    x[i] = 0.0;
+  }
+
+  value_t denominator = 0.0;
+  for (size_t i = 0; i < dim; ++i) {
+    denominator += exp(x[i]);
+  }
+
+  std::string golden_denominator_text;
+  if (test_output) {
+    BalanceExpressionTree(denominator);
+    golden_denominator_text = denominator.DebugAsString();
+  }
+
+  value_t const f = x[0] - log(denominator);
+
+  EXPECT_EQ(dim, scope.NumberOfVars());
+  EXPECT_EQ(dim * 2 + 1, scope.NumberOfNodes());
+
+  BalanceExpressionTree(f);
+
+  EXPECT_EQ(dim, scope.NumberOfVars());
+  EXPECT_EQ(dim * 2 + 1, scope.NumberOfNodes());
+
+  if (test_output) {
+    EXPECT_EQ("(x[0]-log(" + golden_denominator_text + "))", f.DebugAsString());
+  }
+
+  std::vector<value_t> const g = ComputeGradient(f);
+
+  EXPECT_EQ(dim, scope.NumberOfVars());
+  EXPECT_EQ(GradientLogRegCostFunctionStressTestExpectedNumberOfNodes(log2_dim), scope.NumberOfNodes());
+
+  if (test_output) {
+    EXPECT_EQ("(1.000000-(exp(x[0])/" + golden_denominator_text + "))", g[0].DebugAsString());
+    for (size_t i = 1u; i < dim; ++i) {
+      EXPECT_EQ("(0.000000-(exp(x[" + current::ToString(i) + "])/" + golden_denominator_text + "))",
+                g[i].DebugAsString());
+    }
+  }
+}
+
+TEST(OptimizationDifferentiate, GradientLogRegCostFunctionSmokeTest) {
+  RunGradientLogRegCostFunctionStressTest(1u, true);
+  RunGradientLogRegCostFunctionStressTest(2u, true);
+  RunGradientLogRegCostFunctionStressTest(3u, true);
+  RunGradientLogRegCostFunctionStressTest(4u, true);
+}
+
+#define TEST_LOGREG_FUNCTION(log2_dim)                                                  \
+  TEST(OptimizationDifferentiate, GradientLogRegCostFunctionStressTest2Pow##log2_dim) { \
+    RunGradientLogRegCostFunctionStressTest(log2_dim, false);                           \
+  }
+
+TEST_LOGREG_FUNCTION(1);
+TEST_LOGREG_FUNCTION(2);
+TEST_LOGREG_FUNCTION(3);
+TEST_LOGREG_FUNCTION(4);
+TEST_LOGREG_FUNCTION(5);
+TEST_LOGREG_FUNCTION(6);
+TEST_LOGREG_FUNCTION(7);
+TEST_LOGREG_FUNCTION(8);
+TEST_LOGREG_FUNCTION(9);
+TEST_LOGREG_FUNCTION(10);
+TEST_LOGREG_FUNCTION(11);
+TEST_LOGREG_FUNCTION(12);
+TEST_LOGREG_FUNCTION(13);
+TEST_LOGREG_FUNCTION(14);
+TEST_LOGREG_FUNCTION(15);
+TEST_LOGREG_FUNCTION(16);
+
+#ifndef CURRNET_CI  // The tests below require over 100MB of RAM.
+TEST_LOGREG_FUNCTION(17);
+TEST_LOGREG_FUNCTION(18);
+TEST_LOGREG_FUNCTION(19);
+TEST_LOGREG_FUNCTION(20);
+TEST_LOGREG_FUNCTION(21);
+TEST_LOGREG_FUNCTION(22);
+#endif  // CURRENT_CI
+
+#undef TEST_LOGREG_FUNCTION
