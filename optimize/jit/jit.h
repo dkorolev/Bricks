@@ -167,7 +167,7 @@ class JITCompiledFunctionImpl final {
       : ctx_(std::move(call_context_impl)),
         this_function_index_in_order_(ctx_->CurrentFunctionIndexAndPostIncrementIt()),
         code_size_(code_size),
-        f_(code_size) {}
+        f_(code_size_) {}
 
   double CallFunction(double const* x) const {
     ctx_->MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
@@ -177,7 +177,7 @@ class JITCompiledFunctionImpl final {
   size_t CodeSize() const { return code_size_; }
 
   // NOTE(dkorolev): This function is internal, but it's of the class that is never really exposed to the user.
-  void push_raw_code_byte(uint8_t raw_code_byte) { f_.push_back(raw_code_byte); }
+  void internal_push_raw_code_byte(uint8_t raw_code_byte) { f_.push_back(raw_code_byte); }
 };
 
 class JITCompiledFunction final {
@@ -189,10 +189,10 @@ class JITCompiledFunction final {
       : f_(std::make_unique<JITCompiledFunctionImpl>(std::move(call_context_impl), code_size)) {}
 
  public:
-  struct CodeBytesPusher {
+  struct InternalRawCodeBytesPusher {
     JITCompiledFunctionImpl& destination;
-    CodeBytesPusher(JITCompiledFunction& self) : destination(*self.f_) {}
-    void push_back(uint8_t raw_code_byte) { destination.push_raw_code_byte(raw_code_byte); }
+    InternalRawCodeBytesPusher(JITCompiledFunction& self) : destination(*self.f_) {}
+    void push_back(uint8_t raw_code_byte) { destination.internal_push_raw_code_byte(raw_code_byte); }
   };
 
   double operator()(double const* x) const { return f_->CallFunction(x); }
@@ -216,12 +216,12 @@ class JITCompiledFunctionReturningVectorImpl final {
 
  public:
   JITCompiledFunctionReturningVectorImpl(current::sync::Borrowed<JITCallContextImpl> call_context_impl,
-                                         std::vector<uint8_t> code,
+                                         size_t code_size,
                                          std::vector<ExpressionNodeIndex> output_node_indexes)
       : ctx_(std::move(call_context_impl)),
         this_function_index_in_order_(ctx_->CurrentFunctionIndexAndPostIncrementIt()),
-        code_size_(code.size()),
-        f_(code),
+        code_size_(code_size),
+        f_(code_size_),
         output_node_indexes_(std::move(output_node_indexes)) {}
 
   std::vector<double> CallFunctionReturningVector(double const* x) const {
@@ -284,6 +284,9 @@ class JITCompiledFunctionReturningVectorImpl final {
 
   size_t Dim() const { return output_node_indexes_.size(); }
   size_t CodeSize() const { return code_size_; }
+
+  // NOTE(dkorolev): This function is internal, but it's of the class that is never really exposed to the user.
+  void internal_push_raw_code_byte(uint8_t raw_code_byte) { f_.push_back(raw_code_byte); }
 };
 
 class JITCompiledFunctionReturningVector final {
@@ -292,12 +295,18 @@ class JITCompiledFunctionReturningVector final {
 
   friend class JITCompiler;
   JITCompiledFunctionReturningVector(current::sync::Borrowed<JITCallContextImpl> call_context_impl,
-                                     std::vector<uint8_t> code,
+                                     size_t code_size,
                                      std::vector<ExpressionNodeIndex> output_node_indexes)
       : f_(std::make_unique<JITCompiledFunctionReturningVectorImpl>(
-            std::move(call_context_impl), code, std::move(output_node_indexes))) {}
+            std::move(call_context_impl), code_size, std::move(output_node_indexes))) {}
 
  public:
+  struct InternalRawCodeBytesPusher {
+    JITCompiledFunctionReturningVectorImpl& destination;
+    InternalRawCodeBytesPusher(JITCompiledFunctionReturningVector& self) : destination(*self.f_) {}
+    void push_back(uint8_t raw_code_byte) { destination.internal_push_raw_code_byte(raw_code_byte); }
+  };
+
   std::vector<double> operator()(double const* x) const { return f_->CallFunctionReturningVector(x); }
   std::vector<double> operator()(std::vector<double> const& x) const { return f_->CallFunctionReturningVector(&x[0]); }
   std::vector<double> operator()(Vars const& values) const { return f_->CallFunctionReturningVector(&values.x[0]); }
@@ -384,12 +393,11 @@ class JITCompiledFunctionWithArgumentImpl final {
   JITCompiledFunctionWithArgumentImpl& operator=(JITCompiledFunctionWithArgumentImpl&&) = delete;
 
  public:
-  JITCompiledFunctionWithArgumentImpl(current::sync::Borrowed<JITCallContextImpl> call_context_impl,
-                                      std::vector<uint8_t> code)
+  JITCompiledFunctionWithArgumentImpl(current::sync::Borrowed<JITCallContextImpl> call_context_impl, size_t code_size)
       : ctx_(std::move(call_context_impl)),
         this_function_index_in_order_(ctx_->CurrentFunctionIndexAndPostIncrementIt()),
-        code_size_(code.size()),
-        f_(code) {}
+        code_size_(code_size),
+        f_(code_size_) {}
 
   double CallFunctionWithArgument(double const* x, double p) const {
     ctx_->MarkFunctionComputedOrThrowIfPrerequisitesNotMet(this_function_index_in_order_);
@@ -398,6 +406,9 @@ class JITCompiledFunctionWithArgumentImpl final {
   }
 
   size_t CodeSize() const { return code_size_; }
+
+  // NOTE(dkorolev): This function is internal, but it's of the class that is never really exposed to the user.
+  void internal_push_raw_code_byte(uint8_t raw_code_byte) { f_.push_back(raw_code_byte); }
 };
 
 class JITCompiledFunctionWithArgument final {
@@ -405,11 +416,16 @@ class JITCompiledFunctionWithArgument final {
   std::unique_ptr<JITCompiledFunctionWithArgumentImpl> f_;
 
   friend class JITCompiler;
-  JITCompiledFunctionWithArgument(current::sync::Borrowed<JITCallContextImpl> call_context_impl,
-                                  std::vector<uint8_t> code)
-      : f_(std::make_unique<JITCompiledFunctionWithArgumentImpl>(std::move(call_context_impl), code)) {}
+  JITCompiledFunctionWithArgument(current::sync::Borrowed<JITCallContextImpl> call_context_impl, size_t code_size)
+      : f_(std::make_unique<JITCompiledFunctionWithArgumentImpl>(std::move(call_context_impl), code_size)) {}
 
  public:
+  struct InternalRawCodeBytesPusher {
+    JITCompiledFunctionWithArgumentImpl& destination;
+    InternalRawCodeBytesPusher(JITCompiledFunctionWithArgument& self) : destination(*self.f_) {}
+    void push_back(uint8_t raw_code_byte) { destination.internal_push_raw_code_byte(raw_code_byte); }
+  };
+
   double operator()(double const* x, double p) const { return f_->CallFunctionWithArgument(x, p); }
   double operator()(std::vector<double> const& x, double p) const { return f_->CallFunctionWithArgument(&x[0], p); }
   double operator()(Vars const& values, double p) const { return f_->CallFunctionWithArgument(&values.x[0], p); }
@@ -616,7 +632,7 @@ class JITCompiler final {
     // Pass two: Generate the code.
     save_node_computed_.swap(node_computed_);
     JITCompiledFunction compiled(jit_call_context_impl_, size_computer.n);
-    JITCompiledFunction::CodeBytesPusher code(compiled);
+    JITCompiledFunction::InternalRawCodeBytesPusher code(compiled);
     index.CheckedDispatch(
         [&](size_t node_index) {
           // The true expression node. Need to JIT-generate the proper function body.
@@ -646,16 +662,35 @@ class JITCompiler final {
   JITCompiledFunctionReturningVector Compile(std::vector<value_t> const& nodes) {
     using namespace current::fncas::x64_native_jit;
 
-    // TODO(dkorolev): Inplace code generation.
-    std::vector<uint8_t> code;
-
-    opcodes::push_rbx(code);
-    opcodes::mov_rsi_rbx(code);
-
     std::vector<ExpressionNodeIndex> output_node_indexes(nodes.size());
     for (size_t i = 0; i < nodes.size(); ++i) {
       output_node_indexes[i] = static_cast<ExpressionNodeIndex>(nodes[i].GetExpressionNodeIndex());
     }
+
+    // Pass one: Compute the resulting code size.
+    save_node_computed_ = node_computed_;
+    GlorifiedPushBack size_computer;
+
+    opcodes::push_rbx(size_computer);
+    opcodes::mov_rsi_rbx(size_computer);
+
+    for (ExpressionNodeIndex const index : output_node_indexes) {
+      // Outside the very index nodes, var nodes, double value nodes, and lamda nodes do not need to be JIT-compiled.
+      if (index.UncheckedIsSpecificallyNodeIndex()) {
+        NonRecursiveEnsureNodeComputed(size_computer, index);
+      }
+    }
+
+    opcodes::pop_rbx(size_computer);
+    opcodes::ret(size_computer);
+
+    // Pass two: Generate the code.
+    save_node_computed_.swap(node_computed_);
+    JITCompiledFunctionReturningVector compiled(jit_call_context_impl_, size_computer.n, output_node_indexes);
+    JITCompiledFunctionReturningVector::InternalRawCodeBytesPusher code(compiled);
+
+    opcodes::push_rbx(code);
+    opcodes::mov_rsi_rbx(code);
 
     for (ExpressionNodeIndex const index : output_node_indexes) {
       // Outside the very index nodes, var nodes, double value nodes, and lamda nodes do not need to be JIT-compiled.
@@ -667,16 +702,48 @@ class JITCompiler final {
     opcodes::pop_rbx(code);
     opcodes::ret(code);
 
-    return JITCompiledFunctionReturningVector(jit_call_context_impl_, std::move(code), std::move(output_node_indexes));
+    return compiled;
   }
 
   JITCompiledFunctionWithArgument CompileFunctionWithArgument(value_t node) {
     using namespace current::fncas::x64_native_jit;
 
-    // TODO(dkorolev): Inplace code generation.
-    std::vector<uint8_t> code;
-
     ExpressionNodeIndex const index = node.GetExpressionNodeIndex();
+
+    // Pass one: Compute the resulting code size.
+    save_node_computed_ = node_computed_;
+    GlorifiedPushBack size_computer;
+
+    index.CheckedDispatch(
+        [&](size_t node_index) {
+          // The true expression node. Need to JIT-generate the proper function body.
+          opcodes::push_rbx(size_computer);
+          opcodes::mov_rsi_rbx(size_computer);
+          // TODO(dkorolev): Allow computing function with parameter. And test this.
+          NonRecursiveEnsureNodeComputed(size_computer, index);
+          // TODO(dkorolev): Disallow computing function with parameter.
+          opcodes::load_from_memory_by_rbx_offset_to_xmm0(size_computer, node_index);
+          opcodes::pop_rbx(size_computer);
+        },
+        [&](size_t var_index) {
+          // Var. Just load its value into xmm0.
+          opcodes::load_from_memory_by_rdi_offset_to_xmm0(size_computer, var_index);
+        },
+        [&](double value) {
+          // Value. Just load it into xmm0.
+          opcodes::load_immediate_to_xmm0(size_computer, value);
+        },
+        [&]() {
+          // Lambda. Just load its value into xmm0.
+          opcodes::load_from_memory_by_rsi_offset_to_xmm0(size_computer, number_of_nodes_);
+        });
+    opcodes::ret(size_computer);
+
+    // Pass two: Generate the code.
+    save_node_computed_.swap(node_computed_);
+    JITCompiledFunctionWithArgument compiled(jit_call_context_impl_, size_computer.n);
+    JITCompiledFunctionWithArgument::InternalRawCodeBytesPusher code(compiled);
+
     index.CheckedDispatch(
         [&](size_t node_index) {
           // The true expression node. Need to JIT-generate the proper function body.
@@ -702,7 +769,7 @@ class JITCompiler final {
         });
     opcodes::ret(code);
 
-    return JITCompiledFunctionWithArgument(jit_call_context_impl_, std::move(code));
+    return compiled;
   }
 };
 
