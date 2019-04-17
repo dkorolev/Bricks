@@ -56,6 +56,100 @@ CURRENT_STRUCT(OptimizationParameters) {
   CURRENT_FIELD(line_search_parameters, LineSearchParameters);
 };
 
+// `MutableGradientAccessor` is the way the user-provided gradient-tweaking function can change the computed gradient,
+// directly in the JIT RAM space. This special accessor is not only required to manipulate the values, but also
+// to make sure the user is not accidentally trying to change the values of the gradient that are not constants.
+// (Yes, this can be seen as an over-optimization and a limitation of the approach. I will worry about this later.)
+struct MutableGradientAssigningToNonRAMNode final : OptimizeException {};
+class MutableGradientAccessor {
+ private:
+  std::vector<double> const& vars_values_;
+  double* ram_;
+  std::vector<value_t> const& g_;
+
+ public:
+  explicit MutableGradientAccessor(OptimizationContext const& optimization_context)
+      : vars_values_(optimization_context.vars_values.x),
+        ram_(optimization_context.jit_call_context.MutableRAMPointer()),
+        g_(optimization_context.g) {}
+
+  size_t size() const { return g_.size(); }
+
+  struct GradientValueAccessor {
+    MutableGradientAccessor const& self;
+    ExpressionNodeIndex const node_index;
+    GradientValueAccessor(MutableGradientAccessor const& self, ExpressionNodeIndex const node_index)
+        : self(self), node_index(node_index) {}
+
+    operator double() const {
+      return node_index.CheckedDispatch<double>(
+          [&](size_t node_index) { return self.ram_[node_index]; },
+          [&](size_t var_index) { return self.vars_values_[var_index]; },
+          [&](double x) { return x; },
+          []() -> double { CURRENT_THROW(VarsMapperMovePointUnexpectedLambdaException()); });
+    }
+
+    // TODO(dkorolev): More operators.
+    void operator=(double x) const {
+      node_index.CheckedDispatch([&](size_t node_index) { self.ram_[node_index] = x; },
+                                 [&](size_t) { CURRENT_THROW(MutableGradientAssigningToNonRAMNode()); },
+                                 [&](double) { CURRENT_THROW(MutableGradientAssigningToNonRAMNode()); },
+                                 []() { CURRENT_THROW(MutableGradientAssigningToNonRAMNode()); });
+    }
+  };
+
+  GradientValueAccessor operator[](RawVarIndex i) const {
+#ifndef NDEBUG
+    if (!(static_cast<size_t>(i) < g_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
+    return GradientValueAccessor(*this, ExpressionNodeIndexFromExpressionNodeOrValue(g_[static_cast<size_t>(i)]));
+  }
+};
+
+// `PointAccessor` and `MutablePointAccessor` are the means to access `Vars` using `RawVarIndex`-es.
+// TODO(dkorolev): Refactor and move it out of the `optimizer/` dir.
+class PointAccessor {
+ private:
+  std::vector<double> const& values_;
+
+ public:
+  explicit PointAccessor(std::vector<double> const& values) : values_(values) {}
+
+  size_t size() const { return values_.size(); }
+
+  double operator[](RawVarIndex i) const {
+    size_t const var_index = static_cast<size_t>(i);
+#ifndef NDEBUG
+    if (!(var_index < values_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
+    return values_[var_index];
+  }
+};
+class MutablePointAccessor {
+ private:
+  std::vector<double>& values_;
+
+ public:
+  explicit MutablePointAccessor(std::vector<double>& values) : values_(values) {}
+
+  size_t size() const { return values_.size(); }
+
+  double& operator[](RawVarIndex i) const {
+    size_t const var_index = static_cast<size_t>(i);
+#ifndef NDEBUG
+    if (!(var_index < values_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
+    return values_[var_index];
+  }
+};
+
+// `GradientAccessor` is used for read-only access of the values of the gradient, to make a step along it.
 class GradientAccessor {
  private:
   std::vector<double> const& vars_values_;
@@ -70,28 +164,40 @@ class GradientAccessor {
 
   size_t size() const { return g_.size(); }
 
-  double operator[](size_t i) const {
-    return ExpressionNodeIndexFromExpressionNodeOrValue(g_[i]).CheckedDispatch<double>(
-        [&](size_t node_index) { return ram_[node_index]; },
-        [&](size_t var_index) { return vars_values_[var_index]; },
-        [&](double x) { return x; },
-        []() -> double { CURRENT_THROW(VarsMapperMovePointUnexpectedLambdaException()); });
+  double operator[](RawVarIndex i) const {
+    size_t const var_index = static_cast<size_t>(i);
+#ifndef NDEBUG
+    if (!(var_index < g_.size())) {
+      TriggerSegmentationFault();
+    }
+#endif
+    return ExpressionNodeIndexFromExpressionNodeOrValue(g_[var_index])
+        .CheckedDispatch<double>([&](size_t node_index) { return ram_[node_index]; },
+                                 [&](size_t var_index) { return vars_values_[var_index]; },
+                                 [&](double x) { return x; },
+                                 []() -> double { CURRENT_THROW(VarsMapperMovePointUnexpectedLambdaException()); });
   }
 };
 
 class OptimizationStrategy {
  public:
-  // TODO(dkorolev): More functions should be inject-able.
-  using t_impl_move_point_along_gradient = std::function<void(std::vector<double>&, GradientAccessor const&, double)>;
+  using t_impl_move_point_along_gradient =
+      std::function<void(MutablePointAccessor const&, GradientAccessor const&, double)>;
+  using t_impl_tweak_gradient = std::function<void(PointAccessor const&, MutableGradientAccessor const&)>;
 
  private:
   OptimizationParameters const parameters_;
 
   t_impl_move_point_along_gradient impl_move_point_along_gradient_ = [](
-      std::vector<double>& x, GradientAccessor const& dx, double step) {
+      MutablePointAccessor const& x, GradientAccessor const& dx, double step) {
     for (size_t i = 0; i < x.size(); ++i) {
-      x[i] += dx[i] * step;
+      x[static_cast<RawVarIndex>(i)] += dx[static_cast<RawVarIndex>(i)] * step;
     }
+  };
+
+  t_impl_tweak_gradient impl_tweak_gradient = [](PointAccessor const& x, MutableGradientAccessor const& dx) {
+    static_cast<void>(x);
+    static_cast<void>(dx);
   };
 
  public:
@@ -100,6 +206,11 @@ class OptimizationStrategy {
 
   OptimizationStrategy& InjectMovePointAlongGradient(t_impl_move_point_along_gradient f) {
     impl_move_point_along_gradient_ = f;
+    return *this;
+  }
+
+  OptimizationStrategy& InjectTweakGradient(t_impl_tweak_gradient f) {
+    impl_tweak_gradient = f;
     return *this;
   }
 
@@ -127,9 +238,11 @@ class OptimizationStrategy {
     return result.iterations >= parameters_.max_iterations;
   }
 
-  void MovePointAlongGradient(std::vector<double>& x, GradientAccessor const& dx, double step) const {
+  void MovePointAlongGradient(MutablePointAccessor const& x, GradientAccessor const& dx, double step) const {
     impl_move_point_along_gradient_(x, dx, step);
   }
+
+  void TweakGradient(PointAccessor const& x, MutableGradientAccessor const& dx) const { impl_tweak_gradient(x, dx); }
 };
 
 inline OptimizationResult Optimize(OptimizationContext& optimization_context, OptimizationStrategy const& strategy) {
@@ -146,6 +259,8 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context, Op
   Optional<double> step;
   do {
     optimization_context.compiled_g(optimization_context.vars_values.x);
+    strategy.TweakGradient(PointAccessor(optimization_context.vars_values.x),
+                           MutableGradientAccessor(optimization_context));
 
     // `Optional<double>` is provided to `LineSearch` as the best step on the previous iteration.
     // Line search is stateful this way.
@@ -158,7 +273,8 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context, Op
     ++result.iterations;
 
     std::vector<double> new_value(optimization_context.vars_values.x);
-    strategy.MovePointAlongGradient(new_value, GradientAccessor(optimization_context), step_value);
+    strategy.MovePointAlongGradient(
+        MutablePointAccessor(new_value), GradientAccessor(optimization_context), step_value);
     optimization_context.vars_values.InjectPoint(new_value);
 
     result.steps.push_back(Value(step));

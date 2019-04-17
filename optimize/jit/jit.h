@@ -129,6 +129,9 @@ class JITCallContextImpl final {
   }
 
   double const* ConstRAMPointer() const { return &ram_[0]; }
+
+  // NOTE(dkorolev): Use at your own risk.
+  double* MutableRAMPointer() const { return &ram_[0]; }
 };
 
 class JITCallContext {
@@ -144,6 +147,7 @@ class JITCallContext {
   Vars::Config const& VarsConfig() const { return impl_->VarsConfig(); }
 
   double const* ConstRAMPointer() const { return impl_->ConstRAMPointer(); }
+  double* MutableRAMPointer() const { return impl_->MutableRAMPointer(); }  // NOTE(dkorolev): Use at your own risk.
   void MarkNewPoint() { impl_->MarkNewPoint(); }
   size_t TotalRAMSize() const { return impl_->TotalRAMSize(); }
 };

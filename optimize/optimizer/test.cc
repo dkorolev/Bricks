@@ -214,13 +214,12 @@ TEST(OptimizationOptimizer, HimmelblauFunction) {
   EXPECT_NEAR(0.0, result.final_value, 1e-6);
 }
 
-// An example of "intelligent" moving of the point along the gradient.
-TEST(OptimizationOptimizer, IntelligentMoveAlongTheGradient) {
+TEST(OptimizationOptimizer, CustomMoveAlongTheGradientAndCustomGradientTweak) {
   using namespace current::expression;
   using namespace current::expression::optimizer;
 
   {
-    // First, the "canonical" run: the traditional gradient descent.
+    // The "canonical" run using the vanilla gradient descent.
     Vars::Scope scope;
 
     x[0] = 0.0;
@@ -252,7 +251,8 @@ TEST(OptimizationOptimizer, IntelligentMoveAlongTheGradient) {
   }
 
   {
-    // Now the implementation where each step along the gradient makes sure all the exponentiated weights are `<= 0`.
+    // An example of "intelligent" moving of the point along the gradient.
+    // The implementation where each step along the gradient makes sure all the exponentiated weights are `<= 0`.
     Vars::Scope scope;
 
     x[0] = 0.0;
@@ -273,16 +273,66 @@ TEST(OptimizationOptimizer, IntelligentMoveAlongTheGradient) {
     EXPECT_EQ(0, static_cast<int>(static_cast<RawVarIndex>(optimization_context.vars_values[0])));
     EXPECT_EQ(1, static_cast<int>(static_cast<RawVarIndex>(optimization_context.vars_values[1])));
 
-    OptimizationResult const result = Optimize(optimization_context,
-                                               OptimizationStrategy().InjectMovePointAlongGradient(
-                                                   [](std::vector<double>& x, GradientAccessor const& dx, double step) {
-                                                     for (size_t i = 0; i < x.size(); ++i) {
-                                                       x[i] += dx[i] * step;
-                                                     }
-                                                     double const max_value = std::max(x[0], x[1]);
-                                                     x[0] -= max_value;
-                                                     x[1] -= max_value;
-                                                   }));
+    RawVarIndex const i0 = x[0];
+    RawVarIndex const i1 = x[1];
+
+    OptimizationResult const result =
+        Optimize(optimization_context,
+                 OptimizationStrategy().InjectMovePointAlongGradient(
+                     [i0, i1](MutablePointAccessor const& x, GradientAccessor const& dx, double step) {
+                       x[i0] += dx[i0] * step;
+                       x[i1] += dx[i1] * step;
+                       double const max_value = std::max(x[i0], x[i1]);
+                       x[i0] -= max_value;
+                       x[i1] -= max_value;
+                     }));
+
+    ASSERT_EQ(2u, result.final_point.size());
+
+    double const w0 = exp(result.final_point[0]);
+    double const w1 = exp(result.final_point[1]);
+    EXPECT_NEAR(w0 / (w0 + w1), 0.4, 1e-6);
+    EXPECT_NEAR(w1 / (w0 + w1), 0.6, 1e-6);
+
+    // Unlike the invocation above, in this case the resulting `x[*]` are kept non-positive.
+    EXPECT_NEAR(-0.40546510810768122, result.final_point[0], 1e-9);
+    EXPECT_NEAR(0.0, result.final_point[1], 1e-9);
+    EXPECT_NEAR(-0.40546510810768122, result.final_point[0] - result.final_point[1], 1e-9);
+  }
+
+  {
+    // An example of "intelligence" applied at the gradient level, before looking for the best step size and moving.
+    Vars::Scope scope;
+
+    x[0] = 0.0;
+    x[1] = 0.0;
+
+    value_t const x0 = x[0];
+    value_t const x1 = x[1];
+
+    value_t const log_denominator = log(exp(x0) + exp(x1));
+    value_t const log_p0 = x0 - log_denominator;
+    value_t const log_p1 = x1 - log_denominator;
+    value_t const cost_function = -(log_p0 * 2 + log_p1 * 3);
+
+    OptimizationContext optimization_context(cost_function);
+
+    EXPECT_EQ(0, static_cast<int>(static_cast<RawVarIndex>(x[0])));
+    EXPECT_EQ(1, static_cast<int>(static_cast<RawVarIndex>(x[1])));
+    EXPECT_EQ(0, static_cast<int>(static_cast<RawVarIndex>(optimization_context.vars_values[0])));
+    EXPECT_EQ(1, static_cast<int>(static_cast<RawVarIndex>(optimization_context.vars_values[1])));
+
+    RawVarIndex const i0 = x[0];
+    RawVarIndex const i1 = x[1];
+
+    OptimizationResult const result = Optimize(
+        optimization_context,
+        OptimizationStrategy().InjectTweakGradient([i0, i1](PointAccessor const&, MutableGradientAccessor const& dx) {
+          // The gradient components should be made non-negative, as the steps themselves are against the gradient.
+          double const min_value = std::min(static_cast<double>(dx[i0]), static_cast<double>(dx[i1]));
+          dx[i0] = dx[i0] - min_value;
+          dx[i1] = dx[i1] - min_value;
+        }));
 
     ASSERT_EQ(2u, result.final_point.size());
 
