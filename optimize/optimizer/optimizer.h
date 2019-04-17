@@ -78,12 +78,30 @@ class GradientAccessor {
         []() -> double { CURRENT_THROW(VarsMapperMovePointUnexpectedLambdaException()); });
   }
 };
+
 class OptimizationStrategy {
+ public:
+  // TODO(dkorolev): More functions should be inject-able.
+  using t_impl_move_point_along_gradient = std::function<void(std::vector<double>&, GradientAccessor const&, double)>;
+
  private:
   OptimizationParameters const parameters_;
 
+  t_impl_move_point_along_gradient impl_move_point_along_gradient_ = [](
+      std::vector<double>& x, GradientAccessor const& dx, double step) {
+    for (size_t i = 0; i < x.size(); ++i) {
+      x[i] += dx[i] * step;
+    }
+  };
+
  public:
-  explicit OptimizationStrategy(OptimizationParameters parameters) : parameters_(std::move(parameters)) {}
+  OptimizationStrategy(OptimizationParameters parameters = OptimizationParameters())
+      : parameters_(std::move(parameters)) {}
+
+  OptimizationStrategy& InjectMovePointAlongGradient(t_impl_move_point_along_gradient f) {
+    impl_move_point_along_gradient_ = f;
+    return *this;
+  }
 
   OptimizationParameters const& Parameters() const { return parameters_; }
   LineSearchParameters const& LineSearchParameters() const { return parameters_.line_search_parameters; }
@@ -109,11 +127,8 @@ class OptimizationStrategy {
     return result.iterations >= parameters_.max_iterations;
   }
 
-  // NOTE(dkorolev): `step` is negative here.
   void MovePointAlongGradient(std::vector<double>& x, GradientAccessor const& dx, double step) const {
-    for (size_t i = 0; i < x.size(); ++i) {
-      x[i] += dx[i] * step;
-    }
+    impl_move_point_along_gradient_(x, dx, step);
   }
 };
 
