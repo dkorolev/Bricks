@@ -55,8 +55,18 @@ CURRENT_STRUCT(OptimizationParameters) {
   CURRENT_FIELD(min_step, double, 1e-9);
 };
 
-inline OptimizationResult Optimize(OptimizationContext& optimization_context,
-                                   OptimizationParameters const& parameters = OptimizationParameters()) {
+class OptimizationStrategy {
+ private:
+  OptimizationParameters const parameters_;
+
+ public:
+  explicit OptimizationStrategy(OptimizationParameters parameters) : parameters_(std::move(parameters)) {}
+  OptimizationParameters const& Parameters() const { return parameters_; }
+};
+
+inline OptimizationResult Optimize(OptimizationContext& optimization_context, OptimizationStrategy const& strategy) {
+  OptimizationParameters const& parameters = strategy.Parameters();
+
   LineSearchParameters line_search_parameters;
 
   OptimizationResult result;
@@ -101,6 +111,11 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context,
   result.final_point = result.trace.back();
 
   return result;
+}
+
+inline OptimizationResult Optimize(OptimizationContext& optimization_context,
+                                   OptimizationParameters const& parameters = OptimizationParameters()) {
+  return Optimize(optimization_context, OptimizationStrategy(parameters));
 }
 
 }  // namespace current::expression::optimizer
