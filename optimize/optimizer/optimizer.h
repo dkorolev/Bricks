@@ -214,8 +214,8 @@ class OptimizationStrategy {
     return *this;
   }
 
-  OptimizationParameters const& Parameters() const { return parameters_; }
-  LineSearchParameters const& LineSearchParameters() const { return parameters_.line_search_parameters; }
+  OptimizationParameters const& GetParameters() const { return parameters_; }
+  LineSearchParameters const& GetLineSearchParameters() const { return parameters_.line_search_parameters; }
 
   bool StopByStepSize(uint32_t one_based_iteration_index, double step_size) const {
     static_cast<void>(one_based_iteration_index);
@@ -264,7 +264,7 @@ inline OptimizationResult Optimize(OptimizationContext& optimization_context, Op
 
     // `Optional<double>` is provided to `LineSearch` as the best step on the previous iteration.
     // Line search is stateful this way.
-    step = LineSearch(line_search_context, strategy.LineSearchParameters(), step).best_step;
+    step = LineSearch(line_search_context, strategy.GetLineSearchParameters(), step).best_step;
     double const step_value = Value(step);
     if (strategy.StopByStepSize(static_cast<uint32_t>(result.iterations), -step_value)) {
       break;
