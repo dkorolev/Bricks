@@ -73,6 +73,9 @@ constexpr static const uint64_t kExpressionNodeIndexForDoubleZero = 0x2000000000
 constexpr static const uint64_t kExpressionNodeIndexForDoubleNegativeZero = 0xa000000000000000;
 constexpr static const uint64_t kExpressionNodeIndexForDoubleOne = 0x3ff0000000000000;
 
+// A dedicated type for the index of a user-defined variable in the variables vector.
+enum class RawVarIndex : size_t {};
+
 // The data type for the expression should be defined in this `base.h` header, as the thread-local context
 // for expression management is the same as the thread-local context for variables management.
 //
@@ -111,6 +114,15 @@ class ExpressionNodeIndex {
   ExpressionNodeIndex& operator=(ExpressionNodeIndex const&) = default;
   ExpressionNodeIndex& operator=(ExpressionNodeIndex&&) = default;
 
+  ExpressionNodeIndex(RawVarIndex var_index) {
+#ifndef NDEBUG
+    if (!(static_cast<size_t>(var_index) < kFirstIllegalNodeOrVarIndex)) {
+      TriggerSegmentationFault();
+    }
+#endif
+    compactified_index_ = static_cast<uint64_t>(var_index) | kBitCompactIndexIsVar;
+  }
+
   struct ConstructDoubleZero {};
   struct ConstructDoubleOne {};
   ExpressionNodeIndex(ConstructDoubleZero) : compactified_index_(kExpressionNodeIndexForDoubleZero) {}
@@ -130,15 +142,6 @@ class ExpressionNodeIndex {
     }
 #endif
     return FromRawAlreadyCompactifiedIndex(static_cast<uint64_t>(node_index));
-  }
-
-  static ExpressionNodeIndex FromVarIndex(size_t var_index) {
-#ifndef NDEBUG
-    if (!(var_index < kFirstIllegalNodeOrVarIndex)) {
-      TriggerSegmentationFault();
-    }
-#endif
-    return FromRawAlreadyCompactifiedIndex(static_cast<uint64_t>(var_index) | kBitCompactIndexIsVar);
   }
 
   static ExpressionNodeIndex FromRegularDouble(double x) {

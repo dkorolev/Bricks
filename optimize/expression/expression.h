@@ -56,7 +56,7 @@ class value_t final {
   static ExpressionNodeIndex IndexFromVarNodeOrThrow(VarNode const& var_node) {
     if (var_node.type == VarNodeType::Value) {
       // When the most significant bit is set, the node is just a reference to certain index in the input vector.
-      return ExpressionNodeIndex::FromVarIndex(var_node.VarIndex());
+      return ExpressionNodeIndex(static_cast<RawVarIndex>(var_node));
     } else {
       CURRENT_THROW(ExpressionVarNodeBoxingException());
     }

@@ -32,10 +32,10 @@ SOFTWARE.
 #include "../../3rdparty/gtest/singlequoted.h"
 
 #define CHECK_VAR_NAME(var) EXPECT_EQ(#var, (var).FullVarName())
-#define CHECK_VAR_NAME_AND_INDEX(var, idx) \
-  {                                        \
-    EXPECT_EQ(#var, (var).FullVarName());  \
-    EXPECT_EQ(idx, (var).VarIndex());      \
+#define CHECK_VAR_NAME_AND_INDEX(var, idx)                              \
+  {                                                                     \
+    EXPECT_EQ(#var, (var).FullVarName());                               \
+    EXPECT_EQ(idx, static_cast<size_t>(static_cast<RawVarIndex>(var))); \
   }
 
 TEST(OptimizationVars, SparseByInt) {
@@ -44,9 +44,9 @@ TEST(OptimizationVars, SparseByInt) {
   x[1] = 2;
   x[100] = 101;
   x[42] = 0;
-  EXPECT_EQ(0u, x[1].VarIndex());
-  EXPECT_EQ(1u, x[100].VarIndex());
-  EXPECT_EQ(2u, x[42].VarIndex());
+  EXPECT_EQ(0u, static_cast<size_t>(static_cast<RawVarIndex>(x[1])));
+  EXPECT_EQ(1u, static_cast<size_t>(static_cast<RawVarIndex>(x[100])));
+  EXPECT_EQ(2u, static_cast<size_t>(static_cast<RawVarIndex>(x[42])));
   CHECK_VAR_NAME_AND_INDEX(x[1], 0u);
   CHECK_VAR_NAME_AND_INDEX(x[100], 1u);
   CHECK_VAR_NAME_AND_INDEX(x[42], 2u);
@@ -132,13 +132,13 @@ TEST(OptimizationVars, InternalVarIndexes) {
   x["foo"][1] = 2;
   CHECK_VAR_NAME(x["foo"][1]);
   // Should keep track of allocated internal leaf indexes.
-  EXPECT_EQ(0u, x["foo"][1].VarIndex());
+  EXPECT_EQ(0u, static_cast<size_t>(static_cast<RawVarIndex>(x["foo"][1])));
   // These are valid "var paths", but with no leaves allocated (they can still be nodes).
-  ASSERT_THROW(x["foo"].VarIndex(), VarIsNotLeafException);
-  ASSERT_THROW(x["foo"][0].VarIndex(), VarIsNotLeafException);
+  ASSERT_THROW(static_cast<void>(static_cast<size_t>(static_cast<RawVarIndex>(x["foo"]))), VarIsNotLeafException);
+  ASSERT_THROW(static_cast<void>(static_cast<RawVarIndex>(x["foo"][0])), VarIsNotLeafException);
   // And for the invalid paths the other exception type is thrown.
-  ASSERT_THROW(x["foo"]["bar"].VarIndex(), VarNodeTypeMismatchException);
-  ASSERT_THROW(x[0].VarIndex(), VarNodeTypeMismatchException);
+  ASSERT_THROW(static_cast<void>(static_cast<RawVarIndex>(x["foo"]["bar"])), VarNodeTypeMismatchException);
+  ASSERT_THROW(static_cast<void>(static_cast<RawVarIndex>(x[0])), VarNodeTypeMismatchException);
 }
 
 TEST(OptimizationVars, VarsTreeFinalizedExceptions) {
@@ -345,12 +345,12 @@ TEST(OptimizationVars, RawIndex) {
   Vars vars;
   ASSERT_EQ(5u, vars.size());
   EXPECT_EQ("[1.0,2.0,3.0,4.0,5.0]", JSON(vars.x));
-  EXPECT_EQ(0u, static_cast<size_t>(static_cast<Vars::RawIndex>(vars["i"][0])));
-  EXPECT_EQ(3u, static_cast<size_t>(static_cast<Vars::RawIndex>(vars["i"][1])));  // In the order of initialization.
-  EXPECT_EQ(2u, static_cast<size_t>(static_cast<Vars::RawIndex>(vars["i"][2])));  // In the order of initialization.
+  EXPECT_EQ(0u, static_cast<size_t>(static_cast<RawVarIndex>(vars["i"][0])));
+  EXPECT_EQ(3u, static_cast<size_t>(static_cast<RawVarIndex>(vars["i"][1])));  // In the order of initialization.
+  EXPECT_EQ(2u, static_cast<size_t>(static_cast<RawVarIndex>(vars["i"][2])));  // In the order of initialization.
   for (size_t i = 0u; i < vars.size(); ++i) {
-    vars[static_cast<Vars::RawIndex>(i)] *= 1000;
-    vars[static_cast<Vars::RawIndex>(i)] += i + 1;
+    vars[static_cast<RawVarIndex>(i)] *= 1000;
+    vars[static_cast<RawVarIndex>(i)] += i + 1;
   }
   EXPECT_EQ("[1001.0,2002.0,3003.0,4004.0,5005.0]", JSON(vars.x));
 }

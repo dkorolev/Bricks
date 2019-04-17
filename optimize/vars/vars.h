@@ -198,11 +198,11 @@ class InternalVarsScopeInterface {
   virtual bool IsFrozen() const = 0;
 
 #ifndef NDEBUG
-  virtual uint32_t AllocateNewVarInDebugMode(std::string var_name) = 0;
+  virtual RawVarIndex AllocateNewVarInDebugMode(std::string var_name) = 0;
 #else
-  virtual uint32_t AllocateNewVar() = 0;
+  virtual RawVarIndex AllocateNewVar() = 0;
 #endif
-  virtual void MarkVarAsConstant(size_t var_index) = 0;
+  virtual void MarkVarAsConstant(RawVarIndex) = 0;
 };
 // Forward declaration for the default constuctor of `Vars` below.
 inline InternalVarsScopeInterface& InternalTLSInterface();
@@ -238,8 +238,6 @@ class StringOrInt {
 struct VarNode;
 class Vars final {
  public:
-  enum class RawIndex : size_t {};
-
   class ResultNode final {
    private:
     std::vector<double>& value_;
@@ -398,9 +396,9 @@ class Vars final {
 
     void SetConstantValue(double x) const { RefEvenForAConstant() = x; }
 
-    operator RawIndex() const {
+    operator RawVarIndex() const {
       if (Exists<json::X>(node_)) {
-        return static_cast<RawIndex>(Value<json::X>(node_).i);
+        return static_cast<RawVarIndex>(Value<json::X>(node_).i);
       }
 #ifdef NDEBUG
       CURRENT_THROW(VarsMapperNodeNotVarException());
@@ -443,8 +441,8 @@ class Vars final {
   ResultNode operator[](std::string const& s) const { return root_[s]; }
 
   // NOTE(dkorolev): Maybe unify the accessors, i.e. retire `SetConstantValue()` altogether?
-  double& operator[](RawIndex i) { return value_[static_cast<size_t>(i)]; }
-  double operator[](RawIndex i) const { return value_[static_cast<size_t>(i)]; }
+  double& operator[](RawVarIndex i) { return value_[static_cast<size_t>(i)]; }
+  double operator[](RawVarIndex i) const { return value_[static_cast<size_t>(i)]; }
 
   void InjectPoint(std::vector<double> const& point) {
     if (!(point.size() == value_.size())) {
@@ -527,7 +525,7 @@ struct VarNode {
   std::map<std::string, VarNode> children_string_map;  // `type == StringMap`.
   Optional<double> value;                              // `type == Value`, unset if introduced w/o assignment.
   bool is_constant = false;                            // `type == Value`.
-  size_t var_index;                                    // `type == Value`.
+  RawVarIndex var_raw_index;                           // `type == Value`.
 
   void DenseDoubleVector(size_t dim) {
     if (InternalTLSInterface().IsFrozen()) {
@@ -654,9 +652,9 @@ struct VarNode {
     type = VarNodeType::Value;
     value = x;
 #ifndef NDEBUG
-    var_index = InternalTLSInterface().AllocateNewVarInDebugMode(FullVarName());
+    var_raw_index = InternalTLSInterface().AllocateNewVarInDebugMode(FullVarName());
 #else
-    var_index = InternalTLSInterface().AllocateNewVar();
+    var_raw_index = InternalTLSInterface().AllocateNewVar();
 #endif
   }
 
@@ -670,7 +668,7 @@ struct VarNode {
     }
 #endif
     is_constant = true;
-    InternalTLSInterface().MarkVarAsConstant(var_index);
+    InternalTLSInterface().MarkVarAsConstant(var_raw_index);
   }
 
   void SetConstant(double x) {
@@ -696,11 +694,11 @@ struct VarNode {
     return os.str();
   }
 
-  size_t VarIndex() const {
+  operator RawVarIndex() const {
     if (type != VarNodeType::Value) {
       CURRENT_THROW(VarIsNotLeafException());
     }
-    return var_index;
+    return var_raw_index;
   }
 
   struct FrozenVariablesSetBeingPopulated {
@@ -745,6 +743,7 @@ struct VarNode {
         e.second.DSFStampDenseIndexesForJIT(state);
       }
     } else if (type == VarNodeType::Value) {
+      size_t const var_index = static_cast<size_t>(var_raw_index);
 #ifndef NDEBUG
       if (!(var_index < state.size)) {
         TriggerSegmentationFault();
@@ -782,7 +781,7 @@ struct VarNode {
       }
       return sparse_by_string;
     } else if (type == VarNodeType::Value) {
-      return json::X(var_index, value, is_constant);
+      return json::X(static_cast<size_t>(var_raw_index), value, is_constant);
     } else if (type == VarNodeType::Unset) {
       return json::U();
     } else {
@@ -891,49 +890,51 @@ class InternalVarsScope final : public InternalVarsScopeInterface {
   }
 
 #ifndef NDEBUG
-  uint32_t AllocateNewVarInDebugMode(std::string var_name) override {
+  RawVarIndex AllocateNewVarInDebugMode(std::string var_name) override {
     ConfirmSelfActiveIfInDebugMode();
     uint32_t const newly_allocated_var_index = static_cast<uint32_t>(allocated_var_is_constant_.size());
     allocated_var_is_constant_.push_back(false);
     allocated_var_debug_name_.push_back(std::move(var_name));
-    return newly_allocated_var_index;
+    return static_cast<RawVarIndex>(newly_allocated_var_index);
   }
 #else
-  uint32_t AllocateNewVar() override {
+  RawVarIndex AllocateNewVar() override {
     uint32_t const newly_allocated_var_index = static_cast<uint32_t>(allocated_var_is_constant_.size());
     allocated_var_is_constant_.push_back(false);
-    return newly_allocated_var_index;
+    return static_cast<RawVarIndex>(newly_allocated_var_index);
   }
 #endif
 
-  void MarkVarAsConstant(size_t var_index) override {
+  void MarkVarAsConstant(RawVarIndex var_raw_index) override {
 #ifndef NDEBUG
     ConfirmSelfActiveIfInDebugMode();
-    if (!(var_index < allocated_var_is_constant_.size())) {
+    if (!(static_cast<size_t>(var_raw_index) < allocated_var_is_constant_.size())) {
       CURRENT_THROW(VarIndexOutOfBoundsException());
     }
 #endif
-    allocated_var_is_constant_[var_index] = true;
+    allocated_var_is_constant_[static_cast<size_t>(var_raw_index)] = true;
   }
 
-  bool IsVarNotConstant(size_t var_index) const {
+  bool IsVarNotConstant(RawVarIndex var_raw_index) const {
 #ifndef NDEBUG
     ConfirmSelfActiveIfInDebugMode();
-    if (!(var_index < allocated_var_is_constant_.size())) {
+    if (!(static_cast<size_t>(var_raw_index) < allocated_var_is_constant_.size())) {
       CURRENT_THROW(VarIndexOutOfBoundsException());
     }
 #endif
-    return !allocated_var_is_constant_[var_index];
+    return !allocated_var_is_constant_[static_cast<size_t>(var_raw_index)];
   }
 
-  bool IsVarTheNonConstantOneBeingDifferentiatedBy(size_t var_index, size_t derivative_per_var_index) const {
+  bool IsVarTheNonConstantOneBeingDifferentiatedBy(RawVarIndex var_raw_index,
+                                                   RawVarIndex derivative_per_var_raw_index) const {
 #ifndef NDEBUG
     ConfirmSelfActiveIfInDebugMode();
-    if (!(var_index < allocated_var_is_constant_.size())) {
+    if (!(static_cast<size_t>(var_raw_index) < allocated_var_is_constant_.size())) {
       CURRENT_THROW(VarIndexOutOfBoundsException());
     }
 #endif
-    return (var_index == derivative_per_var_index && !allocated_var_is_constant_[var_index]);
+    return (var_raw_index == derivative_per_var_raw_index &&
+            !allocated_var_is_constant_[static_cast<size_t>(var_raw_index)]);
   }
 
   template <typename... ARGS>

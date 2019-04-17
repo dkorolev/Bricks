@@ -267,6 +267,12 @@ TEST(OptimizationOptimizer, IntelligentMoveAlongTheGradient) {
     value_t const cost_function = -(log_p0 * 2 + log_p1 * 3);
 
     OptimizationContext optimization_context(cost_function);
+
+    EXPECT_EQ(0, static_cast<int>(static_cast<RawVarIndex>(x[0])));
+    EXPECT_EQ(1, static_cast<int>(static_cast<RawVarIndex>(x[1])));
+    EXPECT_EQ(0, static_cast<int>(static_cast<RawVarIndex>(optimization_context.vars_values[0])));
+    EXPECT_EQ(1, static_cast<int>(static_cast<RawVarIndex>(optimization_context.vars_values[1])));
+
     OptimizationResult const result = Optimize(optimization_context,
                                                OptimizationStrategy().InjectMovePointAlongGradient(
                                                    [](std::vector<double>& x, GradientAccessor const& dx, double step) {

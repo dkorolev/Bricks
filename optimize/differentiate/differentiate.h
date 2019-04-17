@@ -355,7 +355,7 @@ struct DifferentiateBySingleVarImpl {
 
   void DoAssignZero(retval_t& placeholder) const { placeholder = ExpressionNodeIndex::DoubleZero(); }
   void DoReturnDerivativeOfVar(size_t var_index, retval_t& placeholder) const {
-    if (InternalTLS().IsVarTheNonConstantOneBeingDifferentiatedBy(var_index, var_index_)) {
+    if (InternalTLS().IsVarTheNonConstantOneBeingDifferentiatedBy(RawVarIndex(var_index), RawVarIndex(var_index_))) {
       placeholder = ExpressionNodeIndex::DoubleOne();
     } else {
       placeholder = ExpressionNodeIndex::DoubleZero();
@@ -609,7 +609,7 @@ struct DifferentiateByAllVarsTogetherImpl {
 
   void DoReturnDerivativeOfVar(size_t var_index, GradientPiece& placeholder) const {
     placeholder.Clear();
-    if (InternalTLS().IsVarNotConstant(var_index)) {
+    if (InternalTLS().IsVarNotConstant(RawVarIndex(var_index))) {
       placeholder.SetOne(var_index);
     }
   }
@@ -673,7 +673,7 @@ inline value_t GenerateLineSearchFunction(value_t f, std::vector<value_t> const&
   value_t const lambda = value_t::lambda();
   std::vector<value_t> substitute(g.size());
   for (size_t i = 0u; i < substitute.size(); ++i) {
-    substitute[i] = value_t::FromExpressionNodeIndex(ExpressionNodeIndex::FromVarIndex(i)) + lambda * g[i];
+    substitute[i] = value_t::FromExpressionNodeIndex(RawVarIndex(i)) + lambda * g[i];
   }
   return Build1DFunction(f, substitute);
 }
