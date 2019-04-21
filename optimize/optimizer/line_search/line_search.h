@@ -179,7 +179,7 @@ class LineSearchImpl final {
     result.path1.push_back(LineSearchIntermediatePoint(0.0, value_at_0, derivative_at_0));
 
     if (!IsNormal(value_at_0) || !IsNormal(derivative_at_0)) {
-      CURRENT_THROW(OptimizationException("Both f(l) and f'(l) must be normal at the staritng point of line search."));
+      CURRENT_THROW(OptimizationException("Both f(l) and f'(l) must be normal at the starting point of line search."));
     }
     if (derivative_at_0 < 0) {
       // Well, the direction of line search is supposed to be the gradient,
