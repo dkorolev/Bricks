@@ -43,6 +43,7 @@ SOFTWARE.
 namespace current {
 namespace expression {
 
+struct JITCompiledFunctionUnitializedOrMovedAway final : OptimizeException {};
 struct JITCompiledFunctionInvokedBeforeItsPrerequisitesException final : OptimizeException {};
 
 #ifndef NDEBUG
@@ -193,16 +194,44 @@ class JITCompiledFunction final {
       : f_(std::make_unique<JITCompiledFunctionImpl>(std::move(call_context_impl), code_size)) {}
 
  public:
+  JITCompiledFunction() = default;
+  JITCompiledFunction(JITCompiledFunction&& rhs) : f_(std::move(rhs.f_)) { rhs.f_ = nullptr; }
+  void operator=(JITCompiledFunction&& rhs) {
+    f_ = std::move(rhs.f_);
+    rhs.f_ = nullptr;
+  }
+  operator bool() const { return f_ != nullptr; }
+
   struct InternalRawCodeBytesPusher {
     JITCompiledFunctionImpl& destination;
     InternalRawCodeBytesPusher(JITCompiledFunction& self) : destination(*self.f_) {}
     void push_back(uint8_t raw_code_byte) { destination.internal_push_raw_code_byte(raw_code_byte); }
   };
 
-  double operator()(double const* x) const { return f_->CallFunction(x); }
-  double operator()(std::vector<double> const& x) const { return f_->CallFunction(&x[0]); }
-  double operator()(Vars const& values) const { return f_->CallFunction(&values.x[0]); }
-  size_t CodeSize() const { return f_->CodeSize(); }
+  double operator()(double const* x) const {
+    if (!f_) {
+      CURRENT_THROW(JITCompiledFunctionUnitializedOrMovedAway());
+    }
+    return f_->CallFunction(x);
+  }
+  double operator()(std::vector<double> const& x) const {
+    if (!f_) {
+      CURRENT_THROW(JITCompiledFunctionUnitializedOrMovedAway());
+    }
+    return f_->CallFunction(&x[0]);
+  }
+  double operator()(Vars const& values) const {
+    if (!f_) {
+      CURRENT_THROW(JITCompiledFunctionUnitializedOrMovedAway());
+    }
+    return f_->CallFunction(&values.x[0]);
+  }
+  size_t CodeSize() const {
+    if (!f_) {
+      CURRENT_THROW(JITCompiledFunctionUnitializedOrMovedAway());
+    }
+    return f_->CodeSize();
+  }
 };
 
 class JITCompiledFunctionReturningVectorImpl final {
