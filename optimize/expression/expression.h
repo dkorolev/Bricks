@@ -293,6 +293,14 @@ inline double log_sigmoid(double x) {
     return -log(1.0 + exp(-x));
   }
 }
+inline double normal_distribution_pdf(double x) {
+  static double const k = 1.0 / sqrt(M_PI * 2.0);
+  return k * exp(-0.5*x*x);
+}
+inline double normal_distribution_cdf(double x) {
+  static double const k = 1.0 / sqrt(2.0);
+  return 0.5 * (erf(x * k) + 1.0);
+}
 #define CURRENT_EXPRESSION_MATH_FUNCTION(fn)                                                                    \
   inline value_t fn(value_t argument) {                                                                         \
     if (argument.IsImmediateDouble()) {                                                                         \

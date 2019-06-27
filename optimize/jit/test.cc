@@ -170,7 +170,7 @@ TEST(OptimizationJIT, Exp) {
 TEST(OptimizationJIT, OtherMathFunctions) {
   using namespace current::expression;
 
-  EXPECT_EQ(14u, static_cast<size_t>(ExpressionFunctionIndex::TotalFunctionsCount));
+  EXPECT_EQ(16u, static_cast<size_t>(ExpressionFunctionIndex::TotalFunctionsCount));
 
   Vars::Scope scope;
 
@@ -191,7 +191,9 @@ TEST(OptimizationJIT, OtherMathFunctions) {
                                     unit_step(p),
                                     ramp(p),
                                     sigmoid(p),
-                                    log_sigmoid(p)});
+                                    log_sigmoid(p),
+                                    normal_distribution_pdf(p),
+                                    normal_distribution_cdf(p)});
   EXPECT_EQ(static_cast<size_t>(ExpressionFunctionIndex::TotalFunctionsCount), magic.size());
 
   JITCallContext ctx;
@@ -225,6 +227,20 @@ TEST(OptimizationJIT, OtherMathFunctions) {
 
   EXPECT_EQ(1.0 / (1.0 + exp(-3.5)), f({3.5})[12]);        // sigmoid()
   EXPECT_EQ(log(1.0 / (1.0 + exp(+1.5))), f({-1.5})[13]);  // log_sigmoid()
+
+  // The quantiles of the normal distribution, to make sure the coefficients are right.
+  EXPECT_NEAR(0.683, (normal_distribution_cdf(+1.0) - normal_distribution_cdf(-1.0)), 0.0005);
+  EXPECT_NEAR(0.954, (normal_distribution_cdf(+2.0) - normal_distribution_cdf(-2.0)), 0.0005);
+  EXPECT_NEAR(0.997, (normal_distribution_cdf(+3.0) - normal_distribution_cdf(-3.0)), 0.0005);
+
+  // A few key values of the normal distribution's PDF.
+  EXPECT_NEAR(0.3989, normal_distribution_pdf(0.0), 0.0005);
+  EXPECT_NEAR(0.2420, normal_distribution_pdf(+1.0), 0.0005);
+  EXPECT_NEAR(0.2420, normal_distribution_pdf(-1.0), 0.0005);
+  EXPECT_NEAR(0.0540, normal_distribution_pdf(+2.0), 0.0005);
+  EXPECT_NEAR(0.0540, normal_distribution_pdf(-2.0), 0.0005);
+  EXPECT_NEAR(0.0044, normal_distribution_pdf(+3.0), 0.0005);
+  EXPECT_NEAR(0.0044, normal_distribution_pdf(-3.0), 0.0005);
 }
 
 TEST(OptimizationJIT, IntermediateResultsAreReused) {

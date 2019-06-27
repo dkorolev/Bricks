@@ -66,6 +66,7 @@ TEST(OptimizationDifferentiate, Functions) {
   EXPECT_EQ("(1.000000/(1.000000+sqr(x[0])))", Differentiate(atan(x[0]), 0).DebugAsString());
   EXPECT_EQ("unit_step(x[0])", Differentiate(ramp(x[0]), 0).DebugAsString());
   EXPECT_EQ("sigmoid((0.000000-x[0]))", Differentiate(log_sigmoid(x[0]), 0).DebugAsString());
+  EXPECT_EQ("normal_distribution_pdf(x[0])", Differentiate(normal_distribution_cdf(x[0]), 0).DebugAsString());
 }
 
 TEST(OptimizationDifferentiate, ChainRule) {
@@ -170,6 +171,9 @@ TEST(OptimizationDifferentiate, RegressionTest1DFunctions) {
   TEST_1D_FUNCTION(atan(x), ({0.5, 1.0, 1.5, 2.0, 2.5, 0.0, -0.5, -2.0, -2.5}));
   TEST_1D_FUNCTION(ramp(x), ({0.5, 1.0, 1.5, 2.0, 2.5, -0.5, -2.0, -2.5}));  // Exclude `0.0` from testing `ramp()`.
   TEST_1D_FUNCTION(log_sigmoid(x), ({0.5, 1.0, 1.5, 2.0, 2.5, 0.0, -0.5, -2.0, -2.5}));
+  // The `normal_distribution_pdf` function is not meant to be differentiated by design, although we could. -- D.K.
+  // TEST_1D_FUNCTION(normal_distribution_pdf(x), ({0.5, 1.0, 1.5, 2.5, 5.0, 25.0, 0.0, -0.5, -2.5, -5.0, -25.0}));
+  TEST_1D_FUNCTION(normal_distribution_cdf(x), ({0.5, 1.0, 1.5, 2.5, 5.0, 25.0, 0.0, -0.5, -2.5, -5.0, -25.0}));
 
   // Chain rule to cover the argument of each of the supported functions that can be differentiated.
   TEST_1D_FUNCTION(exp(sqr(x) + 1), ({0.5, 1.0, 1.5, 2.0, 2.5, 0.0, -0.5, -2.0, -2.5}));

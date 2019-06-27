@@ -44,6 +44,7 @@ struct DifferentiatorForThisNodeTypeNotImplementedException final : OptimizeExce
 struct DifferentiationDeliberatelyNotImplemented : OptimizeException {};
 struct DoNotDifferentiateUnitStepException final : DifferentiationDeliberatelyNotImplemented {};
 struct DoNotDifferentiateSigmoidException final : DifferentiationDeliberatelyNotImplemented {};
+struct DoNotDifferentiateNormalDistributionPDF final : DifferentiationDeliberatelyNotImplemented {};
 
 struct SeeingLambdaWhileNotDifferentiatingByLambdaException final : OptimizeException {};
 struct DirectionalDerivativeGradientDimMismatchException final : OptimizeException {};
@@ -108,6 +109,10 @@ inline value_t DifferentiateFunctionInValues(ExpressionNodeType node_type, value
     CURRENT_THROW(DoNotDifferentiateSigmoidException());
   } else if (node_type == ExpressionNodeType::Function_log_sigmoid) {
     return dx * sigmoid(-x);
+  } else if (node_type == ExpressionNodeType::Function_normal_distribution_pdf) {
+    CURRENT_THROW(DoNotDifferentiateNormalDistributionPDF());
+  } else if (node_type == ExpressionNodeType::Function_normal_distribution_cdf) {
+    return dx * normal_distribution_pdf(x);
   } else {
 #ifndef NDEBUG
     TriggerSegmentationFault();

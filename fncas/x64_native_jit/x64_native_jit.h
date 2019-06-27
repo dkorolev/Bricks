@@ -423,9 +423,18 @@ void store_xmm0_to_memory_by_rbx_offset(C& c, O offset) {
 template <typename C>
 void call_function_from_rdx_pointers_array_by_index(C& c, uint8_t index) {
   X64_JIT_ASSERT(index < 31);  // Should fit one byte after adding one and multiplying by 8. -- D.K.
+  uint8_t const value = (index + 1) * 0x08;
   c.push_back(0xff);
-  c.push_back(0x52);
-  c.push_back((index + 1) * 0x08);
+  if (value < 0x80) {
+    c.push_back(0x52);
+    c.push_back(value);
+  } else {
+    c.push_back(0x92);
+    c.push_back(value);
+    c.push_back(0x00);
+    c.push_back(0x00);
+    c.push_back(0x00);
+  }
 }
 
 }  // namespace current::fncas::x64_native_jit::opcodes
