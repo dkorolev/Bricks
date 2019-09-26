@@ -39,14 +39,13 @@ DEFINE_string(host1, "127.0.0.1", "The destination address to send data to.");
 DEFINE_uint16(port1, 8002, "The destination port to send data to.");
 DEFINE_string(host2, "127.0.0.1", "The destination address to send data to.");
 DEFINE_uint16(port2, 8003, "The destination port to send data to.");
-DEFINE_double(buffer_mb, 32.0, "The size of the circular buffer to use, in megabytes.");
-DEFINE_uint64(max_index_block, 512, "Index max. this many entries per state mutex lock, throttling.");
+DEFINE_double(buffer_mb, 512.0, "The size of the circular buffer to use, in megabytes.");
 DEFINE_string(dirname, ".current", "The dir name for the stored data files.");
 DEFINE_string(filebase, "idx.", "The filename prefix for the stored data files.");
 DEFINE_uint64(blobs_per_file,
-              (1 << 28) / sizeof(current::examples::streamed_sockets::Blob),
-              "The number of blobs per file saved, defaults to 256MB files.");
-DEFINE_uint32(max_total_files, 4u, "The maximum number of data files to keep, defaults to four files, for 1GB total.");
+              (1ull << 32) / sizeof(current::examples::streamed_sockets::Blob),
+              "The number of blobs per file saved, defaults to 4GB files.");
+DEFINE_uint32(max_total_files, 4u, "The maximum number of data files to keep, defaults to four files, for 16GB total.");
 DEFINE_bool(wipe_files_at_startup, true, "Unset to not wipe the files from the previous run.");
 DEFINE_bool(skip_fwrite, false, "Set to not `fwrite()` into the files; for network perftesting only.");
 
@@ -128,7 +127,7 @@ inline void RunIndexer() {
   current::WaitableAtomic<State> mutable_state;
 
   std::thread t_source = SpawnThreadSource<ReceivingWorker>(buffer, mutable_state, FLAGS_listen_port);
-  std::thread t_indexing = SpawnThreadWorker<IndexingWorker>(buffer, mutable_state, FLAGS_max_index_block);
+  std::thread t_indexing = SpawnThreadWorker<IndexingWorker>(buffer, mutable_state);
   std::thread t_save = SpawnThreadWorker<SavingWorker>(buffer,
                                                        mutable_state,
                                                        FLAGS_dirname,

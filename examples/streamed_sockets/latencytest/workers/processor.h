@@ -60,8 +60,8 @@ struct ProcessingWorker {
           if (!impl) {
             impl = std::make_unique<ProcessingWorkedImpl>(host, port);
           }
+          // NOTE(dkorolev): This call should most certainly not be a synchronous `BlockingWrite`.
           impl->connection.BlockingWrite(reinterpret_cast<const void*>(begin), sizeof(Blob), false);
-          // std::cerr << current::time::Now().count() << '\t' << begin->request_sequence_id << '\n';
         }
         ++begin;
         ++next_expected_total_index;

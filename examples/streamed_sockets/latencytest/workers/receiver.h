@@ -44,11 +44,17 @@ struct ReceivingWorker {
   explicit ReceivingWorker(uint16_t port) : port(port) {}
 
   size_t DoGetInput(uint8_t* begin, uint8_t* end) {
+    // NOTE(dkorolev): My experiment show that latency is sensitive to the socket read block size,
+    // and the block size of 64K is good enough as it both doesn't hurt the throughput and results in low latency.
+    constexpr static size_t block_size_in_bytes = (1 << 16);
+    if (end > begin + block_size_in_bytes) {
+      end = begin + block_size_in_bytes;
+    }
     try {
       if (!impl) {
         impl = std::make_unique<ReceivingWorkerImpl>(port);
       }
-      return impl->connection.BlockingRead(begin, end - begin);
+      return impl->connection.BlockingRead(begin, end - begin);  // std::min<size_t>(end - begin, 32 * (1<<20)));
     } catch (const current::net::SocketException&) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Don't eat up 100% CPU when unable to connect.
     } catch (const current::Exception&) {
