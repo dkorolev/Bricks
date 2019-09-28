@@ -94,37 +94,45 @@ std::thread SpawnThreadSource(std::vector<T_BLOB>& buffer, T_WAITABLE_ATOMIC_STA
     while (true) {
       Update(volatile_immutable_state);
       if (!IsReady()) {
-        std::cerr << "The source thread is waiting, the buffer is full.\n";
-        mutable_state.Wait([&IsReady, &Update](const state_t& value) {
+        bool had_to_wait = false;
+        mutable_state.Wait([&IsReady, &Update, &had_to_wait](const state_t& value) {
           Update(value);
-          return IsReady();
-        });
-        std::cerr << "The buffer is no longer full.\n";
-      }
-
-      const auto DoWorkOverCircularBufferInBytes = [&](size_t bgn, size_t end) {
-        const size_t bytes_read = worker->DoGetInput(buffer_in_bytes + bgn, buffer_in_bytes + end);
-        if (bytes_read) {
-          updating_total_bytes_read += bytes_read;
-          const size_t candidate_total_blobs_read_value = updating_total_bytes_read / sizeof(T_BLOB);
-          if (candidate_total_blobs_read_value != updating_total_blobs_read) {
-            updating_total_blobs_read = candidate_total_blobs_read_value;
-            mutable_state.MutableUse([updating_total_blobs_read](state_t& state) {
-              OutputOf<state_t, T_SOURCE>::Set(state, updating_total_blobs_read);
-            });
+          if (IsReady()) {
+            return true;
+          } else {
+            if (!had_to_wait) {
+              std::cerr << "The source thread is waiting, the buffer is full.\n";
+              had_to_wait = true;
+            }
+              return false;
           }
-        }
-      };
-
-      const size_t bgn = (updating_total_bytes_read & total_buffer_size_in_bytes_minus_one);
-      const size_t end = (trailing_total_bytes_aval & total_buffer_size_in_bytes_minus_one);
-      if (bgn < end) {
-        DoWorkOverCircularBufferInBytes(bgn, end);
-      } else {
-        DoWorkOverCircularBufferInBytes(bgn, total_buffer_size_in_bytes);
+        });
+        if (had_to_wait) std::cerr << "The buffer is no longer full.\n";
       }
+
+    const auto DoWorkOverCircularBufferInBytes = [&](size_t bgn, size_t end) {
+      const size_t bytes_read = worker->DoGetInput(buffer_in_bytes + bgn, buffer_in_bytes + end);
+      if (bytes_read) {
+        updating_total_bytes_read += bytes_read;
+        const size_t candidate_total_blobs_read_value = updating_total_bytes_read / sizeof(T_BLOB);
+        if (candidate_total_blobs_read_value != updating_total_blobs_read) {
+          updating_total_blobs_read = candidate_total_blobs_read_value;
+          mutable_state.MutableUse([updating_total_blobs_read](state_t& state) {
+            OutputOf<state_t, T_SOURCE>::Set(state, updating_total_blobs_read);
+          });
+        }
+      }
+    };
+
+    const size_t bgn = (updating_total_bytes_read & total_buffer_size_in_bytes_minus_one);
+    const size_t end = (trailing_total_bytes_aval & total_buffer_size_in_bytes_minus_one);
+    if (bgn < end) {
+      DoWorkOverCircularBufferInBytes(bgn, end);
+    } else {
+      DoWorkOverCircularBufferInBytes(bgn, total_buffer_size_in_bytes);
     }
-  });
+    }
+});
 }
 
 template <class T_WORKER, class T_BLOB, class T_WAITABLE_ATOMIC_STATE, typename... ARGS>

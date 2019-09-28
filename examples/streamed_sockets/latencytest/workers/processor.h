@@ -54,28 +54,29 @@ struct ProcessingWorker {
     if (end > begin + block_size_in_blobs) {
       end = begin + block_size_in_blobs;
     }
-//    try {
-      while (begin != end) {
-        if (next_expected_total_index == static_cast<uint64_t>(-1)) {
-          next_expected_total_index = begin->index;
-        } else if (begin->index != next_expected_total_index) {
-          std::cerr << "Broken index continuity; exiting.\n";
-          std::exit(-1);
-        }
-        if (begin->request_origin == request_origin_latencytest) {
-          if (!impl) {
-            impl = std::make_unique<ProcessingWorkedImpl>(host, port);
-          }
-          // NOTE(dkorolev): This call should most certainly not be a synchronous `BlockingWrite`.
-          impl->connection.BlockingWrite(reinterpret_cast<const void*>(begin), sizeof(Blob), false);
-        }
-        ++begin;
-        ++next_expected_total_index;
+    //    try {
+    while (begin != end) {
+      if (next_expected_total_index == static_cast<uint64_t>(-1)) {
+        next_expected_total_index = begin->index;
+      } else if (begin->index != next_expected_total_index) {
+        std::cerr << "Broken index continuity; exiting.\n";
+        std::exit(-1);
       }
-//    } catch (const current::net::SocketException&) {
-//      std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Don't eat up 100% CPU when unable to connect.
-//    } catch (const current::Exception&) {
-//    }
+      if (begin->request_origin == request_origin_latencytest) {
+        if (!impl) {
+          impl = std::make_unique<ProcessingWorkedImpl>(host, port);
+        }
+        // NOTE(dkorolev): This call should most certainly not be a synchronous `BlockingWrite`.
+        impl->connection.BlockingWrite(reinterpret_cast<const void*>(begin), sizeof(Blob), false);
+      }
+      ++begin;
+      ++next_expected_total_index;
+    }
+    //    } catch (const current::net::SocketException&) {
+    //      std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Don't eat up 100% CPU when unable to
+    //      connect.
+    //    } catch (const current::Exception&) {
+    //    }
     return begin;
   }
 };

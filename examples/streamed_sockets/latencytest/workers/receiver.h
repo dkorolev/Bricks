@@ -52,19 +52,20 @@ struct ReceivingWorker {
     if (end > begin + block_size_in_bytes) {
       end = begin + block_size_in_bytes;
     }
-//    try {
-      if (!impl) {
-        impl = std::make_unique<ReceivingWorkerImpl>(port);
-      }
-      return impl->connection.BlockingRead(begin, end - begin);
-//    } catch (const current::net::SocketException&) {
-//      std::cerr << "Exception 1.\n";
-//      std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Don't eat up 100% CPU when unable to connect.
-//    } catch (const current::Exception&) {
-//      std::cerr << "Exception 2.\n";
-//    }
-//    impl = nullptr;
-//    return 0u;
+    //    try {
+    if (!impl) {
+      impl = std::make_unique<ReceivingWorkerImpl>(port);
+    }
+    return impl->connection.BlockingRead(begin, end - begin);
+    //    } catch (const current::net::SocketException&) {
+    //      std::cerr << "Exception 1.\n";
+    //      std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Don't eat up 100% CPU when unable to
+    //      connect.
+    //    } catch (const current::Exception&) {
+    //      std::cerr << "Exception 2.\n";
+    //    }
+    //    impl = nullptr;
+    //    return 0u;
   }
 };
 
