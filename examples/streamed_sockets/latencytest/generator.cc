@@ -193,8 +193,8 @@ int main(int argc, char** argv) {
 
   // The code that originates the requests.
   uint64_t request_sequence_id = 0;
-  while (true) {
-    try {
+//  while (true) {
+//    try {
       current::net::Connection connection(current::net::ClientSocket(FLAGS_host, FLAGS_port));
       while (true) {
         const uint64_t begin_index = current::random::RandomUInt64(0, N / 4);
@@ -219,11 +219,11 @@ int main(int argc, char** argv) {
         });
         request_sequence_id += 2;
       }
-    } catch (const current::net::SocketConnectException&) {
-    } catch (const current::Exception&) {
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Don't eat up 100% CPU when unable to connect.
-  }
+//    } catch (const current::net::SocketConnectException&) {
+  //  } catch (const current::Exception&) {
+//    }
+//    std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Don't eat up 100% CPU when unable to connect.
+//  }
 
   t_listener.join();
 }

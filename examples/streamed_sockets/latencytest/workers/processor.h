@@ -54,7 +54,7 @@ struct ProcessingWorker {
     if (end > begin + block_size_in_blobs) {
       end = begin + block_size_in_blobs;
     }
-    try {
+//    try {
       while (begin != end) {
         if (next_expected_total_index == static_cast<uint64_t>(-1)) {
           next_expected_total_index = begin->index;
@@ -72,10 +72,10 @@ struct ProcessingWorker {
         ++begin;
         ++next_expected_total_index;
       }
-    } catch (const current::net::SocketException&) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Don't eat up 100% CPU when unable to connect.
-    } catch (const current::Exception&) {
-    }
+//    } catch (const current::net::SocketException&) {
+//      std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Don't eat up 100% CPU when unable to connect.
+//    } catch (const current::Exception&) {
+//    }
     return begin;
   }
 };
