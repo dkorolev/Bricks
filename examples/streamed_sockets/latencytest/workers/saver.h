@@ -82,8 +82,8 @@ struct SavingWorker {
   }
 
   const Blob* DoWork(const Blob* begin, const Blob* end) {
-    // NOTE(dkorolev): Save in blocks of size 4MB.
-    constexpr static size_t block_size_in_blobs = (1 << 22) / sizeof(Blob);
+    // NOTE(dkorolev): Save in blocks of size 16MB.
+    constexpr static size_t block_size_in_blobs = (1 << 24) / sizeof(Blob);
     static_assert(block_size_in_blobs > 0);
     if (end > begin + block_size_in_blobs) {
       end = begin + block_size_in_blobs;
