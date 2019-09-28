@@ -48,8 +48,8 @@ struct ProcessingWorker {
 
   uint64_t next_expected_total_index = static_cast<uint64_t>(-1);
   const Blob* DoWork(Blob* begin, Blob* end) {
-    // NOTE(dkorolev): Process in blocks of size 4MB.
-    constexpr static size_t block_size_in_blobs = (1 << 22) / sizeof(Blob);
+    // NOTE(dkorolev): Process in blocks of size up to 512KB.
+    constexpr static size_t block_size_in_blobs = (1 << 19) / sizeof(Blob);
     static_assert(block_size_in_blobs > 0);
     if (end > begin + block_size_in_blobs) {
       end = begin + block_size_in_blobs;

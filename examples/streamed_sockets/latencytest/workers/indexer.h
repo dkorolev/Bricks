@@ -32,8 +32,8 @@ namespace current::examples::streamed_sockets {
 struct IndexingWorker {
   uint64_t total_index = 0u;
   const Blob* DoWork(Blob* begin, Blob* end) {
-    // NOTE(dkorolev): Index in blocks of size 256KB.
-    constexpr static size_t block_size_in_blobs = (1 << 18) / sizeof(Blob);
+    // NOTE(dkorolev): Index in blocks of size 32KB.
+    constexpr static size_t block_size_in_blobs = (1 << 15) / sizeof(Blob);
     static_assert(block_size_in_blobs > 0);
     if (end > begin + block_size_in_blobs) {
       end = begin + block_size_in_blobs;
