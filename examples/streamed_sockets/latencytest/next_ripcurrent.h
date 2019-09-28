@@ -94,10 +94,12 @@ std::thread SpawnThreadSource(std::vector<T_BLOB>& buffer, T_WAITABLE_ATOMIC_STA
     while (true) {
       Update(volatile_immutable_state);
       if (!IsReady()) {
+        std::cerr << "The source thread is waiting, the buffer is full.\n";
         mutable_state.Wait([&IsReady, &Update](const state_t& value) {
           Update(value);
           return IsReady();
         });
+        std::cerr << "The buffer is no longer full.\n";
       }
 
       const auto DoWorkOverCircularBufferInBytes = [&](size_t bgn, size_t end) {
