@@ -45,8 +45,8 @@ struct SendingWorker {
   SendingWorker(std::string host, uint16_t port) : host(std::move(host)), port(port) {}
 
   const Blob* DoWork(const Blob* begin, const Blob* end) {
-    // NOTE(dkorolev): Send in blocks of size 4MB.
-    constexpr static size_t block_size_in_blobs = (1 << 22) / sizeof(Blob);
+    // NOTE(dkorolev): Send in blocks of size 512KB.
+    constexpr static size_t block_size_in_blobs = (1 << 19) / sizeof(Blob);
     static_assert(block_size_in_blobs > 0);
     if (end > begin + block_size_in_blobs) {
       end = begin + block_size_in_blobs;
