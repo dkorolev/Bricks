@@ -65,6 +65,8 @@ class ChunkByChunkHTTPResponseReceiver {
     end = nullptr;
   }
 
+  inline bool DefaultIsChunkedMode() const { return false; }
+
  private:
   current::net::http::Headers headers_;
 };

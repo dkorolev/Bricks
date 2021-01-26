@@ -202,6 +202,8 @@ class HTTPDefaultHelper {
     end = begin + body_.length();
   }
 
+  inline bool DefaultIsChunkedMode() const { return false; }
+
  private:
   http::Headers headers_;
   std::string body_;
@@ -246,7 +248,7 @@ class GenericHTTPRequestData : public HELPER {
     bool first_line_parsed = false;
 
     // `chunked_transfer_encoding` is set when body should be received in chunks insted of a single read.
-    bool chunked_transfer_encoding = false;
+    bool chunked_transfer_encoding = HELPER::DefaultIsChunkedMode();
 
     // `receiving_body_in_chunks` is set to true when the parsing is already in the "receive body" mode.
     bool receiving_body_in_chunks = false;
@@ -456,6 +458,8 @@ class GenericHTTPRequestData : public HELPER {
     }
   }
 
+  inline bool DefaultIsChunkedMode() const { return default_is_chunked_mode_; }
+
   inline const std::string& Method() const { return method_; }
   inline const current::url::URL& URL() const { return url_; }
   inline const std::string& RawPath() const { return raw_path_; }
@@ -488,6 +492,10 @@ class GenericHTTPRequestData : public HELPER {
     }
   }
 
+  void MarkedAsChunkedResponseExpected() {
+    default_is_chunked_mode_ = true;
+  }
+
  private:
   static char NormalizeHeaderChar(char c) { return c != '_' ? std::tolower(c) : '-'; }
   static bool HeaderNameEquals(const char* lhs, const char* rhs) {
@@ -503,6 +511,8 @@ class GenericHTTPRequestData : public HELPER {
   std::string method_;
   current::url::URL url_;
   std::string raw_path_;
+
+  bool default_is_chunked_mode_ = false;
 
   // HTTP parsing fields that have to be caried out of the parsing routine.
   std::vector<char> buffer_;                 // The buffer into which data has been read, except for chunked case.

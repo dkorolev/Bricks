@@ -356,6 +356,7 @@ struct HTTPImpl {
     chunked_client_impl_t impl(impl_params);
     impl.request_method_ = "GET";
     impl.request_url_ = request_params.url;
+    impl.request_chunked_response_ = true;
 
     if (impl.Go()) {
       return impl.response_code_;
@@ -372,6 +373,7 @@ struct HTTPImpl {
     impl.request_url_ = request_params.url;
     impl.request_body_content_type_ = request_params.content_type;
     impl.request_body_contents_ = request_params.body;
+    impl.request_chunked_response_ = true;
 
     if (impl.Go()) {
       return impl.response_code_;

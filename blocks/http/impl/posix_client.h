@@ -134,7 +134,10 @@ class GenericHTTPClientPOSIX final {
       } else {
         connection.BlockingWrite("\r\n", false);
       }
-      http_request_.reset(new CustomHTTPRequestData(connection, request_data_construction_params_));
+      http_request_ = std::make_unique<CustomHTTPRequestData>(connection, request_data_construction_params_);
+      if (request_chunked_response_) {
+        http_request_->MarkedAsChunkedResponseExpected();
+      }
       // TODO(dkorolev): Rename `Path()`, it's only called so now because of HTTP request/response format.
       // Elaboration:
       // HTTP request  message is: `GET /path HTTP/1.1`, "/path" is the second component of it.
@@ -166,6 +169,7 @@ class GenericHTTPClientPOSIX final {
   std::string request_body_content_type_ = "";
   std::string request_body_contents_ = "";
   std::string request_user_agent_ = "";
+  bool request_chunked_response_ = false;
   current::net::http::Headers request_headers_;
   const typename HTTP_HELPER::ConstructionParams request_data_construction_params_;
   bool allow_redirects_ = false;

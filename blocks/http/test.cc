@@ -827,6 +827,8 @@ TEST(HTTPAPI, GetByChunksPrototype) {
         end = nullptr;
       }
 
+      inline bool DefaultIsChunkedMode() { return false; }
+
      private:
       current::net::http::Headers headers_;
     };
