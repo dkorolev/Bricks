@@ -80,11 +80,9 @@ matrix:
     - script:
       - brew update
       - brew install nasm
-      - brew install gnuplot
       - clang++ -v
       - clang++ --version
       - make individual_tests
-      - echo YAY
       env:
       - NDEBUG=0
       compiler: "native clang++, Job: make individual_tests"
@@ -93,11 +91,9 @@ matrix:
     - script:
       - brew update
       - brew install nasm
-      - brew install gnuplot
       - clang++ -v
       - clang++ --version
       - make individual_tests
-      - echo YAY
       env:
       - NDEBUG=1
       compiler: "native clang++, Job: make individual_tests"
