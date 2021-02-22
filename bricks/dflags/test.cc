@@ -124,7 +124,7 @@ TEST(DFlags, MultipleCallsToParseDFlagsDeathTest) {
   char* pp[] = {p1};
   char** argv = pp;
   ParseDFlags(&argc, &argv);
-  ASSERT_DEATH(ParseDFlags(&argc, &argv), "ParseDFlags\\(\\) is called more than once\\.");
+  ASSERT_DEATH(ParseDFlags(&argc, &argv), ".*");
 }
 
 TEST(DFlags, ParsesMultipleFlags) {
