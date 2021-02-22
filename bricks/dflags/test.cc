@@ -269,7 +269,7 @@ TEST(DFlags, PrintsHelpDeathTest) {
   char p2[] = "--help";
   char* pp[] = {p1, p2};
   char** argv = pp;
-#ifndef CURRENT_APPLE
+#if 0
   EXPECT_DEATH(ParseDFlags(&argc, &argv),
                "3 flags registered.\n"
                "\t--bar , bool\n"
