@@ -22,6 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
+#ifdef CURRENT_WINDOWS
+// NOTE(dkorolev): Added in March 2021 while making sure Visual Studio compiles Current fine.
+#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+#endif
+
 // #define CURRENT_STORAGE_PATCH_SUPPORT
 
 // Cross-platform portability header.

@@ -42,7 +42,10 @@ namespace crnt {
 
 // The superclass for all Current-defined types, to enable polymorphic serialization and deserialization.
 struct CurrentSuper {
-  virtual ~CurrentSuper() = default;
+  // "Implementing" an empty destructor here, as `= default;` makes this destructor `noexcept`,
+  // which causes problems with the Windows build, as some other destructors are not `noexcept`.
+  // TODO(dkorolev): I'll fix this one day, but not today.
+  virtual ~CurrentSuper() {}
 };
 
 // For `unique_ptr<>`-s.

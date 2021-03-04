@@ -2057,7 +2057,7 @@ TEST(Stream, SubscribingToJustTailDoesTheJob) {
     while (!http_subscriber_started) {
       ;  // Spin lock, begin publishing only once the HTTP subscriber has started.
     }
-    for (size_t i = 3; i <= 5; ++i) {
+    for (int i = 3; i <= 5; ++i) {
       exposed_stream->Publisher()->Publish(Record(i * 10), std::chrono::microseconds(i));
     }
   });

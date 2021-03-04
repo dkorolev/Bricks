@@ -31,7 +31,7 @@ SOFTWARE.
 
 template <typename F>
 inline void CreateTSV(F&& f, size_t rows, size_t cols = 100, double scale = 10, size_t random_seed = 42) {
-  std::mt19937 g(random_seed);
+  std::mt19937 g(static_cast<unsigned int>(random_seed));
   std::exponential_distribution<> d(1);
   auto next_random = [&d, &g, scale]() { return static_cast<size_t>(d(g) * scale); };
   std::vector<size_t> row(cols);

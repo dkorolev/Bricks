@@ -202,7 +202,7 @@ CURRENT_STRUCT(Double) {
     sum_squares = value * value;
   }
   CURRENT_CONSTRUCTOR(Double)(const Integer& integer) {
-    sum = integer.sum;
+    sum = static_cast<double>(integer.sum);
     sum_squares = integer.sum_squares;
     instances = integer.instances;
     nulls = integer.nulls;

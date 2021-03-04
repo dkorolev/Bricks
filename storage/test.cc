@@ -369,7 +369,7 @@ TEST(TransactionalStorage, SmokeTest) {
         EXPECT_FALSE(fields.umany_to_umany.Empty());
         EXPECT_FALSE(fields.omany_to_omany.Empty());
         std::multiset<std::string> data_set;
-        for (const auto& row : fields.umany_to_umany.Rows()) {
+        for (const auto row : fields.umany_to_umany.Rows()) {
           for (const auto& element : row) {
             data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
                             current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
@@ -379,7 +379,7 @@ TEST(TransactionalStorage, SmokeTest) {
         EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_set, ' '));
         // Use vector instead of set and expect the same result, because the data is already sorted.
         std::vector<std::string> data_vec;
-        for (const auto& row : fields.omany_to_omany.Rows()) {
+        for (const auto row : fields.omany_to_omany.Rows()) {
           for (const auto& element : row) {
             data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
                                current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
@@ -389,7 +389,7 @@ TEST(TransactionalStorage, SmokeTest) {
         EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
         data_vec.clear();
         std::multiset<int32_t> rows;
-        for (const auto& row : fields.umany_to_omany.Rows()) {
+        for (const auto row : fields.umany_to_omany.Rows()) {
           rows.insert(current::storage::sfinae::GetRow(*row.begin()));
         }
         for (const auto& row : rows) {
@@ -401,7 +401,7 @@ TEST(TransactionalStorage, SmokeTest) {
         }
         EXPECT_EQ("1,one=1 2,too=3 2,two=2", current::strings::Join(data_vec, ' '));
         data_vec.clear();
-        for (const auto& row : fields.omany_to_umany.Rows()) {
+        for (const auto row : fields.omany_to_umany.Rows()) {
           int32_t row_value = current::storage::sfinae::GetRow(*row.begin());
           std::multiset<std::string> cols;
           for (const auto& element : row) {
@@ -419,7 +419,7 @@ TEST(TransactionalStorage, SmokeTest) {
         EXPECT_FALSE(fields.umany_to_umany.Empty());
         EXPECT_FALSE(fields.omany_to_omany.Empty());
         std::multiset<std::string> data_set;
-        for (const auto& col : fields.umany_to_umany.Cols()) {
+        for (const auto col : fields.umany_to_umany.Cols()) {
           for (const auto& element : col) {
             data_set.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
                             current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
@@ -429,7 +429,7 @@ TEST(TransactionalStorage, SmokeTest) {
         EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_set, ' '));
         // Use vector instead of set and expect the same result, because the data is already sorted.
         std::vector<std::string> data_vec;
-        for (const auto& col : fields.omany_to_omany.Cols()) {
+        for (const auto col : fields.omany_to_omany.Cols()) {
           for (const auto& element : col) {
             data_vec.push_back(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
                                current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
@@ -438,7 +438,7 @@ TEST(TransactionalStorage, SmokeTest) {
         }
         EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_vec, ' '));
         data_vec.clear();
-        for (const auto& col : fields.umany_to_omany.Cols()) {
+        for (const auto col : fields.umany_to_omany.Cols()) {
           std::string col_value = current::storage::sfinae::GetCol(*col.begin());
           std::multiset<int32_t> rows;
           for (const auto& element : col) {
@@ -452,7 +452,7 @@ TEST(TransactionalStorage, SmokeTest) {
         EXPECT_EQ("one,1=1 too,2=3 two,2=2", current::strings::Join(data_vec, ' '));
         data_vec.clear();
         std::multiset<std::string> cols;
-        for (const auto& col : fields.omany_to_umany.Cols()) {
+        for (const auto col : fields.omany_to_umany.Cols()) {
           cols.insert(current::storage::sfinae::GetCol(*col.begin()));
         }
         for (const auto& col : cols) {
@@ -577,7 +577,7 @@ TEST(TransactionalStorage, SmokeTest) {
         EXPECT_FALSE(fields.uone_to_umany.Empty());
         EXPECT_FALSE(fields.oone_to_omany.Empty());
         std::multiset<std::string> data_set;
-        for (const auto& row : fields.uone_to_umany.Rows()) {
+        for (const auto row : fields.uone_to_umany.Rows()) {
           for (const auto& element : row) {
             data_set.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
                             current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
@@ -587,7 +587,7 @@ TEST(TransactionalStorage, SmokeTest) {
         EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_set, ' '));
         // Use vector instead of set and expect the same result, because the data is already sorted.
         std::vector<std::string> data_vec;
-        for (const auto& row : fields.oone_to_omany.Rows()) {
+        for (const auto row : fields.oone_to_omany.Rows()) {
           for (const auto& element : row) {
             data_vec.push_back(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
                                current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
@@ -597,7 +597,7 @@ TEST(TransactionalStorage, SmokeTest) {
         EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
         data_vec.clear();
         std::multiset<int32_t> rows;
-        for (const auto& row : fields.uone_to_omany.Rows()) {
+        for (const auto row : fields.uone_to_omany.Rows()) {
           rows.insert(current::storage::sfinae::GetRow(*row.begin()));
         }
         for (const auto& row : rows) {
@@ -609,7 +609,7 @@ TEST(TransactionalStorage, SmokeTest) {
         }
         EXPECT_EQ("1,one=1 1,six=6 2,fiv=10 2,two=4", current::strings::Join(data_vec, ' '));
         data_vec.clear();
-        for (const auto& row : fields.oone_to_umany.Rows()) {
+        for (const auto row : fields.oone_to_umany.Rows()) {
           int32_t row_value = current::storage::sfinae::GetRow(*row.begin());
           std::multiset<std::string> cols;
           for (const auto& element : row) {
@@ -772,14 +772,14 @@ TEST(TransactionalStorage, SmokeTest) {
 
         std::multiset<std::string> data1;
         std::multiset<std::string> data2;
-        for (const auto& row : fields.umany_to_umany.Rows()) {
+        for (const auto row : fields.umany_to_umany.Rows()) {
           for (const auto& element : row) {
             data1.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
                          current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
                          current::ToString(element.phew));
           }
         }
-        for (const auto& col : fields.umany_to_umany.Cols()) {
+        for (const auto col : fields.umany_to_umany.Cols()) {
           for (const auto& element : col) {
             data2.insert(current::ToString(current::storage::sfinae::GetCol(element)) + ',' +
                          current::ToString(current::storage::sfinae::GetRow(element)) + '=' +
@@ -858,7 +858,7 @@ TEST(TransactionalStorage, SmokeTest) {
 
         std::multiset<std::string> rows;
         std::multiset<std::string> cols;
-        for (const auto& row : fields.uone_to_umany.Rows()) {
+        for (const auto row : fields.uone_to_umany.Rows()) {
           for (const auto& element : row) {
             rows.insert(current::ToString(current::storage::sfinae::GetRow(element)) + ',' +
                         current::ToString(current::storage::sfinae::GetCol(element)) + '=' +
@@ -1239,7 +1239,7 @@ TEST(TransactionalStorage, TransactionMetaFields) {
   current::Owned<storage_t> storage = storage_t::CreateMasterStorage();
   const auto& data = storage->UnderlyingStream()->Data();
   const auto TransactionByIndex =
-      [&data](uint64_t index) -> const storage_t::transaction_t& { return (*data->Iterate(index).begin()).entry; };
+      [&data](uint64_t index) -> const storage_t::transaction_t& { return (*data->Iterate(static_cast<size_t>(index)).begin()).entry; };
 
   // Try to delete nonexistent entry, setting `who` transaction meta field.
   // No state should be changed as a result of executing the transaction.
@@ -2685,7 +2685,7 @@ CURRENT_STRUCT(CQSQuery) {
     }
 
     if (test_native_exception) {
-      std::map<int, int>().at(42);  // Throws `std::out_of_range`.
+      static_cast<void>(std::map<int, int>().at(42));  // Throws `std::out_of_range`.
     } else if (test_current_exception) {
       DoThrowCurrentException();
     }
@@ -2736,7 +2736,7 @@ CURRENT_STRUCT(CQSCommand) {
     }
 
     if (Exists(test_native_exception) && Value(test_native_exception)) {
-      std::map<int, int>().at(42);  // Throws `std::out_of_range`.
+      static_cast<void>(std::map<int, int>().at(42));  // Throws `std::out_of_range`.
     } else if (Exists(test_current_exception) && Value(test_current_exception)) {
       DoThrowCurrentException();
     } else if (Exists(test_simple_rollback) && Value(test_simple_rollback)) {
