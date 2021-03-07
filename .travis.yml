@@ -28,11 +28,10 @@ matrix:
       - brew install nasm  # Don't install `gnuplot`, it kills Travis and is unnecessary for the test.
       - clang++ -v
       - clang++ --version
-      - make individual_tests_1_of_3
+      - make -j 8 individual_tests_all_8
       env:
       - NDEBUG=0
-      - TESTS=1_OF_3
-      compiler: "native clang++, Job: make individual_tests"
+      compiler: "native clang++, Job: make -j 8 individual_tests_all_8"
       os: osx
       osx_image: xcode12.2
 
@@ -41,63 +40,10 @@ matrix:
       - brew install nasm  # Don't install `gnuplot`, it kills Travis and is unnecessary for the test.
       - clang++ -v
       - clang++ --version
-      - make individual_tests_2_of_3
-      env:
-      - NDEBUG=0
-      - TESTS=2_OF_3
-      compiler: "native clang++, Job: make individual_tests"
-      os: osx
-      osx_image: xcode12.2
-
-    - script:
-      - brew update
-      - brew install nasm  # Don't install `gnuplot`, it kills Travis and is unnecessary for the test.
-      - clang++ -v
-      - clang++ --version
-      - make individual_tests_3_of_3
-      env:
-      - NDEBUG=0
-      - TESTS=3_OF_3
-      compiler: "native clang++, Job: make individual_tests"
-      os: osx
-      osx_image: xcode12.2
-
-    - script:
-      - brew update
-      - brew install nasm  # Don't install `gnuplot`, it kills Travis and is unnecessary for the test.
-      - clang++ -v
-      - clang++ --version
-      - make individual_tests_1_of_3
+      - make -j 8 individual_tests_all_8
       env:
       - NDEBUG=1
-      - TESTS=1_OF_3
-      compiler: "native clang++, Job: make individual_tests"
-      os: osx
-      osx_image: xcode12.2
-
-    - script:
-      - brew update
-      - brew install nasm  # Don't install `gnuplot`, it kills Travis and is unnecessary for the test.
-      - clang++ -v
-      - clang++ --version
-      - make individual_tests_2_of_3
-      env:
-      - NDEBUG=1
-      - TESTS=2_OF_3
-      compiler: "native clang++, Job: make individual_tests"
-      os: osx
-      osx_image: xcode12.2
-
-    - script:
-      - brew update
-      - brew install nasm  # Don't install `gnuplot`, it kills Travis and is unnecessary for the test.
-      - clang++ -v
-      - clang++ --version
-      - make individual_tests_3_of_3
-      env:
-      - NDEBUG=1
-      - TESTS=3_OF_3
-      compiler: "native clang++, Job: make individual_tests"
+      compiler: "native clang++, Job: make -j 8 individual_tests_all_8"
       os: osx
       osx_image: xcode12.2
 
@@ -121,11 +67,11 @@ matrix:
             - libstdc++-7-dev
             - nasm
 
-    - script: make individual_tests
+    - script: make -j 8 individual_tests_all_8
       env:
       - NDEBUG=0
       - CPLUSPLUS=g++-7
-      compiler: "g++-7, Job: make individual_tests"
+      compiler: "g++-7, Job: make -j 8 individual_tests_all_8"
       os: linux
       addons:
         apt:
@@ -136,11 +82,11 @@ matrix:
             - nasm
             - gnuplot
 
-    - script: make individual_tests
+    - script: make -j 8 individual_tests_all_8
       env:
       - NDEBUG=0
       - CPLUSPLUS=clang++-6.0
-      compiler: "clang++-6.0, Job: make individual_tests"
+      compiler: "clang++-6.0, Job: make -j 8 individual_tests_all_8"
       os: linux
       addons:
         apt:
@@ -153,11 +99,11 @@ matrix:
             - nasm
             - gnuplot
 
-    - script: make individual_tests
+    - script: make -j 8 individual_tests_all_8
       env:
       - NDEBUG=1
       - CPLUSPLUS=g++-7
-      compiler: "g++-7, Job: make individual_tests"
+      compiler: "g++-7, Job: make -j 8 individual_tests_all_8"
       os: linux
       addons:
         apt:
@@ -168,11 +114,11 @@ matrix:
             - nasm
             - gnuplot
 
-    - script: make individual_tests
+    - script: make -j 8 individual_tests_all_8
       env:
       - NDEBUG=1
       - CPLUSPLUS=clang++-6.0
-      compiler: "clang++-6.0, Job: make individual_tests"
+      compiler: "clang++-6.0, Job: make -j 8 individual_tests_all_8"
       os: linux
       addons:
         apt:
