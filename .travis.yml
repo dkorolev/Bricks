@@ -121,11 +121,11 @@ matrix:
             - libstdc++-7-dev
             - nasm
 
-    - script: make -j individual_tests_all_8
+    - script: make -j 4 individual_tests_all_8
       env:
       - NDEBUG=0
       - CPLUSPLUS=g++-7
-      compiler: "g++-7, Job: make -j individual_tests_all_8"
+      compiler: "g++-7, Job: make -j 4 individual_tests_all_8"
       os: linux
       addons:
         apt:
@@ -136,11 +136,11 @@ matrix:
             - nasm
             - gnuplot
 
-    - script: make individual_tests
+    - script: make -j 4 individual_tests_all_8
       env:
       - NDEBUG=0
       - CPLUSPLUS=clang++-6.0
-      compiler: "clang++-6.0, Job: make -j individual_tests_all_8"
+      compiler: "clang++-6.0, Job: make -j 4 individual_tests_all_8"
       os: linux
       addons:
         apt:
@@ -153,11 +153,11 @@ matrix:
             - nasm
             - gnuplot
 
-    - script: make -j individual_tests_all_8
+    - script: make -j 4 individual_tests_all_8
       env:
       - NDEBUG=1
       - CPLUSPLUS=g++-7
-      compiler: "g++-7, Job: make -j individual_tests_all_8"
+      compiler: "g++-7, Job: make -j 4 individual_tests_all_8"
       os: linux
       addons:
         apt:
@@ -168,11 +168,11 @@ matrix:
             - nasm
             - gnuplot
 
-    - script: make -j individual_tests_all_8
+    - script: make -j 4 individual_tests_all_8
       env:
       - NDEBUG=1
       - CPLUSPLUS=clang++-6.0
-      compiler: "clang++-6.0, Job: make -j individual_tests_all_8"
+      compiler: "clang++-6.0, Job: make -j 4 individual_tests_all_8"
       os: linux
       addons:
         apt:
