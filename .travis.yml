@@ -15,6 +15,20 @@ install:
 
 matrix:
   include:
+    - script: apt-search clang
+      - cat /etc/lsb-release
+      - apt-cache search clang
+      env:
+      - CMD=apt_search
+      compiler: "clang++-7.0, Job: apt-search clang"
+      os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test  # `apt-get` on Travis fails to install `clang-3.6 gnuplot` w/o this.
+          packages:
+            - g++-7  # To install the dreaded `#include <codecvt>`.
+
     - script:
       - brew update
       - brew install nasm
@@ -119,7 +133,7 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - g++-7
-            - clang-6.0
+            - clang-7.0
             - libstdc++-7-dev
             - nasm
 
@@ -150,7 +164,7 @@ matrix:
             - ubuntu-toolchain-r-test  # `apt-get` on Travis fails to install `clang-3.6 gnuplot` w/o this.
           packages:
             - g++-7  # To install the dreaded `#include <codecvt>`.
-            - clang-6.0
+            - clang-7.0
             - libstdc++-7-dev
             - nasm
             - gnuplot
@@ -182,7 +196,7 @@ matrix:
             - ubuntu-toolchain-r-test  # `apt-get` on Travis fails to install `clang-3.6 gnuplot` w/o this.
           packages:
             - g++-7  # To install the dreaded `#include <codecvt>`.
-            - clang-6.0
+            - clang-7.0
             - libstdc++-7-dev
             - nasm
             - gnuplot
