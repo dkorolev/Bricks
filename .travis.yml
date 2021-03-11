@@ -1,3 +1,5 @@
+# Triggering Travis rebuild, as it's un-friendly with Ubuntu update at the moment. -- D.K.
+
 language: cpp
 
 install:
