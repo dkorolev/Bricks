@@ -1,14 +1,14 @@
 // To run: g++ -std=c++11 -O3 step3_rides_by_months_unoptimized.cc && time ./a.out | tee >(md5sum)
-// 
+//
 // Count rides by month, print the counters in the lexicographically sorted order of keys.
 // The "canonical C++" implementation, with extra checks, longer, and slower.
 
 #include <iostream>
 #include <unordered_map>
 
-#include "../../../bricks/time/chrono.h"
 #include "../../../bricks/file/file.h"
 #include "../../../bricks/strings/strings.h"
+#include "../../../bricks/time/chrono.h"
 
 int main() {
   // Go through the file and compute the counters.

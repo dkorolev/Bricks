@@ -27,18 +27,14 @@ SOFTWARE.
 #ifndef CURRENT_H
 #define CURRENT_H
 
-#include "port.h"
-
 #include "bricks/dflags/dflags.h"
 #include "bricks/time/chrono.h"
 #include "bricks/util/random.h"
-
-#include "stream/stream.h"
-
-#include "typesystem/struct.h"
-#include "typesystem/schema/schema.h"
-#include "typesystem/evolution/type_evolution.h"
-
+#include "port.h"
 #include "storage/storage.h"
+#include "stream/stream.h"
+#include "typesystem/evolution/type_evolution.h"
+#include "typesystem/schema/schema.h"
+#include "typesystem/struct.h"
 
 #endif  // CURRENT_H

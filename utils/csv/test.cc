@@ -22,12 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "csv.h"
-
-#include "../../bricks/file/file.h"
-#include "../../bricks/dflags/dflags.h"
-#include "../../typesystem/serialization/json.h"
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "../../bricks/dflags/dflags.h"
+#include "../../bricks/file/file.h"
+#include "../../typesystem/serialization/json.h"
+#include "csv.h"
 
 DEFINE_string(csv_test_tmpdir, ".current", "Local path for the test to create temporary files in.");
 

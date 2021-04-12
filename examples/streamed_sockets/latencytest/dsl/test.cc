@@ -24,10 +24,9 @@ SOFTWARE.
 
 #include <array>
 
-#include "dsl.h"
-
 #include "../../../../3rdparty/gtest/gtest-main.h"
 #include "../../../../bricks/strings/join.h"
+#include "dsl.h"
 
 namespace current::examples::streamed_sockets {
 struct SourceA {};

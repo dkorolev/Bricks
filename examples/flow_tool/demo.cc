@@ -22,9 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "flow_tool.h"
-
 #include "../../bricks/dflags/dflags.h"
+#include "flow_tool.h"
 
 DEFINE_uint16(flow_tool_port, 3000, "The local port to spawn the demo on.");
 

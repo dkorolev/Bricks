@@ -26,19 +26,15 @@ SOFTWARE.
 #ifndef CURRENT_STREAM_PUBSUB_H
 #define CURRENT_STREAM_PUBSUB_H
 
-#include "../port.h"
-
 #include <utility>
-
-#include "stream_impl.h"
-
-#include "../typesystem/timestamp.h"
 
 #include "../blocks/http/api.h"
 #include "../blocks/ss/ss.h"
-
 #include "../bricks/sync/owned_borrowed.h"
 #include "../bricks/time/chrono.h"
+#include "../port.h"
+#include "../typesystem/timestamp.h"
+#include "stream_impl.h"
 
 // HTTP publish-subscribe configuration.
 //

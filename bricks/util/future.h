@@ -25,11 +25,11 @@ SOFTWARE.
 #ifndef BRICKS_UTIL_FUTURE_H
 #define BRICKS_UTIL_FUTURE_H
 
-#include "../port.h"
-
-#include <iostream>
 #include <cstdlib>
 #include <future>
+#include <iostream>
+
+#include "../port.h"
 
 namespace current {
 

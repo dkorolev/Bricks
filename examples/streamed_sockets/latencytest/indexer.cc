@@ -22,9 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "pipeline_main.h"
-
 #include "workers/indexer.h"
+
+#include "pipeline_main.h"
 #include "workers/receiver.h"
 #include "workers/saver.h"
 #include "workers/sender.h"

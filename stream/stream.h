@@ -25,8 +25,6 @@ SOFTWARE.
 #ifndef CURRENT_STREAM_STREAM_H
 #define CURRENT_STREAM_STREAM_H
 
-#include "../port.h"
-
 #include <functional>
 #include <iostream>
 #include <map>
@@ -35,24 +33,22 @@ SOFTWARE.
 #include <thread>
 #include <type_traits>
 
-#include "exceptions.h"
-#include "stream_impl.h"
-#include "pubsub.h"
-
-#include "../typesystem/struct.h"
-#include "../typesystem/schema/schema.h"
-
 #include "../blocks/http/api.h"
-#include "../blocks/persistence/memory.h"
 #include "../blocks/persistence/file.h"
-#include "../blocks/ss/ss.h"
+#include "../blocks/persistence/memory.h"
 #include "../blocks/ss/signature.h"
-
+#include "../blocks/ss/ss.h"
 #include "../bricks/sync/locks.h"
 #include "../bricks/sync/owned_borrowed.h"
 #include "../bricks/time/chrono.h"
 #include "../bricks/util/sha256.h"
 #include "../bricks/util/waitable_terminate_signal.h"
+#include "../port.h"
+#include "../typesystem/schema/schema.h"
+#include "../typesystem/struct.h"
+#include "exceptions.h"
+#include "pubsub.h"
+#include "stream_impl.h"
 
 // Stream is the overlord of streamed data storage and processing in Current.
 // Stream's streams are persistent, immutable, append-only typed sequences of records ("entries").
@@ -102,8 +98,8 @@ CURRENT_STRUCT(SubscribableStreamSchema) {
   CURRENT_FIELD(namespace_name, std::string);
 
   CURRENT_DEFAULT_CONSTRUCTOR(SubscribableStreamSchema) {}
-  CURRENT_CONSTRUCTOR(SubscribableStreamSchema)(
-      current::reflection::TypeID type_id, const std::string& entry_name, const std::string& namespace_name)
+  CURRENT_CONSTRUCTOR(SubscribableStreamSchema)
+  (current::reflection::TypeID type_id, const std::string& entry_name, const std::string& namespace_name)
       : type_id(type_id), entry_name(entry_name), namespace_name(namespace_name) {}
 
   bool operator==(const SubscribableStreamSchema& rhs) const {
@@ -405,14 +401,12 @@ class Stream final {
         } else {
           std::unique_lock<std::mutex> lock(impl_->publishing_mutex);
           current::WaitableTerminateSignalBulkNotifier::Scope scope(impl_->notifier, terminate_signal_);
-          terminate_signal_.WaitUntil(
-              lock,
-              [this, &index, &begin_idx, &head]() {
-                return terminate_signal_ ||
-                       impl_->persister.template Size<current::locks::MutexLockStatus::AlreadyLocked>() > index ||
-                       (index > begin_idx &&
-                        impl_->persister.template CurrentHead<current::locks::MutexLockStatus::AlreadyLocked>() > head);
-              });
+          terminate_signal_.WaitUntil(lock, [this, &index, &begin_idx, &head]() {
+            return terminate_signal_ ||
+                   impl_->persister.template Size<current::locks::MutexLockStatus::AlreadyLocked>() > index ||
+                   (index > begin_idx &&
+                    impl_->persister.template CurrentHead<current::locks::MutexLockStatus::AlreadyLocked>() > head);
+          });
         }
       }
     }

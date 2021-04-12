@@ -25,20 +25,15 @@ SOFTWARE.
 #ifndef KARL_TEST_SERVICE_GENERATOR_H
 #define KARL_TEST_SERVICE_GENERATOR_H
 
-#include "../../port.h"
-
 #include <atomic>
 
-#include "../karl.h"
-#include "../claire.h"
-
-#include "schema.h"
-
 #include "../../blocks/http/api.h"
-
-#include "../../stream/stream.h"
-
 #include "../../bricks/time/chrono.h"
+#include "../../port.h"
+#include "../../stream/stream.h"
+#include "../claire.h"
+#include "../karl.h"
+#include "schema.h"
 
 namespace karl_unittest {
 

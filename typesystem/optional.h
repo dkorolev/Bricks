@@ -35,15 +35,13 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_OPTIONAL_H
 #define CURRENT_TYPE_SYSTEM_OPTIONAL_H
 
-#include "../port.h"  // `make_unique<>`.
-
 #include <memory>
 #include <type_traits>
 
-#include "types.h"
-#include "exceptions.h"
-
 #include "../bricks/template/decay.h"
+#include "../port.h"  // `make_unique<>`.
+#include "exceptions.h"
+#include "types.h"
 
 namespace current {
 
@@ -528,8 +526,8 @@ bool operator>=(const T& v, const Optional<T>& x) {
 
 }  // namespace current
 
+using current::FromBarePointer;
 using current::ImmutableOptional;
 using current::Optional;
-using current::FromBarePointer;
 
 #endif  // CURRENT_TYPE_SYSTEM_OPTIONAL_H

@@ -31,11 +31,10 @@ SOFTWARE.
 #ifndef CURRENT_UTILS_JSONSCHEMA_INFER_H
 #define CURRENT_UTILS_JSONSCHEMA_INFER_H
 
-#include "../../typesystem/struct.h"
+#include "../../bricks/file/file.h"
 #include "../../typesystem/schema/schema.h"
 #include "../../typesystem/serialization/json.h"
-
-#include "../../bricks/file/file.h"
+#include "../../typesystem/struct.h"
 
 namespace current {
 namespace utils {
@@ -743,24 +742,23 @@ template <typename PATH = DoNotTrackPath>
 inline Schema SchemaFromOneJSONPerLineFile(const std::string& file_name, const PATH& path = PATH()) {
   bool first = true;
   impl::Schema schema;
-  FileSystem::ReadFileByLines(file_name,
-                              [&path, &first, &schema](std::string&& json) {
-                                rapidjson::Document document;
-                                // `&json[0]` to pass a mutable string.
-                                if (document.Parse<0>(&json[0]).HasParseError()) {
-                                  CURRENT_THROW(InferSchemaParseJSONException());
-                                }
-                                if (first) {
-                                  schema = impl::RecursivelyInferSchema(document, path);
-                                  first = false;
-                                } else {
-                                  schema = CallReduce(schema, impl::RecursivelyInferSchema(document, path));
-                                }
-                              });
+  FileSystem::ReadFileByLines(file_name, [&path, &first, &schema](std::string&& json) {
+    rapidjson::Document document;
+    // `&json[0]` to pass a mutable string.
+    if (document.Parse<0>(&json[0]).HasParseError()) {
+      CURRENT_THROW(InferSchemaParseJSONException());
+    }
+    if (first) {
+      schema = impl::RecursivelyInferSchema(document, path);
+      first = false;
+    } else {
+      schema = CallReduce(schema, impl::RecursivelyInferSchema(document, path));
+    }
+  });
   return schema;
 }
 
-}  // namespace impl
+}  // namespace current
 
 template <typename PATH = DoNotTrackPath>
 inline std::string DescribeSchema(const std::string& file_name,

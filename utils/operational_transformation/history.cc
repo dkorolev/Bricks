@@ -22,10 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "ot.h"
-
 #include "../../bricks/dflags/dflags.h"
 #include "../../bricks/file/file.h"
+#include "ot.h"
 
 DEFINE_string(input, "input.ot", "The name of the input file containing the Operational Transformation of the pad.");
 DEFINE_double(at_m, 0, "If nonzero, the minute at which the contents of the pad should be output.");

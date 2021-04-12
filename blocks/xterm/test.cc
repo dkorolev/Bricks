@@ -22,11 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "progress.h"
-
 #include <thread>
 
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "progress.h"
 
 #ifndef CURRENT_CI
 DEFINE_double(progress_line_delay, 0.5, "The delay, in seconds, between progress updates.");

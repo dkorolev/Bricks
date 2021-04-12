@@ -24,7 +24,6 @@
 
 #include "../../../bricks/dflags/dflags.h"
 #include "../../../stream/replicator.h"
-
 #include "entry.h"
 
 DEFINE_string(url, "127.0.0.1:8383/raw_log", "The URL to subscribe to.");

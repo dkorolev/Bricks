@@ -24,9 +24,8 @@ SOFTWARE.
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 
-#include "../../typesystem/serialization/json.h"
-
 #include "../../3rdparty/gtest/gtest-main.h"
+#include "../../typesystem/serialization/json.h"
 
 namespace type_test {
 

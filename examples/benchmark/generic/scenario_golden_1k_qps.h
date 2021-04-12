@@ -25,15 +25,13 @@ SOFTWARE.
 #ifndef EXAMLPES_BENCHMARK_GENERIC_SCENARIO_GOLDEN_1K_QPS_H
 #define EXAMLPES_BENCHMARK_GENERIC_SCENARIO_GOLDEN_1K_QPS_H
 
-#include "../../../port.h"
-
 #include <chrono>
-#include <thread>
 #include <mutex>
-
-#include "benchmark.h"
+#include <thread>
 
 #include "../../../bricks/dflags/dflags.h"
+#include "../../../port.h"
+#include "benchmark.h"
 
 #ifndef CURRENT_MAKE_CHECK_MODE
 DEFINE_double(golden_qps, 1000, "Golden QPS for the `golden_1kqps` scenario to use.");

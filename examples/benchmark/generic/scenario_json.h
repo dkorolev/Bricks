@@ -25,15 +25,12 @@ SOFTWARE.
 #ifndef EXAMLPES_BENCHMARK_GENERIC_SCENARIO_JSON_H
 #define EXAMLPES_BENCHMARK_GENERIC_SCENARIO_JSON_H
 
+#include "../../../bricks/dflags/dflags.h"
 #include "../../../port.h"
-
+#include "../../../typesystem/serialization/json.h"
 #include "../../../typesystem/struct.h"
 #include "../../../typesystem/variant.h"
-#include "../../../typesystem/serialization/json.h"
-
 #include "benchmark.h"
-
-#include "../../../bricks/dflags/dflags.h"
 
 #ifndef CURRENT_MAKE_CHECK_MODE
 DEFINE_string(json, "gen", "JSON action to take in the performance test, gen/parse/both.");

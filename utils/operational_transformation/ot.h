@@ -25,12 +25,11 @@ SOFTWARE.
 #ifndef UTILS_OPERATIONAL_TRANSFORMATION_H
 #define UTILS_OPERATIONAL_TRANSFORMATION_H
 
-#include "../../port.h"
-
-#include "../../typesystem/serialization/json.h"
-
-#include <deque>
 #include <codecvt>
+#include <deque>
+
+#include "../../port.h"
+#include "../../typesystem/serialization/json.h"
 
 namespace current {
 namespace utils {
@@ -122,8 +121,8 @@ inline std::string OT(const std::string& json) {
   return OT(json, PassthroughProcessor());
 }
 
-}  // namespace current::utils::ot
-}  // namespace current::utils
+}  // namespace ot
+}  // namespace utils
 }  // namespace current
 
 #endif  // UTILS_OPERATIONAL_TRANSFORMATION_H

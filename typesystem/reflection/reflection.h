@@ -28,23 +28,21 @@ SOFTWARE.
 
 #include <map>
 #include <set>
-#include <typeindex>
 #include <type_traits>
+#include <typeindex>
 #include <unordered_map>
 #include <unordered_set>
 
-#include "exceptions.h"
-#include "types.h"
-
+#include "../../bricks/template/call_all_constructors.h"
+#include "../../bricks/util/comparators.h"
+#include "../../bricks/util/singleton.h"
 #include "../optional.h"
 #include "../struct.h"
 #include "../timestamp.h"
 #include "../typename.h"
 #include "../variant.h"
-
-#include "../../bricks/template/call_all_constructors.h"
-#include "../../bricks/util/comparators.h"
-#include "../../bricks/util/singleton.h"
+#include "exceptions.h"
+#include "types.h"
 
 namespace current {
 
@@ -55,7 +53,7 @@ template <NameFormat NF>
 struct CurrentTypeNameImpl<NF, reflection::TypeID, false, false, true, false> {
   static const char* GetCurrentTypeName() { return "TypeID"; }
 };
-}  // namespace current::reflection::impl
+}  // namespace impl
 
 template <typename T_TYPE>
 reflection::TypeID InternalCurrentTypeID(std::type_index top_level_type, const char* top_level_type_name);
@@ -186,9 +184,8 @@ struct RecursiveTypeTraverser {
 
     VariantCaseReflectingInnerType data(result, std::make_pair(top_level_type_, top_level_type_name_));
 
-    current::metaprogramming::call_all_constructors_with<ReflectVariantCase,
-                                                         VariantCaseReflectingInnerType,
-                                                         TypeListImpl<TS...>>(data);
+    current::metaprogramming::
+        call_all_constructors_with<ReflectVariantCase, VariantCaseReflectingInnerType, TypeListImpl<TS...>>(data);
     return CalculateTypeID(result);
   }
 
@@ -445,9 +442,8 @@ struct ReflectorImpl {
     using T_VARIANT = VariantImpl<NAME, TypeListImpl<TS...>>;
     ReflectedType_Variant result;
     result.name = CurrentTypeName<T_VARIANT, NameFormat::Z>();
-    current::metaprogramming::call_all_constructors_with<ReflectVariantCase,
-                                                         ReflectedType_Variant,
-                                                         TypeListImpl<TS...>>(result);
+    current::metaprogramming::
+        call_all_constructors_with<ReflectVariantCase, ReflectedType_Variant, TypeListImpl<TS...>>(result);
     result.type_id = CurrentTypeID<T_VARIANT>();
     return ReflectedType(std::move(result));
   }

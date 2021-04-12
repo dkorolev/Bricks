@@ -33,22 +33,17 @@ SOFTWARE.
 #include <set>
 #include <type_traits>
 
-#include "storage.h"
+#include "../3rdparty/gtest/gtest-main.h"
+#include "../blocks/http/api.h"
+#include "../bricks/dflags/dflags.h"
+#include "../bricks/file/file.h"
+#include "../stream/replicator.h"
 #include "api.h"
 #include "persister/stream.h"
-
+#include "rest/hypermedia.h"
 #include "rest/plain.h"
 #include "rest/simple.h"
-#include "rest/hypermedia.h"
-
-#include "../blocks/http/api.h"
-
-#include "../bricks/file/file.h"
-#include "../bricks/dflags/dflags.h"
-
-#include "../stream/replicator.h"
-
-#include "../3rdparty/gtest/gtest-main.h"
+#include "storage.h"
 
 #ifndef CURRENT_MAKE_CHECK_MODE
 
@@ -84,8 +79,8 @@ CURRENT_STRUCT(Cell) {
   CURRENT_USE_FIELD_AS_ROW(foo);
   CURRENT_USE_FIELD_AS_COL(bar);
 
-  CURRENT_CONSTRUCTOR(Cell)(int32_t foo = 0, const std::string& bar = "", int32_t phew = 0)
-      : foo(foo), bar(bar), phew(phew) {}
+  CURRENT_CONSTRUCTOR(Cell)
+  (int32_t foo = 0, const std::string& bar = "", int32_t phew = 0) : foo(foo), bar(bar), phew(phew) {}
 };
 
 CURRENT_STORAGE_FIELD_ENTRY(OrderedDictionary, Record, RecordDictionary);
@@ -152,16 +147,16 @@ CURRENT_STRUCT(SimplePost) {
 CURRENT_STRUCT(SimpleLikeBase) {
   CURRENT_FIELD(row, std::string);
   CURRENT_FIELD(col, std::string);
-  CURRENT_CONSTRUCTOR(SimpleLikeBase)(const std::string& who = "", const std::string& what = "")
-      : row(who), col(what) {}
+  CURRENT_CONSTRUCTOR(SimpleLikeBase)
+  (const std::string& who = "", const std::string& what = "") : row(who), col(what) {}
 };
 
 CURRENT_STRUCT(SimpleLike, SimpleLikeBase) {
   using brief_t = SimpleLikeBase;
   CURRENT_FIELD(details, Optional<std::string>);
   CURRENT_CONSTRUCTOR(SimpleLike)(const std::string& who = "", const std::string& what = "") : SUPER(who, what) {}
-  CURRENT_CONSTRUCTOR(SimpleLike)(const std::string& who, const std::string& what, const std::string& details)
-      : SUPER(who, what), details(details) {}
+  CURRENT_CONSTRUCTOR(SimpleLike)
+  (const std::string& who, const std::string& what, const std::string& details) : SUPER(who, what), details(details) {}
 };
 
 CURRENT_STRUCT(SimpleLikeValidPatch) {
@@ -177,8 +172,8 @@ CURRENT_STRUCT(SimpleLikeInvalidPatch) {
 CURRENT_STRUCT(SimpleComposite) {
   CURRENT_FIELD(row, std::string);
   CURRENT_FIELD(col, std::chrono::microseconds);
-  CURRENT_CONSTRUCTOR(SimpleComposite)(const std::string& row = "",
-                                       const std::chrono::microseconds col = std::chrono::microseconds(0))
+  CURRENT_CONSTRUCTOR(SimpleComposite)
+  (const std::string& row = "", const std::chrono::microseconds col = std::chrono::microseconds(0))
       : row(row), col(col) {}
 
   // Without this line, POST is not allowed in RESTful access to this container.

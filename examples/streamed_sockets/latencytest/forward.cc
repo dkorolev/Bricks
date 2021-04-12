@@ -23,7 +23,6 @@ SOFTWARE.
 *******************************************************************************/
 
 #include "pipeline_main.h"
-
 #include "workers/receiver.h"
 #include "workers/saver.h"
 #include "workers/sender.h"

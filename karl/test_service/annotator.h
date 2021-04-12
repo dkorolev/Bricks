@@ -25,14 +25,11 @@ SOFTWARE.
 #ifndef KARL_TEST_SERVICE_ANNOTATOR_H
 #define KARL_TEST_SERVICE_ANNOTATOR_H
 
+#include "../../blocks/http/api.h"
+#include "../../stream/stream.h"
+#include "../claire.h"
 #include "http_subscriber.h"
 #include "schema.h"
-
-#include "../claire.h"
-
-#include "../../blocks/http/api.h"
-
-#include "../../stream/stream.h"
 
 namespace karl_unittest {
 
@@ -47,7 +44,7 @@ class ServiceAnnotator final {
         stream_(current::stream::Stream<Number>::CreateStream()),
         http_scope_(HTTP(current::net::BarePort(port)).Register("/annotated", *stream_)),
         destructing_(false),
-        http_stream_subscriber_(source_numbers_stream_, [this](idxts_t, Number && n) { OnNumber(std::move(n)); }),
+        http_stream_subscriber_(source_numbers_stream_, [this](idxts_t, Number&& n) { OnNumber(std::move(n)); }),
         claire_(karl, "annotator", port, {service_generator, service_is_prime}) {
 #ifdef CURRENT_MOCK_TIME
     // In unit test mode, wait for Karl's response and callback, and fail if Karl is not available.

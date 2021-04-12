@@ -34,13 +34,13 @@ SOFTWARE.
 
 #define FNCAS_X64_NATIVE_JIT_ENABLED
 
+#include <sys/mman.h>
+
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <vector>
-
-#include <sys/mman.h>
 
 #ifdef NDEBUG
 #include <cassert>
@@ -341,10 +341,10 @@ void call_function_from_rdx_pointers_array_by_index(C& c, uint8_t index) {
   c.push_back((index + 1) * 0x08);
 }
 
-}  // namespace current::fncas::x64_native_jit::opcodes
+}  // namespace opcodes
 
-}  // namespace current::fncas::x64_native_jit
-}  // namespace current::fncas
+}  // namespace x64_native_jit
+}  // namespace fncas
 }  // namespace current
 
 #endif  // defined(__x86_64__)

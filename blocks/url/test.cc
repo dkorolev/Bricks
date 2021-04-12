@@ -22,12 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "url.h"
-
-#include "../../bricks/dflags/dflags.h"
-#include "../../typesystem/struct.h"
-#include "../../typesystem/optional.h"
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "../../bricks/dflags/dflags.h"
+#include "../../typesystem/optional.h"
+#include "../../typesystem/struct.h"
+#include "url.h"
 
 TEST(URLTest, SmokeTest) {
   URL u;

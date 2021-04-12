@@ -35,8 +35,8 @@ SOFTWARE.
 #define GBT_EXTRA_CHECK(x) x
 #endif
 
-#include "schema.h"
 #include "iterable_subset.h"
+#include "schema.h"
 
 #define GBT_LARGE_EPSILON 0.001  // For relative improvements in standard deviation, which is computed in doubles.
 
@@ -196,7 +196,7 @@ class TreeBuilder {
       ensemble_.nodes[node_index].value = mean_y;
     } else {
       if (dump_ostream_) {
-        *dump_ostream_ << indent << "count: " << n << ", y: " << sum_p1*(1.0 / n)
+        *dump_ostream_ << indent << "count: " << n << ", y: " << sum_p1 * (1.0 / n)
                        << ", y_stddev: " << std::sqrt(baseline_penalty / n);
       }
 

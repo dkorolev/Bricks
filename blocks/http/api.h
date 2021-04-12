@@ -33,20 +33,18 @@ SOFTWARE.
 #ifndef BLOCKS_HTTP_API_H
 #define BLOCKS_HTTP_API_H
 
+#include "../../bricks/template/weed.h"
+#include "../../bricks/util/singleton.h"
 #include "../../port.h"
-
+#include "favicon.h"
 #include "request.h"
 #include "response.h"
 #include "types.h"
-#include "favicon.h"
-
-#include "../../bricks/util/singleton.h"
-#include "../../bricks/template/weed.h"
 
 #if defined(CURRENT_POSIX) || defined(CURRENT_WINDOWS) || defined(CURRENT_APPLE_HTTP_CLIENT_POSIX)
+#include "chunked_response_parser.h"
 #include "impl/posix_client.h"
 #include "impl/posix_server.h"
-#include "chunked_response_parser.h"
 using HTTP_CLIENT = current::http::HTTPClientPOSIX;
 using CHUNKED_HTTP_CLIENT = current::http::GenericHTTPClientPOSIX<ChunkByChunkHTTPResponseReceiver>;
 #elif defined(CURRENT_APPLE) && !defined(CURRENT_APPLE_HTTP_CLIENT_POSIX)
@@ -78,8 +76,8 @@ inline typename current::weed::call_with_type<HTTP_IMPL, TS...> HTTP(TS&&... par
 
 using current::http::HTTP;
 using current::http::Request;
-using current::http::Response;
 using current::http::ReRegisterRoute;
+using current::http::Response;
 using HTTPRoutesScope = typename HTTP_IMPL::server_impl_t::HTTPRoutesScope;
 using HTTPRoutesScopeEntry = current::http::HTTPServerPOSIX::HTTPRoutesScopeEntry;
 

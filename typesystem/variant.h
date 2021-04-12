@@ -32,10 +32,10 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_VARIANT_H
 #define CURRENT_TYPE_SYSTEM_VARIANT_H
 
-#include "../port.h"  // `make_unique`.
-
 #include <memory>
 #include <type_traits>
+
+#include "../port.h"  // `make_unique`.
 
 #ifdef VARIANT_CHECKS_AT_RUNTIME_INSTEAD_OF_COMPILE_TIME
 // For runtime, not compile-time, extra checks.
@@ -44,14 +44,13 @@ SOFTWARE.
 #include <unordered_map>
 #endif
 
-#include "base.h"
-#include "exceptions.h"
-#include "helpers.h"
-
 #include "../bricks/template/call_all_constructors.h"
 #include "../bricks/template/mapreduce.h"
 #include "../bricks/template/rtti_dynamic_call.h"
 #include "../bricks/template/typelist.h"
+#include "base.h"
+#include "exceptions.h"
+#include "helpers.h"
 
 namespace current {
 
@@ -114,7 +113,7 @@ struct RuntimeTypeListHelpers<TypeListImpl<TS...>> {
 };
 #endif  // VARIANT_CHECKS_AT_RUNTIME_INSTEAD_OF_COMPILE_TIME
 
-}  // namespace current::variant
+}  // namespace variant
 
 struct IHasUncheckedMoveFromUniquePtr : CurrentVariant {
   virtual void UncheckedMoveFromUniquePtr(std::unique_ptr<current::variant::object_base_t>) = 0;

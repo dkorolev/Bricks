@@ -27,12 +27,10 @@ SOFTWARE.
 #ifndef KARL_LOCATOR_H
 #define KARL_LOCATOR_H
 
-#include "../port.h"
-
-#include "schema_claire.h"
-#include "constants.h"
-
 #include "../bricks/strings/util.h"
+#include "../port.h"
+#include "constants.h"
+#include "schema_claire.h"
 
 namespace current {
 namespace karl {
@@ -46,7 +44,7 @@ inline Locator LocalKarl() {
   return Locator("http://localhost:" + current::ToString(constants::kDefaultKarlPort) + '/');
 };
 
-}  // namespace current::karl
+}  // namespace karl
 }  // namespace current
 
 #endif  // KARL_LOCATOR_H

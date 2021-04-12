@@ -1,7 +1,6 @@
-#include "impl.h"
-
 #include "../../blocks/http/api.h"
 #include "../../bricks/dflags/dflags.h"
+#include "impl.h"
 
 DEFINE_string(input_filename, "../iris/data/dataset.json", "The input Irises dataset.");
 DEFINE_uint16(port, 3000, "The port to serve on.");

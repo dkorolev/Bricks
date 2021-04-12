@@ -32,10 +32,10 @@ SOFTWARE.
 
 #if defined(CURRENT_JAVA) || defined(CURRENT_ANDROID)
 
+#include <jni.h>
+
 #include "../../../java_wrapper/java_wrapper.h"
 #include "../../../util/make_scope_guard.h"
-
-#include <jni.h>
 
 // Wrapper over native Android/Java code for HTTP requests.
 

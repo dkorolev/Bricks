@@ -15,19 +15,18 @@
 #error "FNCAS_JIT should be set to build eval.cc."
 #endif
 
+#include <sys/time.h>
+
 #include <ctime>
 #include <functional>
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <random>
 #include <sstream>
 #include <vector>
-#include <random>
 
 #include "../fncas/fncas.h"
-
-#include <sys/time.h>
-
 #include "functions.h"
 
 double get_wall_time_seconds() {

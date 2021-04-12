@@ -25,9 +25,8 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_EVOLUTION_MACROS_H
 #define CURRENT_TYPE_SYSTEM_EVOLUTION_MACROS_H
 
-#include "../../port.h"
-
 #include "../../bricks/template/decay.h"
+#include "../../port.h"
 
 // This header file defines the macros to shorten:
 // 1) Boilerplate type evolvers (which are dumped as part of the Current schema output format), and
@@ -64,24 +63,22 @@ template <typename DST>
 struct CurrentGenericPerCaseVariantEvolver {
   current::decay_t<DST>* p_into;
 };
-}  // namespace current::type_evolution
+}  // namespace type_evolution
 }  // namespace current
 
 #define CURRENT_TYPE_EVOLVER_VARIANT(custom_evolver, from_namespace, T, into_namespace)                    \
   template <int COUNTER, typename DST, typename FROM, typename INTO, typename EVOLVER>                     \
   struct CurrentGenericPerCaseVariantEvolverImpl;                                                          \
-  CURRENT_TYPE_EVOLVER(custom_evolver,                                                                     \
-                       from_namespace,                                                                     \
-                       T,                                                                                  \
-                       {                                                                                   \
+  CURRENT_TYPE_EVOLVER(custom_evolver, from_namespace, T, {                                                \
     CurrentGenericPerCaseVariantEvolverImpl<__COUNTER__,                                                   \
                                             decltype(into),                                                \
                                             from_namespace,                                                \
                                             into_namespace,                                                \
-                                            custom_evolver> evolver;                                       \
+                                            custom_evolver>                                                \
+        evolver;                                                                                           \
     evolver.p_into = &into;                                                                                \
     from.Call(evolver);                                                                                    \
-                       });                                                                                 \
+  });                                                                                                      \
                                                                                                            \
   template <typename DST, typename FROM, typename INTO, typename CURRENT_ACTIVE_EVOLVER>                   \
   struct CurrentGenericPerCaseVariantEvolverImpl<__COUNTER__ - 1, DST, FROM, INTO, CURRENT_ACTIVE_EVOLVER> \

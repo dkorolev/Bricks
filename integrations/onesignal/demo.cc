@@ -22,9 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "ios_notifications_sender.h"
-
 #include "../../bricks/dflags/dflags.h"
+#include "ios_notifications_sender.h"
 
 DEFINE_string(app_id, "", "The `app_id` for OneSignal integration.");
 DEFINE_uint16(port,

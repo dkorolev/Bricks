@@ -28,10 +28,10 @@ SOFTWARE.
 #ifndef BRICKS_TEMPLATE_TYPELIST_H
 #define BRICKS_TEMPLATE_TYPELIST_H
 
-#include "../../port.h"
-
 #include <cstdlib>
 #include <type_traits>
+
+#include "../../port.h"
 
 namespace current {
 namespace metaprogramming {
@@ -135,11 +135,9 @@ static_assert(std::is_same_v<TypeListImpl<>, TypeListCat<TypeListImpl<>, TypeLis
 static_assert(std::is_same_v<TypeListImpl<int>, TypeListCat<TypeListImpl<int>, TypeListImpl<>>>, "");
 static_assert(std::is_same_v<TypeListImpl<int>, TypeListCat<TypeListImpl<>, TypeListImpl<int>>>, "");
 static_assert(
-    std::is_same_v<TypeListImpl<int, char, double>, TypeListCat<TypeListImpl<int>, TypeListImpl<char, double>>>,
-    "");
+    std::is_same_v<TypeListImpl<int, char, double>, TypeListCat<TypeListImpl<int>, TypeListImpl<char, double>>>, "");
 static_assert(
-    std::is_same_v<TypeListImpl<int, char, double>, TypeListCat<TypeListImpl<int, char>, TypeListImpl<double>>>,
-    "");
+    std::is_same_v<TypeListImpl<int, char, double>, TypeListCat<TypeListImpl<int, char>, TypeListImpl<double>>>, "");
 static_assert(std::is_same_v<TypeListImpl<>, TypeListCat<>>, "");
 static_assert(std::is_same_v<TypeListImpl<int>, TypeListCat<TypeListImpl<int>>>, "");
 static_assert(std::is_same_v<TypeListImpl<int, char, double>,
@@ -256,13 +254,13 @@ static_assert(std::is_same_v<TypeListImpl<>, TypeListUnion<TypeListImpl<>, TypeL
 static_assert(std::is_same_v<TypeListImpl<int>, TypeListUnion<TypeListImpl<int>, TypeListImpl<>>>, "");
 static_assert(std::is_same_v<TypeListImpl<int>, TypeListUnion<TypeListImpl<>, TypeListImpl<int>>>, "");
 static_assert(std::is_same_v<TypeListImpl<int>, TypeListUnion<TypeListImpl<int>, TypeListImpl<int>>>, "");
-static_assert(std::is_same_v<TypeListImpl<int, char, double>,
-                             TypeListUnion<TypeListImpl<int, char>, TypeListImpl<char, double>>>,
-              "");
+static_assert(
+    std::is_same_v<TypeListImpl<int, char, double>, TypeListUnion<TypeListImpl<int, char>, TypeListImpl<char, double>>>,
+    "");
 static_assert(std::is_same_v<TypeListImpl<>, TypeListUnion<>>, "");
 static_assert(std::is_same_v<TypeListImpl<int>, TypeListUnion<TypeListImpl<int>>>, "");
-static_assert(
-    std::is_same_v<TypeListImpl<int>, TypeListUnion<TypeListImpl<int>, TypeListImpl<int>, TypeListImpl<int>>>, "");
+static_assert(std::is_same_v<TypeListImpl<int>, TypeListUnion<TypeListImpl<int>, TypeListImpl<int>, TypeListImpl<int>>>,
+              "");
 static_assert(
     std::is_same_v<TypeListImpl<int, char>,
                    TypeListUnion<TypeListImpl<int>, TypeListImpl<char>, TypeListImpl<int>, TypeListImpl<char>>>,
@@ -309,8 +307,8 @@ static_assert(std::is_same_v<TypeListImpl<int>, Flatten<TypeListImpl<TypeListImp
 static_assert(std::is_same_v<TypeListImpl<int>, Flatten<TypeListImpl<TypeListImpl<TypeListImpl<int>>>>>, "");
 static_assert(std::is_same_v<TypeListImpl<int, double>, Flatten<TypeListImpl<int, double>>>, "");
 static_assert(std::is_same_v<TypeListImpl<int, double>, Flatten<TypeListImpl<TypeListImpl<int>, double>>>, "");
-static_assert(
-    std::is_same_v<TypeListImpl<int, double>, Flatten<TypeListImpl<TypeListImpl<TypeListImpl<int>>, double>>>, "");
+static_assert(std::is_same_v<TypeListImpl<int, double>, Flatten<TypeListImpl<TypeListImpl<TypeListImpl<int>>, double>>>,
+              "");
 
 // Performance alert, @dkorolev @mzhurovich 12/5/2015. Revisited and kept the semantics same. -- D.K. 10/15/2015.
 // The implementation of `TypeList` deduplication+flattening is very inefficient as of now.
@@ -332,8 +330,8 @@ static_assert(std::is_same_v<TypeListImpl<int>, SlowTypeList<SlowTypeList<SlowTy
 static_assert(std::is_same_v<TypeListImpl<int>, SlowTypeList<int, int>>, "");
 static_assert(std::is_same_v<TypeListImpl<int>, SlowTypeList<int, SlowTypeList<int>>>, "");
 static_assert(std::is_same_v<TypeListImpl<int>, SlowTypeList<int, SlowTypeList<SlowTypeList<int>>>>, "");
-static_assert(
-    std::is_same_v<TypeListImpl<int, double>, SlowTypeList<int, SlowTypeList<SlowTypeList<int>, double>>>, "");
+static_assert(std::is_same_v<TypeListImpl<int, double>, SlowTypeList<int, SlowTypeList<SlowTypeList<int>, double>>>,
+              "");
 static_assert(std::is_same_v<TypeListImpl<int, double>, SlowTypeList<int, int, double, double>>, "");
 static_assert(std::is_same_v<TypeListImpl<int, double>, SlowTypeList<int, double, int>>, "");
 static_assert(std::is_same_v<TypeListImpl<int, double>, SlowTypeList<int, double, int, double>>, "");
@@ -425,7 +423,7 @@ struct Q {
   using type = typename type_wrapper::type;
 };
 
-}  // namespace crnt::tle
+}  // namespace tle
 }  // namespace crnt
 
 namespace current {
@@ -443,12 +441,12 @@ static_assert(std::is_same_v<char, TypeListElement<1, TypeListImpl<long, char>>>
 }  // namespace current
 
 // Export some symbols into global scope.
-using current::metaprogramming::TypeList;
-using current::metaprogramming::SlowTypeList;
-using current::metaprogramming::TypeListContains;
 using current::metaprogramming::IsTypeList;
-using current::metaprogramming::TypeListSize;
+using current::metaprogramming::SlowTypeList;
+using current::metaprogramming::TypeList;
+using current::metaprogramming::TypeListContains;
 using current::metaprogramming::TypeListElement;
+using current::metaprogramming::TypeListSize;
 
 // Note: For equality and lack of discrimination reasons, the user may still use raw `TypeListImpl`,
 // if she prefers to not have flattening and deduplication take place.

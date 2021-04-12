@@ -24,12 +24,12 @@ SOFTWARE.
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 
-#include "../../bricks/file/file.h"
 #include "../../bricks/template/rtti_dynamic_call.h"
-#include "../../bricks/template/typelist.h"
-#include "../../typesystem/struct.h"
 
 #include "../../3rdparty/gtest/gtest-main.h"
+#include "../../bricks/file/file.h"
+#include "../../bricks/template/typelist.h"
+#include "../../typesystem/struct.h"
 
 namespace type_test {
 

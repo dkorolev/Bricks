@@ -25,13 +25,11 @@ SOFTWARE.
 #ifndef CURRENT_MIDICHLORIANS_SERVER_H
 #define CURRENT_MIDICHLORIANS_SERVER_H
 
-#include "schema.h"
-
-#include "../../typesystem/serialization/json.h"
-
 #include "../../blocks/http/api.h"
 #include "../../bricks/strings/strings.h"
 #include "../../bricks/time/chrono.h"
+#include "../../typesystem/serialization/json.h"
+#include "schema.h"
 
 namespace current {
 namespace midichlorians {
@@ -118,18 +116,18 @@ class midichloriansHTTPServer {
     bool is_allowed_method = false;
     const std::map<std::string, std::string>& q =
         [&r, &extracted_q, &is_allowed_method]() -> const std::map<std::string, std::string>& {
-          if (r.method == "GET" || r.method == "HEAD") {
-            is_allowed_method = true;
-            return r.url.AllQueryParameters();
-          } else if (r.method == "POST") {
-            is_allowed_method = true;
-            extracted_q = current::url::URL::ParseQueryString(r.body);
-            for (const auto& cit : r.url.AllQueryParameters()) {
-              extracted_q.insert(cit);
-            }
-          }
-          return extracted_q;
-        }();
+      if (r.method == "GET" || r.method == "HEAD") {
+        is_allowed_method = true;
+        return r.url.AllQueryParameters();
+      } else if (r.method == "POST") {
+        is_allowed_method = true;
+        extracted_q = current::url::URL::ParseQueryString(r.body);
+        for (const auto& cit : r.url.AllQueryParameters()) {
+          extracted_q.insert(cit);
+        }
+      }
+      return extracted_q;
+    }();
 
     if (!is_allowed_method) {
       return false;  // LCOV_EXCL_LINE

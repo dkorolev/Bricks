@@ -25,8 +25,6 @@ SOFTWARE.
 #ifndef EXAMPLES_BENCHMARK_GENERIC_BENCHMARK_H
 #define EXAMPLES_BENCHMARK_GENERIC_BENCHMARK_H
 
-#include "../../../port.h"
-
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -34,6 +32,7 @@ SOFTWARE.
 #include <unordered_map>
 
 #include "../../../bricks/util/singleton.h"
+#include "../../../port.h"
 
 struct Scenario {
   virtual ~Scenario() = default;
@@ -55,7 +54,8 @@ struct ScenariosRegisterer {
   }
   void Synopsis() const {
     std::cout << "./.current/run --scenario={scenario} [--threads={threads_to_query_from}] "
-                 "[--secons={seconds_to_run_benchmark_for}." << std::endl;
+                 "[--secons={seconds_to_run_benchmark_for}."
+              << std::endl;
     for (const auto& scenario : map) {
       std::cout << "\t--scenario=" << scenario.first << " : " << scenario.second.first << std::endl;
     }

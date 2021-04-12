@@ -26,8 +26,8 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_PRIMITIVES_H
 #define CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_PRIMITIVES_H
 
-#include <string>
 #include <chrono>
+#include <string>
 #include <type_traits>
 
 #include "json.h"
@@ -56,7 +56,7 @@ struct JSONValueAssignerImpl<std::chrono::milliseconds> {
     destination.SetInt64(value.count());
   }
 };
-}  // namespace curent::serialization::json
+}  // namespace json
 
 #define CURRENT_DECLARE_PRIMITIVE_TYPE(typeid_index, cpp_type, current_type, fs_type, md_type, typescript_type) \
   template <class JSON_FORMAT>                                                                                  \
@@ -176,7 +176,7 @@ struct DeserializeImpl<json::JSONParser<JSON_FORMAT>, std::chrono::microseconds>
   }
 };
 
-}  // namespace current::serialization
+}  // namespace serialization
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_PRIMITIVES_H

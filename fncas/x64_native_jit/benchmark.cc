@@ -43,10 +43,9 @@ SOFTWARE.
 // To keep things simple, in this example this value is subtracted from the cost function,
 // so that ultimately it optimizes towards zero.
 
-#include "../fncas.h"
-
 #include "../../bricks/dflags/dflags.h"
 #include "../../bricks/util/random.h"
+#include "../fncas.h"
 
 DEFINE_int64(n, 250, "The number of training examples.");
 DEFINE_int64(m, 100, "The number of variables to train on.");

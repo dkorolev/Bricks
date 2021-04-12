@@ -25,10 +25,9 @@ SOFTWARE.
 #ifndef KARL_TEST_SERVICE_SCHEMA_H
 #define KARL_TEST_SERVICE_SCHEMA_H
 
-#include "../karl.h"
-
-#include "../../typesystem/struct.h"
 #include "../../typesystem/optional.h"
+#include "../../typesystem/struct.h"
+#include "../karl.h"
 
 namespace karl_unittest {
 

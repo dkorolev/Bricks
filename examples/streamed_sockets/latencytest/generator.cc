@@ -24,8 +24,6 @@ SOFTWARE.
 
 #include <deque>
 
-#include "blob.h"
-
 #include "../../../blocks/xterm/progress.h"
 #include "../../../blocks/xterm/vt100.h"
 #include "../../../bricks/dflags/dflags.h"
@@ -34,6 +32,7 @@ SOFTWARE.
 #include "../../../bricks/sync/waitable_atomic.h"
 #include "../../../bricks/time/chrono.h"
 #include "../../../bricks/util/random.h"
+#include "blob.h"
 
 DEFINE_string(host, "127.0.0.1", "The destination address to send data to.");
 DEFINE_uint16(port, 8001, "The destination port to send data to.");

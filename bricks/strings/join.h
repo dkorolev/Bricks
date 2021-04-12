@@ -25,9 +25,9 @@ SOFTWARE.
 #ifndef BRICKS_STRINGS_JOIN_H
 #define BRICKS_STRINGS_JOIN_H
 
-#include <vector>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 #include "util.h"
 
@@ -65,9 +65,10 @@ template <typename T, typename = void>
 struct is_container : std::false_type {};
 
 template <typename T>
-struct is_container<T, std::void_t<decltype(std::declval<T>().begin()),
-                                   decltype(std::declval<T>().end()),
-                                   typename T::value_type>> : std::true_type {};
+struct is_container<
+    T,
+    std::void_t<decltype(std::declval<T>().begin()), decltype(std::declval<T>().end()), typename T::value_type>>
+    : std::true_type {};
 template <typename T>
 constexpr bool is_container_of_strings() {
   if constexpr (is_container<T>::value) {
@@ -84,7 +85,7 @@ constexpr bool is_container_of_strings_v = is_container_of_strings<T>();
 template <typename CONTAINER, typename SEPARATOR>
 void OptionallyReserveOutputBuffer(std::string& output, const CONTAINER& components, SEPARATOR&& separator) {
   // Note: this implementation does not do `reserve()` for chars, the length of which is always known to be 1.
-  if constexpr(sfinae::is_container_of_strings_v<CONTAINER>) {
+  if constexpr (sfinae::is_container_of_strings_v<CONTAINER>) {
     if (!components.empty()) {
       size_t length = 0;
       for (const auto& cit : components) {

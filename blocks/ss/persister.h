@@ -32,11 +32,10 @@ SOFTWARE.
 
 #include <type_traits>
 
-#include "idx_ts.h"
-#include "types.h"
-
 #include "../../bricks/sync/locks.h"
 #include "../../bricks/time/chrono.h"
+#include "idx_ts.h"
+#include "types.h"
 
 namespace current {
 namespace ss {
@@ -53,8 +52,7 @@ class EntryPersister : public GenericEntryPersister<ENTRY>, public IMPL {
   using IterableRangeUnsafe = typename IMPL::IterableRangeUnsafe;
 
   template <typename... ARGS>
-  explicit EntryPersister(std::mutex& mutex, ARGS&&... args)
-      : IMPL(mutex, std::forward<ARGS>(args)...) {}
+  explicit EntryPersister(std::mutex& mutex, ARGS&&... args) : IMPL(mutex, std::forward<ARGS>(args)...) {}
   virtual ~EntryPersister() {}
 
   template <current::locks::MutexLockStatus MLS = current::locks::MutexLockStatus::NeedToLock,
@@ -162,7 +160,7 @@ struct IsEntryPersister {
   static constexpr bool value = std::is_base_of_v<GenericEntryPersister<E>, T>;
 };
 
-}  // namespace current::ss
+}  // namespace ss
 }  // namespace current
 
 #endif  // BLOCKS_SS_PERSISTER_H

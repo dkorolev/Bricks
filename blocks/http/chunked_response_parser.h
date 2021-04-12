@@ -25,9 +25,8 @@ SOFTWARE.
 #ifndef BLOCKS_HTTP_CHUNKED_RESPONSE_PARSER_H
 #define BLOCKS_HTTP_CHUNKED_RESPONSE_PARSER_H
 
-#include "../../port.h"
-
 #include "../../bricks/net/http/headers/headers.h"
+#include "../../port.h"
 
 class ChunkByChunkHTTPResponseReceiver {
  public:

@@ -25,15 +25,13 @@ SOFTWARE.
 #ifndef FNCAS_FNCAS_LOGGER_H
 #define FNCAS_FNCAS_LOGGER_H
 
-#include "../../port.h"
-
 #include <iostream>
 #include <sstream>
 
-#include "base.h"
-
 #include "../../bricks/time/chrono.h"
 #include "../../bricks/util/singleton.h"
+#include "../../port.h"
+#include "base.h"
 
 namespace fncas {
 namespace impl {
@@ -69,7 +67,7 @@ struct ScopedLogToStderr final {
   ~ScopedLogToStderr() { fncas::impl::OptimizerLogger().DisableLogging(); }
 };
 
-}  // namespace fncas::impl
+}  // namespace impl
 
 namespace optimize {
 
@@ -81,7 +79,7 @@ class OptimizerStats final {
   ~OptimizerStats() {
     const auto k = static_cast<double_t>(1e6) / (current::time::Now() - begin_timestamp_).count();
     std::ostringstream os;
-    os << n_iterations_ << " iterations, " << n_iterations_* k << " per second, " << n_f_ << " f() calls, " << n_g_
+    os << n_iterations_ << " iterations, " << n_iterations_ * k << " per second, " << n_f_ << " f() calls, " << n_g_
        << " g() calls";
     if (n_backtracking_calls_) {
       os << ", " << n_backtracking_calls_ << " backtracking calls of " << n_backtracking_steps_ << " total steps";
@@ -106,7 +104,7 @@ class OptimizerStats final {
   size_t n_backtracking_steps_ = 0;
 };
 
-}  // namespace fncas::optimize
+}  // namespace optimize
 }  // namespace fncas
 
 #endif  // #ifndef FNCAS_FNCAS_LOGGER_H

@@ -26,12 +26,10 @@ SOFTWARE.
 #define BRICKS_SYSTEM_SYSCALLS_H
 
 #include "../../port.h"
-
-#include "current.inl.h"
-
 #include "../exception.h"
 #include "../file/file.h"
 #include "../strings/util.h"
+#include "current.inl.h"
 
 #ifndef CURRENT_WINDOWS
 #include <dlfcn.h>
@@ -240,8 +238,8 @@ class JITCompiledCPP final {
 };
 #endif  // CURRENT_WINDOWS
 
-}  // namespace current::bricks::system
-}  // namespace current::bricks
+}  // namespace system
+}  // namespace bricks
 }  // namespace current
 
 #endif  // BRICKS_SYSTEM_SYSCALLS_H

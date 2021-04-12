@@ -32,10 +32,9 @@ SOFTWARE.
 #include <type_traits>
 #include <vector>
 
-#include "chunk.h"
-
 #include "../exception.h"
 #include "../template/weed.h"
+#include "chunk.h"
 
 namespace current {
 namespace strings {
@@ -257,10 +256,11 @@ SplitIntoChunks(Chunk chunk,
                 SEPARATOR&& separator = impl::DefaultSeparator<SEPARATOR>::value(),
                 EmptyFields empty_fields_strategy = EmptyFields::Skip) {
   std::vector<Chunk> result;
-  Split(chunk,
-        std::forward<SEPARATOR>(separator),
-        [&result](Chunk chunk) { result.emplace_back(chunk); },
-        empty_fields_strategy);
+  Split(
+      chunk,
+      std::forward<SEPARATOR>(separator),
+      [&result](Chunk chunk) { result.emplace_back(chunk); },
+      empty_fields_strategy);
   return result;
 }
 
@@ -290,10 +290,11 @@ Split(STRING&& s,
       SEPARATOR&& separator = impl::DefaultSeparator<SEPARATOR>::value(),
       EmptyFields empty_fields_strategy = EmptyFields::Skip) {
   std::vector<std::string> result;
-  Split(std::forward<STRING>(s),
-        std::forward<SEPARATOR>(separator),
-        [&result](std::string&& chunk) { result.emplace_back(std::move(chunk)); },
-        empty_fields_strategy);
+  Split(
+      std::forward<STRING>(s),
+      std::forward<SEPARATOR>(separator),
+      [&result](std::string&& chunk) { result.emplace_back(std::move(chunk)); },
+      empty_fields_strategy);
   return result;
 }
 

@@ -53,10 +53,10 @@ SOFTWARE.
 // I have not enconutered those yet. Uncomment once we confirm them. -- D.K.
 // #define __ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES 0
 
-#include <limits>  // For data type implementation details.
-#include <string>  // For architecture names.
-#include <memory>  // For `std::unique_ptr`.
-#include <type_traits> // For `std::is_same_v`
+#include <limits>       // For data type implementation details.
+#include <string>       // For architecture names.
+#include <memory>       // For `std::unique_ptr`.
+#include <type_traits>  // For `std::is_same_v`
 
 #ifdef CURRENT_PORT_COUNT
 #error "`CURRENT_PORT_COUNT` should not be defined for port.h"
@@ -86,8 +86,9 @@ SOFTWARE.
 #define COUNT_CURRENT_WINDOWS_DEFINED 0
 #endif
 
-#define CURRENT_PORT_COUNT \
-   (COUNT_CURRENT_POSIX_DEFINED + COUNT_CURRENT_APPLE_DEFINED + COUNT_CURRENT_JAVA_DEFINED + COUNT_CURRENT_WINDOWS_DEFINED)
+#define CURRENT_PORT_COUNT                                                                  \
+  (COUNT_CURRENT_POSIX_DEFINED + COUNT_CURRENT_APPLE_DEFINED + COUNT_CURRENT_JAVA_DEFINED + \
+   COUNT_CURRENT_WINDOWS_DEFINED)
 
 #if defined(ANDROID)
 
@@ -202,7 +203,7 @@ struct is_same_or_compile_error {
   enum { value = std::is_same_v<T1, T2> };
   char is_same_static_assert_failed[value ? 1 : -1];
 };
-#define CURRENT_FAIL_IF_NOT_SAME_TYPE(A,B) static_assert(sizeof(is_same_or_compile_error<A, B>), "")
+#define CURRENT_FAIL_IF_NOT_SAME_TYPE(A, B) static_assert(sizeof(is_same_or_compile_error<A, B>), "")
 
 #ifdef CURRENT_JAVA
 #error "Current has not been tested with Java for a while, and would likely require a bit of TLC. Thank you."

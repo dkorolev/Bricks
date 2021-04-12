@@ -22,14 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "nginx.h"
-
-#include "../../typesystem/serialization/json.h"
-
+#include "../../3rdparty/gtest/gtest-main-with-dflags.h"
 #include "../../bricks/dflags/dflags.h"
 #include "../../bricks/file/file.h"
-
-#include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "../../typesystem/serialization/json.h"
+#include "nginx.h"
 
 DEFINE_bool(nginx_overwrite_golden_files, false, "Set to true to have Nginx golden files created/overwritten.");
 
@@ -68,8 +65,7 @@ TEST(Nginx, NginxInvokerCheckGoldenConfig) {
   auto& nginx = NginxInvoker();
   // Run test only if Nginx is available.
   if (nginx.IsNginxAvailable()) {
-    const std::string config_relative_path =
-        FileSystem::JoinPath(FileSystem::JoinPath("..", "golden"), "full.conf");
+    const std::string config_relative_path = FileSystem::JoinPath(FileSystem::JoinPath("..", "golden"), "full.conf");
     const std::string full_config_path = FileSystem::JoinPath(CurrentBinaryFullPath(), config_relative_path);
     EXPECT_TRUE(nginx.IsFullConfigValid(full_config_path));
   } else {

@@ -28,16 +28,14 @@ SOFTWARE.
 #ifndef BLOCKS_HTTP_IMPL_POSIX_CLIENT_H
 #define BLOCKS_HTTP_IMPL_POSIX_CLIENT_H
 
-#include "../types.h"
-
 #include <memory>
-#include <string>
 #include <set>
+#include <string>
 
-#include "../../url/url.h"
-
-#include "../../../bricks/net/http/http.h"
 #include "../../../bricks/file/file.h"
+#include "../../../bricks/net/http/http.h"
+#include "../../url/url.h"
+#include "../types.h"
 
 namespace current {
 namespace http {
@@ -57,7 +55,7 @@ struct HTTPRedirectHelper : current::net::HTTPDefaultHelper {
     current::net::HTTPDefaultHelper::OnHeader(key, value);
   }
 };
-}  // namespace current::http::impl
+}  // namespace impl
 
 template <class HTTP_HELPER>
 class GenericHTTPClientPOSIX final {
@@ -94,8 +92,7 @@ class GenericHTTPClientPOSIX final {
           port = 80;
         }
       }
-      current::net::Connection connection(
-          current::net::Connection(current::net::ClientSocket(parsed_url.host, port)));
+      current::net::Connection connection(current::net::Connection(current::net::ClientSocket(parsed_url.host, port)));
       connection.BlockingWrite(
           request_method_ + ' ' + parsed_url.path + parsed_url.ComposeParameters() + " HTTP/1.1\r\n", true);
       connection.BlockingWrite("Host: " + parsed_url.host + "\r\n", true);

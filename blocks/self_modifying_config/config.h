@@ -37,15 +37,12 @@ SOFTWARE.
 //
 // On any error, an exception is thrown.
 
-#include "../port.h"
-
-#include "exceptions.h"
-
-#include "../../typesystem/struct.h"
-#include "../../typesystem/serialization/json.h"
-
 #include "../../bricks/file/file.h"
 #include "../../bricks/time/chrono.h"
+#include "../../typesystem/serialization/json.h"
+#include "../../typesystem/struct.h"
+#include "../port.h"
+#include "exceptions.h"
 
 namespace current {
 

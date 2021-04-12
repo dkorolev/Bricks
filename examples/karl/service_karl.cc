@@ -22,11 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "current_build.h"
-
-#include "../../karl/test_service/is_prime.h"
-#include "../../karl/karl.h"
 #include "../../bricks/dflags/dflags.h"
+#include "../../karl/karl.h"
+#include "../../karl/test_service/is_prime.h"
+#include "current_build.h"
 
 DEFINE_uint16(nginx_port, 7590, "Port for Nginx to serve proxied queries to Claires.");
 DEFINE_string(nginx_config, "", "If set, Karl updates this config with the proxy routes to Claires.");
@@ -44,9 +43,9 @@ int main(int argc, char **argv) {
   if (!FLAGS_nginx_config.empty()) {
     params.SetNginxParameters(current::karl::KarlNginxParameters(FLAGS_nginx_port, FLAGS_nginx_config));
   }
-  const current::karl::GenericKarl<current::karl::UseOwnStorage,
-                                   current::karl::default_user_status::status,
-                                   karl_unittest::is_prime> karl(params);
+  const current::karl::
+      GenericKarl<current::karl::UseOwnStorage, current::karl::default_user_status::status, karl_unittest::is_prime>
+          karl(params);
   std::cout << "Karl up, http://localhost:" << kDefaultKarlFleetViewPort << '/' << std::endl;
   if (!FLAGS_nginx_config.empty()) {
     std::cout << "Karl's Nginx is serving on http://localhost:" << FLAGS_nginx_port << '/' << std::endl;

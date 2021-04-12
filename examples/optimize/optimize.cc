@@ -35,9 +35,8 @@ SOFTWARE.
 // NOTE(dkorolev): The code should build with and without this `#define`.
 // #define INJECT_FNCAS_INTO_NAMESPACE_STD
 
-#include "main.h"
-
 #include "../../fncas/fncas/fncas.h"
+#include "main.h"
 
 DEFINE_string(matrix, "", "If set, the JSON representation of the game matrix.");
 DEFINE_size_t(dim, 4, "The dimension of square matrix A for the matrix game.");
@@ -134,9 +133,9 @@ std::vector<std::vector<fncas::double_t>> solve(
     std::function<bool(const std::vector<std::vector<fncas::double_t>>& strategy)> validate) {
   const auto build_probabilities =
       [N](const std::vector<fncas::double_t>& x) -> std::vector<std::vector<fncas::double_t>> {
-        return {simplex(std::vector<fncas::double_t>(x.begin(), x.begin() + N)),
-                simplex(std::vector<fncas::double_t>(x.begin() + N, x.begin() + N * 2))};
-      };
+    return {simplex(std::vector<fncas::double_t>(x.begin(), x.begin() + N)),
+            simplex(std::vector<fncas::double_t>(x.begin() + N, x.begin() + N * 2))};
+  };
 
   const auto pretty_print_simplex = [](const std::vector<fncas::double_t>& x) -> std::string {
     std::ostringstream os;

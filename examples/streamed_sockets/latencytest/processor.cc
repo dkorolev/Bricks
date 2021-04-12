@@ -22,9 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "pipeline_main.h"
-
 #include "workers/processor.h"
+
+#include "pipeline_main.h"
 #include "workers/receiver.h"
 
 DEFINE_double(buffer_mb, 512.0, "The size of the circular buffer to use, in megabytes.");

@@ -29,9 +29,9 @@ SOFTWARE.
 #include <iostream>
 #endif  // CURRENT_LOG_EVERY_THROW_TO_STDERR
 
+#include <cstring>
 #include <exception>
 #include <string>
-#include <cstring>
 
 #include "strings/printf.h"
 

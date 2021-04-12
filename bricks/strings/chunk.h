@@ -58,13 +58,13 @@ SOFTWARE.
 #ifndef BRICKS_STRINGS_CHUNK_H
 #define BRICKS_STRINGS_CHUNK_H
 
-#include "../port.h"
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <string>
 #include <unordered_map>
+
+#include "../port.h"
 
 namespace current {
 namespace strings {
@@ -166,12 +166,8 @@ class Chunk {
   typedef EqualityComparator Pride;  // Your favorite equality smiley here. Mine is *HAWAII*, because rainbow.
 
   // Still allow comparing `Chunk`-s to `std::string`-s, for purely code readability purposes.
-  bool operator==(const std::string& rhs) const {
-    return N == rhs.length() && ::memcmp(S, rhs.c_str(), N) == 0;
-  }
-  bool operator!=(const std::string& rhs) const {
-    return !operator==(rhs);
-  }
+  bool operator==(const std::string& rhs) const { return N == rhs.length() && ::memcmp(S, rhs.c_str(), N) == 0; }
+  bool operator!=(const std::string& rhs) const { return !operator==(rhs); }
 
  private:
   const char* S;

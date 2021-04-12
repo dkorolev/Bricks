@@ -25,20 +25,18 @@ SOFTWARE.
 
 #define CURRENT_MOCK_TIME
 
-#include "mmq.h"
-#include "mmpq.h"
-
 #include <atomic>
 #include <chrono>
 #include <thread>
 
-#include "../../bricks/strings/printf.h"
-#include "../../bricks/strings/join.h"
-
 #include "../../3rdparty/gtest/gtest-main.h"
+#include "../../bricks/strings/join.h"
+#include "../../bricks/strings/printf.h"
+#include "mmpq.h"
+#include "mmq.h"
 
-using current::mmq::MMQ;
 using current::mmq::MMPQ;
+using current::mmq::MMQ;
 using current::ss::EntryResponse;
 
 TEST(InMemoryMQ, SmokeTest) {

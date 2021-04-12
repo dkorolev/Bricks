@@ -25,13 +25,12 @@ SOFTWARE.
 #ifndef CURRENT_UTILS_CSV_CSV_H
 #define CURRENT_UTILS_CSV_CSV_H
 
-#include "../../port.h"
-
 #include <fstream>
 
-#include "../../typesystem/struct.h"
-#include "../../bricks/strings/strings.h"
 #include "../../bricks/exception.h"
+#include "../../bricks/strings/strings.h"
+#include "../../port.h"
+#include "../../typesystem/struct.h"
 
 namespace current {
 

@@ -28,7 +28,6 @@ SOFTWARE.
 #define X64_NATIVE_JIT_TEST_CC_INCLUDED
 
 #include "../../3rdparty/gtest/gtest-main.h"
-
 #include "x64_native_jit.h"
 
 #ifdef FNCAS_X64_NATIVE_JIT_ENABLED

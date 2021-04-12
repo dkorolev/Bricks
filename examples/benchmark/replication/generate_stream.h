@@ -23,7 +23,6 @@
  *******************************************************************************/
 
 #include "../../../stream/stream.h"
-
 #include "entry.h"
 
 #ifndef EXAMPLES_BENCHMARK_REPLICATION_GENERATE_STREAM_H

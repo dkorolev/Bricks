@@ -30,8 +30,8 @@ SOFTWARE.
 #define GBT_EXTRA_CHECK(x) x
 #endif
 
-#include "schema.h"
 #include "iterable_subset.h"
+#include "schema.h"
 #include "train.h"
 
 #define GBT_LARGE_EPSILON 0.001  // For relative improvements in standard deviation, which is computed in doubles.

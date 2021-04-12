@@ -25,7 +25,6 @@
 #include "../../../blocks/http/api.h"
 #include "../../../bricks/dflags/dflags.h"
 #include "../../../stream/stream.h"
-
 #include "generate_stream.h"
 
 DEFINE_string(route, "/raw_log", "Route to spawn the stream on.");

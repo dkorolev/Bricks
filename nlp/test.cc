@@ -22,14 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "nlp.h"
-
+#include "../3rdparty/gtest/gtest-main.h"
 #include "../bricks/strings/join.h"
 #include "../bricks/strings/printf.h"
-
 #include "../typesystem/serialization/json.h"
-
-#include "../3rdparty/gtest/gtest-main.h"
+#include "nlp.h"
 
 /**********************************************************************************************************************
 

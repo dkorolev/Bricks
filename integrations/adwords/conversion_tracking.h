@@ -25,12 +25,10 @@ SOFTWARE.
 #ifndef INTEGRATIONS_ADWORDS_CONVERSION_TRACKING_H
 #define INTEGRATIONS_ADWORDS_CONVERSION_TRACKING_H
 
-#include "exceptions.h"
-
 #include "../../blocks/http/api.h"
-
-#include "../../typesystem/struct.h"
 #include "../../typesystem/serialization/json.h"
+#include "../../typesystem/struct.h"
+#include "exceptions.h"
 
 namespace current {
 namespace integrations {
@@ -113,9 +111,9 @@ server {
   const std::string get_url_;
 };
 
-}  // namespace current::integrations::adwords::conversion_tracking
-}  // namespace current::integrations::adwords
-}  // namespace current::integrations
+}  // namespace conversion_tracking
+}  // namespace adwords
+}  // namespace integrations
 }  // namespace current
 
 #endif  // INTEGRATIONS_ADWORDS_CONVERSION_TRACKING_H

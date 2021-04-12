@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "../port.h"
-
 #include "client/test.cc"
+
+#include "../port.h"
 #include "server/test.cc"

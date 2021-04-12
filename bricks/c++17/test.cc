@@ -22,13 +22,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "../../typesystem/reflection/reflection.h"
-
 #include "../../3rdparty/gtest/gtest-main.h"
+#include "../../typesystem/reflection/reflection.h"
 
 #if __cplusplus >= 201703L
 TEST(CPlusPlus17, Enabled) {
-  auto const generic_lambda = [](auto const x) { return current::reflection::TypeName<current::decay_t<decltype(x)>>(); };
+  auto const generic_lambda = [](auto const x) {
+    return current::reflection::TypeName<current::decay_t<decltype(x)>>();
+  };
 
   EXPECT_STREQ("uint32_t", generic_lambda(static_cast<uint32_t>(42)));
   EXPECT_STREQ("bool", generic_lambda(true));

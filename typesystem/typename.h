@@ -28,8 +28,6 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_TYPENAME_H
 #define CURRENT_TYPE_SYSTEM_TYPENAME_H
 
-#include "../port.h"
-
 #include <chrono>
 #include <map>
 #include <set>
@@ -38,12 +36,12 @@ SOFTWARE.
 #include <utility>
 #include <vector>
 
+#include "../bricks/template/decay.h"
+#include "../bricks/template/tuple.h"
+#include "../port.h"
 #include "enum.h"
 #include "optional.h"
 #include "types.h"
-
-#include "../bricks/template/decay.h"
-#include "../bricks/template/tuple.h"
 
 namespace current {
 
@@ -85,9 +83,7 @@ struct CurrentTypeNameCaller {
 
 template <NameFormat NF>
 struct CurrentTypeNameCaller<NF, CurrentSuper> {
-  static const char* CallGetCurrentTypeName() {
-    return "CurrentSuper";
-  }
+  static const char* CallGetCurrentTypeName() { return "CurrentSuper"; }
 };
 
 template <NameFormat NF, typename T>
@@ -336,7 +332,7 @@ struct CurrentTypeNameImpl<NameFormat::AsIdentifier, std::tuple<TS...>, false, f
   }
 };
 
-}  // namespace current::reflection::impl
+}  // namespace impl
 
 template <typename T, NameFormat NF = NameFormat::FullCPP>
 const char* CurrentTypeName() {
@@ -371,9 +367,9 @@ struct JoinTypeNames<NF, TypeListImpl<T, TS...>> {
   }
 };
 
-}  // namespace current::reflection::impl
+}  // namespace impl
 
-}  // namespace current::reflection
+}  // namespace reflection
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_TYPENAME_H

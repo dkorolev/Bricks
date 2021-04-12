@@ -50,8 +50,6 @@ SOFTWARE.
 #ifndef BRICKS_SYNC_OWNED_BORROWED_H
 #define BRICKS_SYNC_OWNED_BORROWED_H
 
-#include "../../port.h"
-
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -61,8 +59,8 @@ SOFTWARE.
 #include <mutex>
 #include <vector>
 
+#include "../../port.h"
 #include "../exception.h"
-
 #include "../template/decay.h"
 
 namespace current {
@@ -153,7 +151,7 @@ struct UniqueInstance final {
   size_t total_borrowers_spawned_throughout_lifetime_;  // A pre-increment of this value is the key in the above map.
 };
 
-}  // namespace current::sync::impl
+}  // namespace impl
 
 template <typename T>
 class Owned;
@@ -308,7 +306,7 @@ struct UniqueInstanceContainer {
   UniqueInstanceContainer& operator=(const UniqueInstanceContainer&) = delete;
 };
 
-}  // namespace current::sync::impl
+}  // namespace impl
 
 template <typename T>
 struct ConstructOwned {};
@@ -466,7 +464,7 @@ Owned<T> MakeOwned(ARGS&&... args) {
   return Owned<T>(ConstructOwned<T>(), std::forward<ARGS>(args)...);
 }
 
-}  // namespace current::sync
+}  // namespace sync
 
 template <typename T>
 using ConstructOwned = sync::ConstructOwned<T>;

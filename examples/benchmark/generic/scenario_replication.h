@@ -25,13 +25,11 @@
 #ifndef EXAMLPES_BENCHMARK_GENERIC_SCENARIO_REPLICATION_H
 #define EXAMLPES_BENCHMARK_GENERIC_SCENARIO_REPLICATION_H
 
-#include "benchmark.h"
-
-#include "../replication/generate_stream.h"
 #include "../../../blocks/http/api.h"
-#include "../../../stream/replicator.h"
-
 #include "../../../bricks/dflags/dflags.h"
+#include "../../../stream/replicator.h"
+#include "../replication/generate_stream.h"
+#include "benchmark.h"
 
 #ifndef CURRENT_MAKE_CHECK_MODE
 DEFINE_string(remote_url, "", "Remote url to subscribe to.");

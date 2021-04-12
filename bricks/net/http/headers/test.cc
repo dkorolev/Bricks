@@ -27,14 +27,11 @@ SOFTWARE.
 #ifndef BRICKS_NET_HTTP_HEADERS_TEST_CC
 #define BRICKS_NET_HTTP_HEADERS_TEST_CC
 
-#include "../../../port.h"
-
-#include "headers.h"
-
 #include "../../../../3rdparty/gtest/gtest-main.h"
-
+#include "../../../port.h"
 #include "../../../strings/join.h"
 #include "../../../strings/printf.h"
+#include "headers.h"
 
 TEST(HTTPHeadersTest, Smoke) {
   using namespace current::net::http;  // `Headers`, `HeaderNotFoundException`.

@@ -1,12 +1,11 @@
 // To run: g++ -std=c++11 -O3 -DNDEBUG step1_service.cc -lpthread -ldl && ./a.out --current_dir=$PWD/../../..
 
-#include "nyc_taxi_dataset_service.h"
-
 #include <cstdio>
 
 #include "../../../blocks/http/api.h"
 #include "../../../bricks/dflags/dflags.h"
 #include "../../../bricks/file/file.h"
+#include "nyc_taxi_dataset_service.h"
 
 DEFINE_string(input_dataset, "../cooked_as_integers.bin", "The input binary file to `::mmap` and work with.");
 DEFINE_uint16(port, 3000, "The port to serve on.");

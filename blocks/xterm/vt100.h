@@ -31,9 +31,9 @@ SOFTWARE.
 #error "The `DEFINE_VT100` macro should not be defined prior to `#include \"vt100\"`."
 #endif
 
-#include "../../port.h"
-
 #include <ostream>
+
+#include "../../port.h"
 
 #ifdef CURRENT_WINDOWS
 #include <mutex>
@@ -102,15 +102,11 @@ struct UD final {
   explicit UD(int by) : down(by) {}
 };
 
-inline UD up(int d) {
-  return UD(-d);
-}
+inline UD up(int d) { return UD(-d); }
 
-inline UD down(int d) {
-  return UD(+d);
-}
+inline UD down(int d) { return UD(+d); }
 
-}  // namespace current::vt100
+}  // namespace vt100
 }  // namespace current
 
 inline void EnableVirtualTerminalProcessing() {

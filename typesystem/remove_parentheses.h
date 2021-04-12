@@ -26,9 +26,9 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_REMOVE_PARENTHESES_H
 #define CURRENT_TYPE_SYSTEM_REMOVE_PARENTHESES_H
 
-#include "../port.h"
-
 #include <tuple>
+
+#include "../port.h"
 
 // A macro to equally treat bare and parenthesized type arguments:
 // CURRENT_REMOVE_PARENTHESES((int)) = CURRENT_REMOVE_PARENTHESES(int) = int

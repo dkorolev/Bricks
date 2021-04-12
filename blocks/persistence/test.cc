@@ -23,23 +23,20 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "../../port.h"
-
 #include <string>
+
+#include "../../port.h"
 
 #define CURRENT_MOCK_TIME  // `SetNow()`.
 
-#include "memory.h"
-#include "file.h"
-
-#include "../ss/ss.h"
-
+#include "../../3rdparty/gtest/gtest-main-with-dflags.h"
 #include "../../bricks/dflags/dflags.h"
 #include "../../bricks/file/file.h"
 #include "../../bricks/strings/join.h"
 #include "../../bricks/strings/printf.h"
-
-#include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "../ss/ss.h"
+#include "file.h"
+#include "memory.h"
 
 DEFINE_string(persistence_test_tmpdir, ".current", "Local path for the test to create temporary files in.");
 
@@ -845,21 +842,18 @@ void IteratorPerformanceTest(IMPL& impl, bool publish = true) {
     EXPECT_EQ(10ull, (*impl.Iterate(10, 11).begin()).idx_ts.index);
     EXPECT_EQ(10000ll, (*impl.Iterate(10, 11).begin()).idx_ts.us.count());
     EXPECT_EQ("0000010 kkkkkk", (*impl.Iterate(10, 11).begin()).entry.s);
-    EXPECT_EQ("{\"index\":10,\"us\":10000}\t{\"s\":\"0000010 kkkkkk\"}",
-              (*impl.IterateUnsafe(10, 11).begin()));
+    EXPECT_EQ("{\"index\":10,\"us\":10000}\t{\"s\":\"0000010 kkkkkk\"}", (*impl.IterateUnsafe(10, 11).begin()));
     EXPECT_EQ(100ull, (*impl.Iterate(100, 101).begin()).idx_ts.index);
     EXPECT_EQ(100000ll, (*impl.Iterate(100, 101).begin()).idx_ts.us.count());
     EXPECT_EQ("0000100 wwwww", (*impl.Iterate(100, 101).begin()).entry.s);
-    EXPECT_EQ("{\"index\":100,\"us\":100000}\t{\"s\":\"0000100 wwwww\"}",
-              (*impl.IterateUnsafe(100, 101).begin()));
+    EXPECT_EQ("{\"index\":100,\"us\":100000}\t{\"s\":\"0000100 wwwww\"}", (*impl.IterateUnsafe(100, 101).begin()));
   }
   {
     // By timestamp.
     EXPECT_EQ(0ull, (*impl.Iterate(us_t(0), us_t(1000)).begin()).idx_ts.index);
     EXPECT_EQ(0ll, (*impl.Iterate(us_t(0), us_t(1000)).begin()).idx_ts.us.count());
     EXPECT_EQ("0000000 aaa", (*impl.Iterate(us_t(0), us_t(1000)).begin()).entry.s);
-    EXPECT_EQ("{\"index\":0,\"us\":0}\t{\"s\":\"0000000 aaa\"}",
-              (*impl.IterateUnsafe(us_t(0), us_t(1000)).begin()));
+    EXPECT_EQ("{\"index\":0,\"us\":0}\t{\"s\":\"0000000 aaa\"}", (*impl.IterateUnsafe(us_t(0), us_t(1000)).begin()));
     EXPECT_EQ(10ull, (*impl.Iterate(us_t(10000), us_t(11000)).begin()).idx_ts.index);
     EXPECT_EQ(10000ll, (*impl.Iterate(us_t(10000), us_t(11000)).begin()).idx_ts.us.count());
     EXPECT_EQ("0000010 kkkkkk", (*impl.Iterate(us_t(10000), us_t(11000)).begin()).entry.s);
@@ -990,10 +984,10 @@ TEST(PersistenceLayer, FileIteratorCanNotOutliveFile) {
 TEST(PersistenceLayer, Exceptions) {
   using namespace persistence_test;
   using IMPL = current::persistence::File<StorableString>;
-  using current::ss::IndexAndTimestamp;
-  using current::ss::InconsistentTimestampException;
-  using current::ss::InconsistentIndexException;
   using current::persistence::MalformedEntryException;
+  using current::ss::InconsistentIndexException;
+  using current::ss::InconsistentTimestampException;
+  using current::ss::IndexAndTimestamp;
 
   const auto namespace_name = current::ss::StreamNamespaceName("namespace", "entry_name");
   const std::string persistence_file_name = current::FileSystem::JoinPath(FLAGS_persistence_test_tmpdir, "data");

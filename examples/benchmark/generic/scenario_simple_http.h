@@ -25,11 +25,9 @@ SOFTWARE.
 #ifndef EXAMLPES_BENCHMARK_GENERIC_SCENARIO_SIMPLE_HTTP_H
 #define EXAMLPES_BENCHMARK_GENERIC_SCENARIO_SIMPLE_HTTP_H
 
-#include "benchmark.h"
-
 #include "../../../blocks/http/api.h"
-
 #include "../../../bricks/dflags/dflags.h"
+#include "benchmark.h"
 
 #ifndef CURRENT_MAKE_CHECK_MODE
 DEFINE_uint16(simple_http_local_port, 9700, "Local port range for `current_http_server` to use.");

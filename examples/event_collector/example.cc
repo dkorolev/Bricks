@@ -24,9 +24,8 @@ SOFTWARE.
 
 #include <iostream>
 
-#include "event_collector.h"
-
 #include "../../bricks/dflags/dflags.h"
+#include "event_collector.h"
 
 DEFINE_int32(port, 8686, "Port to spawn log collector on.");
 DEFINE_string(route, "/log", "The route to listen to events on.");

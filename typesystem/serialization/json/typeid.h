@@ -26,11 +26,9 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_TYPEID_H
 #define CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_TYPEID_H
 
-#include "primitives.h"
-
-#include "../../reflection/types.h"
-
 #include "../../../bricks/strings/util.h"
+#include "../../reflection/types.h"
+#include "primitives.h"
 
 namespace current {
 namespace serialization {
@@ -62,7 +60,7 @@ struct IsJSONSerializable<reflection::TypeID> {
 };
 }  // namespace json
 
-}  // namespace current::serialization
+}  // namespace serialization
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_TYPEID_H

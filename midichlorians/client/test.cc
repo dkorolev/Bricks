@@ -28,12 +28,11 @@ SOFTWARE.
 // Use the define below to enable debug output via `NSLog`.
 // #define CURRENT_APPLE_ENABLE_NSLOG
 
-#include "../../port.h"
-
 #include <mutex>
 
-#include "../../bricks/dflags/dflags.h"
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "../../bricks/dflags/dflags.h"
+#include "../../port.h"
 
 #ifdef CURRENT_APPLE
 
@@ -45,7 +44,6 @@ SOFTWARE.
 #endif  // CURRENT_MIDICHLORIANS_CLIENT_IOS_IMPL_H
 
 #include "../../blocks/http/api.h"
-
 #include "../../bricks/strings/join.h"
 #include "../../bricks/template/rtti_dynamic_call.h"
 
@@ -56,17 +54,15 @@ class Server {
   using events_variant_t = Variant<ios_events_t>;
 
   Server(current::net::ReservedLocalPort reserved_port, const std::string& http_route)
-      : http_server_(HTTP(std::move(reserved_port))),
-        routes_(http_server_.Register(http_route,
-                                       [this](Request r) {
-                                         events_variant_t event;
-                                         try {
-                                           event = ParseJSON<events_variant_t>(r.body);
-                                           std::lock_guard<std::mutex> lock(mutex_);
-                                           event.Call(*this);
-                                         } catch (const current::Exception&) {
-                                         }
-                                       })) {}
+      : http_server_(HTTP(std::move(reserved_port))), routes_(http_server_.Register(http_route, [this](Request r) {
+          events_variant_t event;
+          try {
+            event = ParseJSON<events_variant_t>(r.body);
+            std::lock_guard<std::mutex> lock(mutex_);
+            event.Call(*this);
+          } catch (const current::Exception&) {
+          }
+        })) {}
 
   void operator()(const iOSAppLaunchEvent& event) {
     EXPECT_FALSE(event.device_id.empty());
@@ -138,7 +134,7 @@ TEST(midichloriansClient, iOSSmokeTest) {
   [midichlorians identify:@"unit_test"];
 
   current::time::SetNow(std::chrono::microseconds(5000));
-  NSDictionary* eventParams = @{ @"s" : @"str", @"b" : @true, @"x" : @1 };
+  NSDictionary* eventParams = @{@"s" : @"str", @"b" : @true, @"x" : @1};
   [midichlorians trackEvent:@"CustomEvent1" source:@"SmokeTest" properties:eventParams];
 
   current::time::SetNow(std::chrono::microseconds(15000));

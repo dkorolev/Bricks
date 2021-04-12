@@ -32,12 +32,11 @@ SOFTWARE.
 #include <unordered_map>
 #include <utility>
 
-#include "decay.h"
-#include "typelist.h"
-#include "tuple.h"
-
 #include "../exception.h"
 #include "../util/singleton.h"
+#include "decay.h"
+#include "tuple.h"
+#include "typelist.h"
 
 namespace current {
 namespace metaprogramming {

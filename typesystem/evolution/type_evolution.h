@@ -28,13 +28,11 @@ SOFTWARE.
 
 #include <chrono>
 
-#include "macros.h"
-
+#include "../../bricks/template/pod.h"
+#include "../optional.h"
 #include "../struct.h"
 #include "../variant.h"
-#include "../optional.h"
-
-#include "../../bricks/template/pod.h"
+#include "macros.h"
 
 #define CURRENT_NAMESPACE(ns)                                   \
   struct CURRENT_NAMESPACE_HELPER_##ns {                        \
@@ -120,7 +118,7 @@ struct Evolve<FROM_NAMESPACE, Optional<OPTIONAL_INNER_TYPE>, EVOLVER> {
   }
 };
 
-}  // namespace current::type_evolution
+}  // namespace type_evolution
 }  // namespace current
 
 #define CURRENT_TYPE_EVOLVER(evolver, from_namespace, type_name, ...)                      \

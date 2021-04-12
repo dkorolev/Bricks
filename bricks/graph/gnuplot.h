@@ -27,9 +27,9 @@ SOFTWARE.
 #ifndef BRICKS_GRAPH_GNUPLOT_H
 #define BRICKS_GRAPH_GNUPLOT_H
 
-#include <vector>
-#include <string>
 #include <map>
+#include <string>
+#include <vector>
 
 #include "../file/file.h"
 #include "../strings/util.h"
@@ -236,7 +236,7 @@ struct GNUPlot {
     }
     if (output_format_ != "gnuplot") {
       CURRENT_ASSERT(!bricks::system::SystemCall(
-                         strings::Printf("gnuplot <%s >%s", input_file_name.c_str(), output_file_name.c_str())));
+          strings::Printf("gnuplot <%s >%s", input_file_name.c_str(), output_file_name.c_str())));
       return current::FileSystem::ReadFileAsString(output_file_name.c_str());
     } else {
       // For unit tests, just compare the inputs.

@@ -25,8 +25,8 @@ SOFTWARE.
 #ifndef BRICKS_UTIL_BASE64_H
 #define BRICKS_UTIL_BASE64_H
 
-#include <string>
 #include <cctype>
+#include <string>
 
 #include "../exception.h"
 #include "../strings/chunk.h"
@@ -152,9 +152,8 @@ inline std::string Base64Encode(const std::string& input) {
 }
 
 inline strings::Chunk Base64EncodeInto(strings::Chunk input, std::string& placeholder) {
-  base64::Impl<base64::EncodingType::Canonical>::EncodeInto(reinterpret_cast<const uint8_t*>(input.c_str()),
-                                                            input.length(),
-                                                            placeholder);
+  base64::Impl<base64::EncodingType::Canonical>::EncodeInto(
+      reinterpret_cast<const uint8_t*>(input.c_str()), input.length(), placeholder);
   return placeholder;
 }
 

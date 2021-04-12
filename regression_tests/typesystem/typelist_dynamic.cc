@@ -24,12 +24,10 @@ SOFTWARE.
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 
-#include "../../typesystem/struct.h"
-
+#include "../../3rdparty/gtest/gtest-main.h"
 #include "../../bricks/template/mapreduce.h"
 #include "../../bricks/template/typelist.h"
-
-#include "../../3rdparty/gtest/gtest-main.h"
+#include "../../typesystem/struct.h"
 
 namespace type_test {
 
@@ -44,8 +42,8 @@ TEST(TypeTest, TypeListImpl) {
   using namespace type_test;
 #include "include/typelist_dynamic.cc"
 
-  using current::metaprogramming::map;
   using current::metaprogramming::Flatten;
+  using current::metaprogramming::map;
   typedef Flatten<map<ST, DATA_TYPES>> STORAGE_TYPES;
 
   static_assert(TypeListSize<STORAGE_TYPES> == TypeListSize<DATA_TYPES> * 2, "");

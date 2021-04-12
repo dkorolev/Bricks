@@ -32,25 +32,19 @@ SOFTWARE.
 #include <type_traits>
 #include <vector>
 
+#include "../../../../blocks/url/url.h"
+#include "../../../../typesystem/serialization/json.h"
+#include "../../../../typesystem/struct.h"
+#include "../../../strings/split.h"
+#include "../../../strings/util.h"
+#include "../../exceptions.h"
+#include "../../tcp/tcp.h"
 #include "../body_requirement.h"
 #include "../codes.h"
 #include "../constants.h"
 #include "../default_messages.h"
-#include "../mime_type.h"
-
 #include "../headers/headers.h"
-
-#include "../../exceptions.h"
-
-#include "../../tcp/tcp.h"
-
-#include "../../../../typesystem/serialization/json.h"
-#include "../../../../typesystem/struct.h"
-
-#include "../../../strings/split.h"
-#include "../../../strings/util.h"
-
-#include "../../../../blocks/url/url.h"
+#include "../mime_type.h"
 
 #ifndef CURRENT_BRICKS_DEBUG_HTTP
 

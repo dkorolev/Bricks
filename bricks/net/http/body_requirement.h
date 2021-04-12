@@ -25,9 +25,9 @@ SOFTWARE.
 #ifndef BRICKS_NET_HTTP_BODY_REQUIREMENT_H
 #define BRICKS_NET_HTTP_BODY_REQUIREMENT_H
 
-#include "../../port.h"
-
 #include <string>
+
+#include "../../port.h"
 
 namespace current {
 namespace net {

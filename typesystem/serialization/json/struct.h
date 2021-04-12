@@ -28,9 +28,8 @@ SOFTWARE.
 
 #include <type_traits>
 
-#include "json.h"
-
 #include "../../reflection/reflection.h"
+#include "json.h"
 
 namespace current {
 namespace serialization {
@@ -75,7 +74,7 @@ struct SerializeStructImpl<JSON_FORMAT, CurrentStruct> {
   static void SerializeStruct(JSONStructFieldsSerializer<JSON_FORMAT>&, const CurrentStruct&) {}
 };
 
-}  // namespace current::serialization::json
+}  // namespace json
 
 template <class JSON_FORMAT, typename T>
 struct SerializeImpl<json::JSONStringifier<JSON_FORMAT>,
@@ -132,7 +131,7 @@ struct DeserializeImpl<json::JSONParser<JSON_FORMAT>,
   }
 };
 
-}  // namespace current::serialization
+}  // namespace serialization
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_STRUCT_H

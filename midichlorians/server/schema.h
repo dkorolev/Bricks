@@ -26,11 +26,10 @@ SOFTWARE.
 #ifndef CURRENT_MIDICHLORIANS_SERVER_SCHEMA_H
 #define CURRENT_MIDICHLORIANS_SERVER_SCHEMA_H
 
-#include "../midichlorians_data_dictionary.h"
-
-#include "../../bricks/template/typelist.h"
 #include "../../blocks/http/request.h"
+#include "../../bricks/template/typelist.h"
 #include "../../typesystem/struct.h"
+#include "../midichlorians_data_dictionary.h"
 
 namespace current {
 namespace midichlorians {

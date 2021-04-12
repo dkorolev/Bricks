@@ -22,9 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "conversion_tracking.h"
-
 #include "../../bricks/dflags/dflags.h"
+#include "conversion_tracking.h"
 
 #ifdef ADWORDS_PARAM
 #error "`ADWORDS_PARAM` should not be defined."

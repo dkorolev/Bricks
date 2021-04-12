@@ -22,11 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "current_build.h"
-
 #include "../../blocks/http/api.h"
 #include "../../bricks/dflags/dflags.h"
 #include "../../karl/test_service/is_prime.h"
+#include "current_build.h"
 
 DEFINE_uint16(port, 42002, "The port to spawn ServiceIsPrime on.");
 

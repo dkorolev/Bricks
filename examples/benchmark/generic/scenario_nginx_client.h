@@ -25,14 +25,11 @@ SOFTWARE.
 #ifndef EXAMLPES_BENCHMARK_GENERIC_SCENARIO_NGINX_HTTP_CLIENT_H
 #define EXAMLPES_BENCHMARK_GENERIC_SCENARIO_NGINX_HTTP_CLIENT_H
 
-#include "benchmark.h"
-
+#include "../../../blocks/http/api.h"
 #include "../../../bricks/dflags/dflags.h"
 #include "../../../bricks/strings/escape.h"
-
-#include "../../../blocks/http/api.h"
-
 #include "../../../utils/nginx/nginx.h"
+#include "benchmark.h"
 
 #ifndef CURRENT_MAKE_CHECK_MODE
 DEFINE_string(nginx_client_config_file_prefix,

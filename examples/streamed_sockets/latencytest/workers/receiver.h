@@ -25,10 +25,9 @@ SOFTWARE.
 #ifndef EXAMPLES_STREAMED_SOCKETS_LATENCYTEST_WORKERS_RECEIVER_H
 #define EXAMPLES_STREAMED_SOCKETS_LATENCYTEST_WORKERS_RECEIVER_H
 
-#include "../blob.h"
-
 #include "../../../../bricks/net/tcp/tcp.h"
 #include "../../../../bricks/time/chrono.h"
+#include "../blob.h"
 
 namespace current::examples::streamed_sockets {
 

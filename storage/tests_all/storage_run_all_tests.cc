@@ -29,6 +29,6 @@ SOFTWARE.
 // Uncomment the next line for faster Storage REST development iterations. DIMA_FIXME: Remove it.
 // #define STORAGE_ONLY_RUN_RESTFUL_TESTS
 
-#include "../tests_smoke/test.cc"
-#include "../tests_rest/test.cc"
 #include "../tests_flip/test.cc"
+#include "../tests_rest/test.cc"
+#include "../tests_smoke/test.cc"

@@ -26,11 +26,10 @@ SOFTWARE.
 #ifndef BRICKS_TEMPLATE_DECAY_H
 #define BRICKS_TEMPLATE_DECAY_H
 
-#include "../../port.h"
-
 #include <string>
 #include <type_traits>
 
+#include "../../port.h"
 #include "mapreduce.h"
 
 namespace current {

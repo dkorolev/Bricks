@@ -29,9 +29,8 @@ SOFTWARE.
 #ifndef BLOCKS_HTTP_IMPL_APPLE_CLIENT_H
 #define BLOCKS_HTTP_IMPL_APPLE_CLIENT_H
 
-#include "../../../port.h"
-
 #include "../../../bricks/sync/waitable_atomic.h"
+#include "../../../port.h"
 
 #if defined(CURRENT_APPLE)
 

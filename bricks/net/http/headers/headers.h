@@ -25,19 +25,17 @@ SOFTWARE.
 #ifndef BRICKS_NET_HTTP_HEADERS_HEADERS_H
 #define BRICKS_NET_HTTP_HEADERS_HEADERS_H
 
-#include "../../../port.h"
-
 #include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
 
-#include "../constants.h"
-
-#include "../../exceptions.h"
-#include "../../../time/chrono.h"
+#include "../../../port.h"
 #include "../../../strings/split.h"
 #include "../../../strings/util.h"
+#include "../../../time/chrono.h"
+#include "../../exceptions.h"
+#include "../constants.h"
 
 namespace current {
 namespace net {
@@ -193,9 +191,9 @@ struct Headers final {
 
   Headers(const std::string& header, const std::string& value) { Set(header, value); }
   Headers(std::initializer_list<std::pair<std::string, std::string>> initializer) {
-    std::for_each(initializer.begin(),
-                  initializer.end(),
-                  [this](const std::pair<std::string, std::string>& h) { Set(h.first, h.second); });
+    std::for_each(initializer.begin(), initializer.end(), [this](const std::pair<std::string, std::string>& h) {
+      Set(h.first, h.second);
+    });
   }
 
   // An instance of `Headers` can `Set()` / `Get()` / `Has()` / `Remove()` headers.

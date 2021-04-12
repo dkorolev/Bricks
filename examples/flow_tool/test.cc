@@ -24,11 +24,9 @@ SOFTWARE.
 
 #define CURRENT_MOCK_TIME
 
-#include "flow_tool.h"
-
-#include "../../bricks/dflags/dflags.h"
-
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "../../bricks/dflags/dflags.h"
+#include "flow_tool.h"
 
 TEST(FlowTool, Healthz) {
   current::time::ResetToZero();
@@ -287,8 +285,7 @@ TEST(FlowTool, CreatesDirectoriesAndAFile) {
     flow_tool::api::request::PutRequest request_body;
     request_body.template Construct<flow_tool::api::request::PutDirRequest>();
 
-    const auto response =
-        HTTP(PUT(Printf("http://localhost:%d/tree/foo/bar", port), request_body));
+    const auto response = HTTP(PUT(Printf("http://localhost:%d/tree/foo/bar", port), request_body));
     EXPECT_EQ(404, static_cast<int>(response.code)) << response.body;
     EXPECT_EQ("ErrorPathNotFound", ParseJSON<flow_tool::api::error::ErrorBase>(response.body).error);
     const auto error = ParseJSON<flow_tool::api::error::ErrorPathNotFound>(response.body);
@@ -310,8 +307,7 @@ TEST(FlowTool, CreatesDirectoriesAndAFile) {
     flow_tool::api::request::PutRequest request_body;
     request_body.template Construct<flow_tool::api::request::PutDirRequest>();
 
-    const auto response =
-        HTTP(PUT(Printf("http://localhost:%d/tree/foo/bar", port), request_body));
+    const auto response = HTTP(PUT(Printf("http://localhost:%d/tree/foo/bar", port), request_body));
     EXPECT_EQ(200, static_cast<int>(response.code)) << response.body;
     // TODO(dkorolev): Response analysis.
     // Add the timestamp created/updated, number of versions already available, and time interval since last update?
@@ -321,8 +317,7 @@ TEST(FlowTool, CreatesDirectoriesAndAFile) {
     flow_tool::api::request::PutRequest request_body;
     request_body.template Construct<flow_tool::api::request::PutFileRequest>("All good.");
 
-    const auto response =
-        HTTP(PUT(Printf("http://localhost:%d/tree/foo/bar/baz.txt", port), request_body));
+    const auto response = HTTP(PUT(Printf("http://localhost:%d/tree/foo/bar/baz.txt", port), request_body));
     EXPECT_EQ(200, static_cast<int>(response.code)) << response.body;
     // TODO(dkorolev): Response analysis.
     // Add the timestamp created/updated, number of versions already available, and time interval since last update?
@@ -413,8 +408,7 @@ TEST(FlowTool, TrailingSlashesStrictness) {
   {
     flow_tool::api::request::PutRequest request_body;
     request_body.template Construct<flow_tool::api::request::PutFileRequest>("Nope.");
-    const auto response =
-        HTTP(PUT(Printf("http://localhost:%d/tree/nope.txt/", port), request_body));
+    const auto response = HTTP(PUT(Printf("http://localhost:%d/tree/nope.txt/", port), request_body));
     EXPECT_EQ(400, static_cast<int>(response.code)) << response.body;
     EXPECT_EQ("TrailingSlashError", ParseJSON<flow_tool::api::error::ErrorBase>(response.body).error);
   }
@@ -422,8 +416,7 @@ TEST(FlowTool, TrailingSlashesStrictness) {
   {
     flow_tool::api::request::PutRequest request_body;
     request_body.template Construct<flow_tool::api::request::PutFileRequest>("Duh.");
-    const auto response =
-        HTTP(PUT(Printf("http://localhost:%d/tree/duh.txt", port), request_body));
+    const auto response = HTTP(PUT(Printf("http://localhost:%d/tree/duh.txt", port), request_body));
     EXPECT_EQ(200, static_cast<int>(response.code)) << response.body;
   }
 

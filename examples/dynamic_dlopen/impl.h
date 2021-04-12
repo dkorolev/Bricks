@@ -7,7 +7,6 @@
 #include "../../bricks/util/sha256.h"
 #include "../../typesystem/serialization/json.h"
 #include "../../typesystem/struct.h"
-
 #include "../iris/data/dataset.h"
 
 #ifndef CURRENT_WINDOWS

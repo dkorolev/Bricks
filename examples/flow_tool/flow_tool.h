@@ -25,15 +25,15 @@ SOFTWARE.
 #ifndef EXAMPLES_FLOW_TOOL_FLOW_TOOL_H
 #define EXAMPLES_FLOW_TOOL_FLOW_TOOL_H
 
-#include "schema.h"
-
 #include "../../blocks/http/api.h"
 #include "../../storage/persister/stream.h"
+#include "schema.h"
 
 namespace flow_tool {
 
 template <template <template <typename...> class, template <typename> class, typename> class CURRENT_STORAGE_TYPE,
-          template <typename...> class DB_PERSISTER>
+          template <typename...>
+          class DB_PERSISTER>
 class FlowTool final {
  public:
   using transaction_t = current::storage::transaction_t<CURRENT_STORAGE_TYPE>;

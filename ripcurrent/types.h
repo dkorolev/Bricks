@@ -25,13 +25,12 @@ SOFTWARE.
 #ifndef CURRENT_RIPCURRENT_TYPES_H
 #define CURRENT_RIPCURRENT_TYPES_H
 
-#include "../port.h"
-
-#include <iostream>
 #include <functional>
+#include <iostream>
 
-#include "../typesystem/struct.h"
 #include "../bricks/template/typelist.h"
+#include "../port.h"
+#include "../typesystem/struct.h"
 
 namespace current {
 namespace ripcurrent {
@@ -155,7 +154,7 @@ template <typename T>
 struct LHSTypesFromTypeListImpl;
 
 template <typename... TS>
-struct LHSTypesFromTypeListImpl<TypeListImpl<TS...>> {
+struct LHSTypesFromTypeListImpl<TypeListImpl<TS...> > {
   using type = LHSTypes<TS...>;
 };
 
@@ -166,7 +165,7 @@ template <typename T>
 struct RHSTypesFromTypeListImpl;
 
 template <typename... TS>
-struct RHSTypesFromTypeListImpl<TypeListImpl<TS...>> {
+struct RHSTypesFromTypeListImpl<TypeListImpl<TS...> > {
   using type = RHSTypes<TS...>;
 };
 
@@ -219,7 +218,7 @@ struct FileLine final {
   const size_t line;
 };
 
-}  // namespace current::ripcurrent
+}  // namespace ripcurrent
 }  // namespace current
 
 #endif  // CURRENT_RIPCURRENT_TYPES_H

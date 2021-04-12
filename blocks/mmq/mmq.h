@@ -54,9 +54,8 @@ SOFTWARE.
 #include <type_traits>
 #include <vector>
 
-#include "../ss/ss.h"
-
 #include "../../bricks/time/chrono.h"
+#include "../ss/ss.h"
 
 namespace current {
 namespace mmq {

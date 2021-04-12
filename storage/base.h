@@ -26,19 +26,15 @@ SOFTWARE.
 #ifndef CURRENT_STORAGE_BASE_H
 #define CURRENT_STORAGE_BASE_H
 
-#include "../port.h"
-
 #include <functional>
-
-#include "semantics.h"
-#include "transaction.h"
-
-#include "../typesystem/struct.h"
-
-#include "../bricks/time/chrono.h"
 
 #include "../bricks/template/typelist.h"
 #include "../bricks/template/variadic_indexes.h"
+#include "../bricks/time/chrono.h"
+#include "../port.h"
+#include "../typesystem/struct.h"
+#include "semantics.h"
+#include "transaction.h"
 
 namespace current {
 namespace storage {
@@ -236,7 +232,7 @@ struct FieldsBase : BASE {
 // Default custom persister parameter, to enable binding Storage to a custom Stream.
 namespace persister {
 struct NoCustomPersisterParam {};
-}  // namespace current::storage::persister
+}  // namespace persister
 
 }  // namespace storage
 }  // namespace current

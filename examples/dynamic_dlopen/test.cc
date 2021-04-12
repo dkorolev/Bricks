@@ -22,9 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "impl.h"
-
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "impl.h"
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 static const char* const kDefaultPathToIrisDataset = "../iris/data/dataset.json";

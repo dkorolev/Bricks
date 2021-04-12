@@ -26,9 +26,8 @@ SOFTWARE.
 // The output format is a TSV, but only in a sense it can be copy-pasted into a spreadsheet editor
 // for other humans to understand. By no means it's a TSV view of the incoming JSON.
 
-#include "infer.h"
-
 #include "../../bricks/dflags/dflags.h"
+#include "infer.h"
 
 DEFINE_string(input, "input_data.json", "The name of the input file containing the JSON to parse.");
 

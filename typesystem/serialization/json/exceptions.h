@@ -26,7 +26,6 @@ SOFTWARE.
 #define TYPE_SYSTEM_SERIALIZATION_JSON_EXCEPTIONS_H
 
 #include "../../../port.h"
-
 #include "exceptions.h"
 #include "rapidjson.h"
 
@@ -72,8 +71,8 @@ struct JSONSchemaException : TypeSystemParseJSONException {
   }
 };
 
-}  // namespace current::serialization::json
-}  // namespace current::serialization
+}  // namespace json
+}  // namespace serialization
 }  // namespace current
 
 #endif  // TYPE_SYSTEM_SERIALIZATION_JSON_EXCEPTIONS_H

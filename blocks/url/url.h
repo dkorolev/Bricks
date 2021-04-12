@@ -25,8 +25,6 @@ SOFTWARE.
 #ifndef BLOCKS_URL_URL_H
 #define BLOCKS_URL_URL_H
 
-#include "../../port.h"
-
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -37,17 +35,14 @@ SOFTWARE.
 #include <type_traits>
 #include <vector>
 
-#include "exceptions.h"
-
-#include "../../typesystem/reflection/reflection.h"
-#include "../../typesystem/serialization/json.h"
-
 #include "../../bricks/exception.h"
-
+#include "../../bricks/file/file.h"
 #include "../../bricks/strings/printf.h"
 #include "../../bricks/strings/split.h"
-
-#include "../../bricks/file/file.h"
+#include "../../port.h"
+#include "../../typesystem/reflection/reflection.h"
+#include "../../typesystem/serialization/json.h"
+#include "exceptions.h"
 
 namespace current {
 namespace url {
@@ -72,7 +67,7 @@ namespace impl {
 namespace {
 const char* const kDefaultScheme = "http";
 const char* const kDefaultHost = "localhost";
-}
+}  // namespace
 
 struct URLWithoutParametersParser {
   std::string host = "";
@@ -318,7 +313,8 @@ struct URLParametersExtractor {
         using super_t = current::reflection::SuperType<decayed_t>;
         FillObjectImpl<super_t, MODE>::DoIt(parameters, static_cast<super_t&>(object));
         QueryParametersObjectFiller<T, MODE> parser{parameters};
-        current::reflection::VisitAllFields<T, current::reflection::FieldNameAndMutableValue>::WithObject(object, parser);
+        current::reflection::VisitAllFields<T, current::reflection::FieldNameAndMutableValue>::WithObject(object,
+                                                                                                          parser);
       }
     };
 
@@ -475,10 +471,9 @@ struct URL : URLParametersExtractor, URLWithoutParametersParser {
   static bool IsPathValidToRegister(const std::string& path) {
     const std::set<char> valid_nonalnum_chars{
         '/', '-', '.', '_', '~', '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=', ':', '@'};
-    return find_if(path.begin(),
-                   path.end(),
-                   [&valid_nonalnum_chars](char c) { return !(isalnum(c) || valid_nonalnum_chars.count(c)); }) ==
-           path.end();
+    return find_if(path.begin(), path.end(), [&valid_nonalnum_chars](char c) {
+             return !(isalnum(c) || valid_nonalnum_chars.count(c));
+           }) == path.end();
   }
 };
 

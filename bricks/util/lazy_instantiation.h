@@ -25,12 +25,12 @@ SOFTWARE.
 #ifndef BRICKS_UTIL_LAZY_INITIALIZATION_H
 #define BRICKS_UTIL_LAZY_INITIALIZATION_H
 
-#include "../port.h"
-#include "../template/variadic_indexes.h"
-
 #include <memory>
 #include <tuple>
 #include <utility>
+
+#include "../port.h"
+#include "../template/variadic_indexes.h"
 
 namespace current {
 

@@ -27,14 +27,12 @@ SOFTWARE.
 
 #include <type_traits>
 
+#include "../blocks/persistence/exceptions.h"
+#include "../blocks/ss/ss.h"
+#include "../bricks/util/future.h"
 #include "base.h"
 #include "exceptions.h"
 #include "transaction_result.h"
-
-#include "../bricks/util/future.h"
-
-#include "../blocks/ss/ss.h"
-#include "../blocks/persistence/exceptions.h"
 
 namespace current {
 namespace storage {

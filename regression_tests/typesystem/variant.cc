@@ -24,10 +24,9 @@ SOFTWARE.
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 
+#include "../../3rdparty/gtest/gtest-main.h"
 #include "../../bricks/file/file.h"
 #include "../../typesystem/struct.h"
-
-#include "../../3rdparty/gtest/gtest-main.h"
 
 namespace type_test {
 

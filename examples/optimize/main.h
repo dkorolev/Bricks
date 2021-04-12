@@ -32,8 +32,8 @@ SOFTWARE.
 
 #include "../../bricks/dflags/dflags.h"
 #include "../../bricks/util/random.h"
-#include "../../typesystem/serialization/json.h"
 #include "../../fncas/fncas/base.h"  // typename `fncas::double_t`.
+#include "../../typesystem/serialization/json.h"
 
 DECLARE_string(matrix);
 DECLARE_size_t(dim);
@@ -161,10 +161,9 @@ inline int run(int& argc, char**& argv) {
   std::cout << "```\n" << std::endl;
 
   // Call the user code to solve the game.
-  const auto strategy = solve(N,
-                              A,
-                              [&](const std::vector<std::vector<fncas::double_t>>& strategy)
-                                  -> bool { return validate(N, A, strategy, false); });
+  const auto strategy = solve(N, A, [&](const std::vector<std::vector<fncas::double_t>>& strategy) -> bool {
+    return validate(N, A, strategy, false);
+  });
 
   // Make sure the solution is valid.
   if (strategy.size() != 2u || strategy[0].size() != N || strategy[1].size() != N) {

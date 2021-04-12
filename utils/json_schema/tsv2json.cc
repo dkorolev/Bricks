@@ -23,15 +23,13 @@ SOFTWARE.
 *******************************************************************************/
 
 #include <iostream>
-#include <string>
 #include <sstream>
-
-#include "../../typesystem/serialization/json.h"
+#include <string>
 
 #include "../../bricks/dflags/dflags.h"
-
 #include "../../bricks/strings/printf.h"
 #include "../../bricks/strings/split.h"
+#include "../../typesystem/serialization/json.h"
 
 DEFINE_bool(header, false, "Set to treat the first row of the data as the header, and extract field names from it.");
 DEFINE_string(separator, "\t", "The characters to use as separators in the input TSV/CSV file.");

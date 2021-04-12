@@ -24,14 +24,12 @@ SOFTWARE.
 
 #define BRICKS_RANDOM_FIX_SEED
 
-#include "syscalls.h"
-
-#include "../dflags/dflags.h"
-#include "../file/file.h"
+#include <thread>
 
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
-
-#include <thread>
+#include "../dflags/dflags.h"
+#include "../file/file.h"
+#include "syscalls.h"
 
 DEFINE_string(current_base_dir_for_dlopen_test,
               "",

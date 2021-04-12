@@ -36,8 +36,8 @@
 
 #include <string>
 
-#include "../../../port.h"
 #include "../../../bricks/util/singleton.h"
+#include "../../../port.h"
 #include "../../../typesystem/serialization/json.h"
 
 #ifdef CURRENT_MIDICHLORIANS_DATA_DICTIONARY_H
@@ -47,19 +47,19 @@
 #ifndef CURRENT_MAKE_CHECK_MODE
 
 #define COMPILE_MIDICHLORIANS_DATA_DICTIONARY_FOR_IOS_CLIENT
+#import <CoreLocation/CoreLocation.h>
+#import <Foundation/Foundation.h>
+
 #include "../../midichlorians_data_dictionary.h"
 
-#import <Foundation/Foundation.h>
-#import <CoreLocation/CoreLocation.h>
-
-using current::midichlorians::ios::iOSBaseEvent;
-using current::midichlorians::ios::iOSFirstLaunchEvent;
+using current::midichlorians::ios::ios_events_t;
 using current::midichlorians::ios::iOSAppLaunchEvent;
+using current::midichlorians::ios::iOSBaseEvent;
 using current::midichlorians::ios::iOSDeviceInfo;
-using current::midichlorians::ios::iOSIdentifyEvent;
+using current::midichlorians::ios::iOSFirstLaunchEvent;
 using current::midichlorians::ios::iOSFocusEvent;
 using current::midichlorians::ios::iOSGenericEvent;
-using current::midichlorians::ios::ios_events_t;
+using current::midichlorians::ios::iOSIdentifyEvent;
 
 // Define the iOS interface, being comfortably within a C++ header file included exclusively from an `.mm` one.
 @interface midichlorians_impl : NSObject

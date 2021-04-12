@@ -22,12 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "graphviz.h"
-
+#include "../../3rdparty/gtest/gtest-main-with-dflags.h"
 #include "../dflags/dflags.h"
 #include "../file/file.h"
-
-#include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "graphviz.h"
 
 DEFINE_bool(graphviz_overwrite_golden_files, false, "Set to true to have SVG golden files created/overwritten.");
 

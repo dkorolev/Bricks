@@ -25,9 +25,8 @@ SOFTWARE.
 #ifndef KARL_RENDER_H
 #define KARL_RENDER_H
 
-#include "schema_karl.h"
-
 #include "../bricks/dot/graphviz.h"
+#include "schema_karl.h"
 
 namespace current {
 namespace karl {
@@ -289,7 +288,7 @@ class DefaultFleetViewRenderer : public IKarlFleetViewRenderer<INNER_STATUSES_VA
   }
 };
 
-}  // namespace current::karl
+}  // namespace karl
 }  // namespace current
 
 #endif  // KARL_RENDER_H

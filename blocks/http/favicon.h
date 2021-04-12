@@ -25,13 +25,11 @@ SOFTWARE.
 #ifndef BLOCKS_HTTP_FAVICON_H
 #define BLOCKS_HTTP_FAVICON_H
 
-#include "../port.h"
-
 #include <string>
 
-#include "response.h"
-
 #include "../../bricks/util/base64.h"
+#include "../port.h"
+#include "response.h"
 
 namespace current {
 namespace http {

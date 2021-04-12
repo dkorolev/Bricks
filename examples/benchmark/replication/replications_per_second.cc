@@ -23,7 +23,6 @@ SOFTWARE.
 *******************************************************************************/
 
 #include "../../../bricks/dflags/dflags.h"
-
 #include "../../../stream/replicator.h"
 #include "../../../stream/stream.h"
 

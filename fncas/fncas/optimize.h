@@ -32,18 +32,17 @@ SOFTWARE.
 #include <string>
 #include <type_traits>
 
+#include "../../bricks/template/decay.h"
+#include "../../typesystem/helpers.h"
+#include "../../typesystem/optional.h"
+#include "../../typesystem/struct.h"
 #include "base.h"
 #include "differentiate.h"
 #include "exceptions.h"
+#include "jit.h"
 #include "logger.h"
 #include "mathutil.h"
 #include "node.h"
-#include "jit.h"
-
-#include "../../bricks/template/decay.h"
-#include "../../typesystem/struct.h"
-#include "../../typesystem/optional.h"
-#include "../../typesystem/helpers.h"
 
 namespace fncas {
 namespace optimize {
@@ -758,8 +757,8 @@ struct OptimizeImpl<ConjugateGradientOptimizerSelector, DIRECTION> {
         stats.JournalIteration();
         if (logger) {
           // `PointAsString()` is an expensive call, don't make it if `logger` is not initialized.
-          logger.Log("ConjugateGradientOptimizer: Iteration " + current::ToString(iteration + 1) + ", OF = " +
-                     current::ToString(current.value) + " @ " + super.PointAsString(current.point));
+          logger.Log("ConjugateGradientOptimizer: Iteration " + current::ToString(iteration + 1) +
+                     ", OF = " + current::ToString(current.value) + " @ " + super.PointAsString(current.point));
         }
         try {
           // Backtracking line search.
@@ -829,7 +828,7 @@ template <class F,
           JIT JIT_IMPLEMENTATION = JIT::Default>
 using DefaultOptimizer = ConjugateGradientOptimizer<F, DIRECTION, JIT_IMPLEMENTATION>;
 
-}  // namespace fncas::optimize
+}  // namespace optimize
 }  // namespace fncas
 
 #endif  // #ifndef FNCAS_FNCAS_OPTIMIZE_H

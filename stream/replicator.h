@@ -32,17 +32,14 @@ SOFTWARE.
 #include <thread>
 #include <type_traits>
 
+#include "../blocks/http/api.h"
+#include "../blocks/ss/ss.h"
+#include "../bricks/sync/owned_borrowed.h"
+#include "../bricks/sync/waitable_atomic.h"
+#include "../typesystem/reflection/types.h"
 #include "exceptions.h"
 #include "stream.h"
 #include "stream_impl.h"
-
-#include "../blocks/http/api.h"
-#include "../blocks/ss/ss.h"
-
-#include "../bricks/sync/owned_borrowed.h"
-#include "../bricks/sync/waitable_atomic.h"
-
-#include "../typesystem/reflection/types.h"
 
 namespace current {
 namespace stream {
@@ -99,8 +96,9 @@ class SubscribableRemoteStream final {
         opt = "i=" + current::ToString(last_idx);
       }
       opt += "&head=" + current::ToString(head_idxts.head);
-      return url_ + "/control/flip_to_master?" + opt + "&key=" + current::ToString(key) + "&clock=" +
-             current::ToString(current::time::Now().count()) + (mode == SubscriptionMode::Checked ? "&checked" : "");
+      return url_ + "/control/flip_to_master?" + opt + "&key=" + current::ToString(key) +
+             "&clock=" + current::ToString(current::time::Now().count()) +
+             (mode == SubscriptionMode::Checked ? "&checked" : "");
     }
 
    private:
@@ -295,10 +293,11 @@ class SubscribableRemoteStream final {
         }
         try {
           bare_stream.CheckSchema();
-          HTTP(ChunkedGET(bare_stream.GetURLToSubscribe(this->next_expected_index_, this->from_us_, subscription_mode_),
-                          [this](const std::string& header, const std::string& value) { OnHeader(header, value); },
-                          [this](const std::string& chunk_body) { OnChunk(chunk_body); },
-                          [](){}));
+          HTTP(ChunkedGET(
+              bare_stream.GetURLToSubscribe(this->next_expected_index_, this->from_us_, subscription_mode_),
+              [this](const std::string& header, const std::string& value) { OnHeader(header, value); },
+              [this](const std::string& chunk_body) { OnChunk(chunk_body); },
+              []() {}));
         } catch (StreamTerminatedBySubscriber&) {
           break;
         } catch (RemoteStreamMalformedChunkException&) {
@@ -552,12 +551,12 @@ class MasterFlipController final {
     exposed_via_http_ = std::make_unique<ExposedStreamState>(
         port, route, std::move(restrictions), flip_started, flip_finished, flip_canceled);
     exposed_via_http_->routes_scope_ +=
-        HTTP(current::net::BarePort(port)).Register(route,
-                                                    URLPathArgs::CountMask::None | URLPathArgs::CountMask::One,
-                                                    *Value(stream_)) +
-        HTTP(current::net::BarePort(port)).Register(route + "/control/flip_to_master",
-                                                    URLPathArgs::CountMask::None,
-                                                    [this](Request r) { MasterFlipRequest(std::move(r)); });
+        HTTP(current::net::BarePort(port))
+            .Register(route, URLPathArgs::CountMask::None | URLPathArgs::CountMask::One, *Value(stream_)) +
+        HTTP(current::net::BarePort(port))
+            .Register(route + "/control/flip_to_master", URLPathArgs::CountMask::None, [this](Request r) {
+              MasterFlipRequest(std::move(r));
+            });
     return exposed_via_http_->flip_key_;
   }
 
@@ -657,8 +656,7 @@ class MasterFlipController final {
           std::min(stream_->Data()->IndexRangeByTimestampRange(client_head + std::chrono::microseconds(1)).first,
                    Value(head_idxts.idxts).index + 1u);
       if (next_index_by_timestamp != client_next_index) {
-        r("The prospective master's head doesn't match the specified next index.\n",
-          HTTPResponseCode.BadRequest);
+        r("The prospective master's head doesn't match the specified next index.\n", HTTPResponseCode.BadRequest);
         return;
       }
     }

@@ -24,11 +24,9 @@ SOFTWARE.
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 
-#include "../../stream/stream.h"
-
-#include "../../bricks/file/file.h"
-
 #include "../../3rdparty/gtest/gtest-main.h"
+#include "../../bricks/file/file.h"
+#include "../../stream/stream.h"
 
 namespace type_test {
 

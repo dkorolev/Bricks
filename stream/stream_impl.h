@@ -25,18 +25,16 @@ SOFTWARE.
 #ifndef CURRENT_STREAM_STREAM_IMPL_H
 #define CURRENT_STREAM_STREAM_IMPL_H
 
-#include "../port.h"
-
 #include <map>
 #include <thread>
 #include <type_traits>
 
+#include "../blocks/persistence/file.h"
+#include "../blocks/persistence/memory.h"
+#include "../blocks/ss/pubsub.h"
 #include "../bricks/util/random.h"
 #include "../bricks/util/waitable_terminate_signal.h"
-
-#include "../blocks/persistence/memory.h"
-#include "../blocks/persistence/file.h"
-#include "../blocks/ss/pubsub.h"
+#include "../port.h"
 
 namespace current {
 namespace stream {
@@ -118,8 +116,7 @@ struct StreamImpl {
   mutable http_subscriptions_t http_subscriptions;
 
   template <typename... ARGS>
-  StreamImpl(ARGS&&... args)
-      : persister(publishing_mutex, std::forward<ARGS>(args)...) {}
+  StreamImpl(ARGS&&... args) : persister(publishing_mutex, std::forward<ARGS>(args)...) {}
 };
 
 template <typename ENTRY, template <typename> class PERSISTENCE_LAYER>

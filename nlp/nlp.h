@@ -70,12 +70,12 @@ SOFTWARE.
 #ifndef NLP_NLP_H
 #define NLP_NLP_H
 
+#include <functional>
+
 #include "../bricks/strings/split.h"
 #include "../bricks/strings/util.h"
 #include "../bricks/template/tuple.h"
 #include "../typesystem/struct.h"
-
-#include <functional>
 
 namespace current {
 namespace nlp {
@@ -496,7 +496,7 @@ struct FilterImpl {
   }
 };
 
-}  // namespace current::nlp::impl
+}  // namespace impl
 
 template <typename ANNOTATED_QUERY_TERM, class IMPL>
 struct SchemaBlock {
@@ -660,7 +660,7 @@ Optional<typename IMPL::emitted_t> JustMatchQuery(const SchemaBlock<ANNOTATED_QU
   }
 }
 
-}  // namespace current::nlp
+}  // namespace nlp
 }  // namespace current
 
 // `UseNLPSchema` injects names defined in the Current NLP schema into user's namespace.

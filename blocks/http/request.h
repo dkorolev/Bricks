@@ -29,11 +29,10 @@ SOFTWARE.
 #include <type_traits>
 #include <vector>
 
-#include "../url/url.h"
-
 #include "../../bricks/net/http/http.h"
 #include "../../bricks/template/decay.h"
 #include "../../bricks/time/chrono.h"
+#include "../url/url.h"
 
 namespace current {
 namespace http {

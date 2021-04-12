@@ -31,6 +31,7 @@ SOFTWARE.
 #if defined(CURRENT_JAVA) || defined(CURRENT_ANDROID)
 
 #include <jni.h>
+
 #include <string>
 
 // TODO(dkorolev): Make this work using a templated reinterpret_cast<>.

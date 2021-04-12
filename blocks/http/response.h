@@ -29,14 +29,12 @@ SOFTWARE.
 // the best design is to return a value from one function to have the next one in the chain,
 // which can be `std::move(request)`, to pick it up.
 
-#include "request.h"
-
-#include "../../typesystem/struct.h"
-
 #include "../../bricks/net/exceptions.h"
 #include "../../bricks/net/http/http.h"
 #include "../../bricks/strings/is_string_type.h"
 #include "../../bricks/template/decay.h"
+#include "../../typesystem/struct.h"
+#include "request.h"
 
 namespace current {
 namespace http {

@@ -30,9 +30,8 @@ SOFTWARE.
 
 #include <type_traits>
 
-#include "primitives.h"
-
 #include "../../optional.h"
+#include "primitives.h"
 
 namespace current {
 namespace serialization {
@@ -132,8 +131,8 @@ struct DeserializeImpl<json::JSONParser<JSONFormat::NewtonsoftFSharp>, Immutable
         }
       }
       if (!ok) {
-        CURRENT_THROW(JSONSchemaException("optional as `null` or `{\"Case\":\"Some\",\"Fields\":[value]}`",
-                                          json_parser));
+        CURRENT_THROW(
+            JSONSchemaException("optional as `null` or `{\"Case\":\"Some\",\"Fields\":[value]}`", json_parser));
       }
     }
   }
@@ -146,7 +145,7 @@ struct IsJSONSerializable<ImmutableOptional<T>> {
 };
 }  // namespace json
 
-}  // namespace current::serialization
+}  // namespace serialization
 }  // namespace current
 
 #endif  // CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_IMMUTABLE_OPTIONAL_H

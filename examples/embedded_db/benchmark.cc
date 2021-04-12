@@ -27,7 +27,6 @@ SOFTWARE.
 // instead of using `epoll()` to maximize client-side throughput.
 
 #include "../../current.h"
-
 #include "schema.h"
 
 using namespace current;

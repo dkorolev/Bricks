@@ -25,12 +25,12 @@ SOFTWARE.
 #ifndef BRICKS_STRINGS_ROUNDING_H
 #define BRICKS_STRINGS_ROUNDING_H
 
-#include "../../port.h"
-
-#include <cstring>
-#include <string>
-#include <sstream>
 #include <cmath>
+#include <cstring>
+#include <sstream>
+#include <string>
+
+#include "../../port.h"
 
 namespace current {
 namespace strings {

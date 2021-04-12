@@ -26,12 +26,11 @@
 #ifndef FNCAS_FNCAS_BASE_H
 #define FNCAS_FNCAS_BASE_H
 
-#include "../../bricks/port.h"
-
-#include <vector>
-#include <cstdlib>
 #include <cstdint>
+#include <cstdlib>
+#include <vector>
 
+#include "../../bricks/port.h"
 #include "../x64_native_jit/x64_native_jit.h"
 
 namespace fncas {
@@ -93,7 +92,7 @@ class JITImplementation;
 
 enum class OptimizationDirection { Minimize, Maximize };
 
-}  // namespace fncas::impl
+}  // namespace impl
 
 using impl::JIT;
 using impl::OptimizationDirection;

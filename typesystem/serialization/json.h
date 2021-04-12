@@ -26,8 +26,6 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_H
 #define CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_H
 
-#include "serialization.h"
-
 #include "json/enum.h"
 #include "json/immutable_optional.h"
 #include "json/map.h"
@@ -42,5 +40,6 @@ SOFTWARE.
 #include "json/unordered_set.h"
 #include "json/variant.h"
 #include "json/vector.h"
+#include "serialization.h"
 
 #endif  // CURRENT_TYPE_SYSTEM_SERIALIZATION_JSON_H

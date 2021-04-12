@@ -26,17 +26,16 @@ SOFTWARE.
 
 #if !defined(CURRENT_WINDOWS) && !defined(CURRENT_APPLE)
 
-#include "regenerate_flag.cc"
+#include <string>
+#include <vector>
+
 #include "docu/docu_04graph_02.cc"
 #include "docu/docu_04graph_04.cc"
 #include "docu/docu_04graph_06.cc"
-
-#include <vector>
-#include <string>
-
 #include "gnuplot.h"
+#include "regenerate_flag.cc"
 
 #endif  // !defined(CURRENT_WINDOWS) && !defined(CURRENT_APPLE)
 
-#include "../../bricks/dflags/dflags.h"
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "../../bricks/dflags/dflags.h"

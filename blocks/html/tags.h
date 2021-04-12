@@ -25,9 +25,8 @@ SOFTWARE.
 #ifndef BLOCKS_HTML_TAGS_H
 #define BLOCKS_HTML_TAGS_H
 
-#include "html.h"
-
 #include "../../bricks/strings/util.h"
+#include "html.h"
 
 // The `htmltag` namespace is intentionally in the global scope, not within `::current`, so that it can be amended to.
 namespace htmltag {
@@ -77,7 +76,6 @@ namespace htmltag {
 #define CURRENT_HTML_TAG_SWITCH(x, y) x y
 #define CURRENT_HTML_TAG(...) \
   CURRENT_HTML_TAG_SWITCH(CURRENT_HTML_TAG_SWITCH_N(CURRENT_HTML_TAG_NARGS(__VA_ARGS__)), (__VA_ARGS__))
-
 
 // clang-format off
 
@@ -148,6 +146,6 @@ CURRENT_HTML_TAG(table, border, cellpadding);
 CURRENT_HTML_TAG(tr);
 CURRENT_HTML_TAG(td, align, colspan, valign);
 
-}  // namespace ::htmltag
+}  // namespace htmltag
 
 #endif  // BLOCKS_HTML_TAGS_H

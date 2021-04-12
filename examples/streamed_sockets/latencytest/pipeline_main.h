@@ -25,11 +25,10 @@ SOFTWARE.
 #ifndef EXAMPLES_STREAMED_SOCKETS_LATENCYTEST_PIPELINE_MAIN_H
 #define EXAMPLES_STREAMED_SOCKETS_LATENCYTEST_PIPELINE_MAIN_H
 
-#include "blob.h"
-#include "dsl/dsl.h"
-
 #include "../../../blocks/xterm/vt100.h"
 #include "../../../bricks/dflags/dflags.h"
+#include "blob.h"
+#include "dsl/dsl.h"
 
 DECLARE_double(buffer_mb);
 

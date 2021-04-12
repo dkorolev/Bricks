@@ -22,11 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "current_build.h"
-
 #include "../../blocks/http/api.h"
 #include "../../bricks/dflags/dflags.h"
 #include "../../karl/test_service/filter.h"
+#include "current_build.h"
 
 DEFINE_uint16(port, 42004, "The port to spawn ServiceAnnotator on.");
 DEFINE_string(annotator, "http://localhost:42003", "The route to `ServiceAnnotator`.");

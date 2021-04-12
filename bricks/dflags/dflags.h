@@ -59,8 +59,6 @@ int main(int argc, char** argv) {
 #ifndef DFLAGS_H
 #define DFLAGS_H
 
-#include "../port.h"
-
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -70,6 +68,7 @@ int main(int argc, char** argv) {
 #include <type_traits>
 #include <vector>
 
+#include "../port.h"
 #include "../util/singleton.h"
 
 namespace dflags {

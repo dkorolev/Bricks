@@ -31,13 +31,11 @@ SOFTWARE.
 
 #include <type_traits>
 
-#include "sfinae.h"
-
-#include "../api_types.h"
-#include "../storage.h"
-
 #include "../../blocks/http/api.h"
 #include "../../typesystem/schema/schema.h"
+#include "../api_types.h"
+#include "../storage.h"
+#include "sfinae.h"
 
 namespace current {
 namespace storage {
@@ -274,13 +272,12 @@ struct Plain {
       explicit LanguageIterator(registerer_t registerer) : registerer(registerer) {}
       template <current::reflection::Language LANGUAGE>
       void PerLanguage() {
-        registerer('.' + current::ToString(LANGUAGE),
-                   [](Request r) {
-                     // TODO(dkorolev): Add caching one day.
-                     reflection::StructSchema underlying_type_schema;
-                     underlying_type_schema.AddType<entry_t>();
-                     r(underlying_type_schema.GetSchemaInfo().Describe<LANGUAGE>());
-                   });
+        registerer('.' + current::ToString(LANGUAGE), [](Request r) {
+          // TODO(dkorolev): Add caching one day.
+          reflection::StructSchema underlying_type_schema;
+          underlying_type_schema.AddType<entry_t>();
+          r(underlying_type_schema.GetSchemaInfo().Describe<LANGUAGE>());
+        });
       }
     };
 
@@ -330,9 +327,9 @@ struct Plain {
   // LCOV_EXCL_STOP
 };
 
-}  // namespace current::storage::rest::plain
-}  // namespace current::storage::rest
-}  // namespace current::storage
+}  // namespace plain
+}  // namespace rest
+}  // namespace storage
 }  // namespace current
 
 #endif  // CURRENT_STORAGE_REST_PLAIN_H

@@ -26,9 +26,8 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_SERIALIZATION_SERIALIZATION_H
 #define CURRENT_TYPE_SYSTEM_SERIALIZATION_SERIALIZATION_H
 
-#include "exceptions.h"
-
 #include "../../bricks/template/decay.h"
+#include "exceptions.h"
 
 namespace current {
 namespace serialization {

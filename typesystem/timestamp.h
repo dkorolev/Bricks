@@ -35,11 +35,9 @@ SOFTWARE.
 #ifndef TYPE_SYSTEM_TIMESTAMP_H
 #define TYPE_SYSTEM_TIMESTAMP_H
 
-#include "../port.h"
-
-#include "variant.h"
-
 #include "../bricks/time/chrono.h"
+#include "../port.h"
+#include "variant.h"
 
 namespace current {
 

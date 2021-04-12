@@ -1,9 +1,8 @@
 #include <atomic>
 
-#include "schema.h"
-
 #include "../../../bricks/dflags/dflags.h"
 #include "../../../bricks/graph/gnuplot.h"
+#include "schema.h"
 
 DEFINE_string(file, ".current/log.json", "Storage persistence file in Stream format to use.");
 DEFINE_uint32(gen, 0u, "Set to nonzero to generate this number of entries, overwriting the test data.");
@@ -21,10 +20,12 @@ inline void GenerateTestData(const std::string& file, uint32_t size) {
   current::FileSystem::RmFile(file, current::FileSystem::RmFileParameters::Silent);
   auto storage = storage_t::CreateMasterStorage(file);
   for (uint32_t i = 0u; i < size; ++i) {
-    storage->ReadWriteTransaction([i](MutableFields<storage_t> fields) {
-      Entry entry(static_cast<EntryID>(i), current::SHA256(current::ToString(i)));
-      fields.entries.Add(entry);
-    }).Go();
+    storage
+        ->ReadWriteTransaction([i](MutableFields<storage_t> fields) {
+          Entry entry(static_cast<EntryID>(i), current::SHA256(current::ToString(i)));
+          fields.entries.Add(entry);
+        })
+        .Go();
   }
 }
 
@@ -141,8 +142,10 @@ inline void PerformReplayBenchmark(const std::string& file,
     auto storage = storage_t::CreateFollowingStorageAtopExistingStream(stream);
     // Spin lock checking the number of imported entries.
     while (storage_size < stream_size) {
-      storage->ReadOnlyTransaction(
-                   [&storage_size](ImmutableFields<storage_t> fields) { storage_size = fields.entries.Size(); }).Go();
+      storage
+          ->ReadOnlyTransaction(
+              [&storage_size](ImmutableFields<storage_t> fields) { storage_size = fields.entries.Size(); })
+          .Go();
       std::this_thread::sleep_for(spin_lock_sleep);
     }
     const auto end = current::time::Now();
@@ -258,42 +261,42 @@ int main(int argc, char** argv) {
                                     .ImageSize(1000)
                                     .OutputFormat("pngcairo")
                                     .Plot(WithMeta([&report](Plotter p) {
-                                      for (size_t i = 0; i < report.subs.size(); ++i) {
-                                        p(report.subs[i], 1e-3 * report.owning_storage_replay_ms[i]);
-                                      }
-                                    })
+                                            for (size_t i = 0; i < report.subs.size(); ++i) {
+                                              p(report.subs[i], 1e-3 * report.owning_storage_replay_ms[i]);
+                                            }
+                                          })
                                               .LineWidth(5)
                                               .Color("rgb '#B90000'")
                                               .Name("Owning storage"))
                                     .Plot(WithMeta([&report](Plotter p) {
-                                      for (size_t i = 0; i < report.subs.size(); ++i) {
-                                        p(report.subs[i], 1e-3 * report.following_storage_replay_ms[i]);
-                                      }
-                                    })
+                                            for (size_t i = 0; i < report.subs.size(); ++i) {
+                                              p(report.subs[i], 1e-3 * report.following_storage_replay_ms[i]);
+                                            }
+                                          })
                                               .LineWidth(5)
                                               .Color("rgb '#0000B9'")
                                               .Name("Following storage"))
                                     .Plot(WithMeta([&report](Plotter p) {
-                                      for (size_t i = 0; i < report.subs.size(); ++i) {
-                                        p(report.subs[i], 1e-3 * report.raw_persister_replay_ms[i]);
-                                      }
-                                    })
+                                            for (size_t i = 0; i < report.subs.size(); ++i) {
+                                              p(report.subs[i], 1e-3 * report.raw_persister_replay_ms[i]);
+                                            }
+                                          })
                                               .LineWidth(5)
                                               .Color("rgb '#008080'")
                                               .Name("Persister iterators"))
                                     .Plot(WithMeta([&report](Plotter p) {
-                                      for (size_t i = 0; i < report.subs.size(); ++i) {
-                                        p(report.subs[i], 1e-3 * report.raw_file_scan_ms[i]);
-                                      }
-                                    })
+                                            for (size_t i = 0; i < report.subs.size(); ++i) {
+                                              p(report.subs[i], 1e-3 * report.raw_file_scan_ms[i]);
+                                            }
+                                          })
                                               .LineWidth(5)
                                               .Color("rgb '#404040'")
                                               .Name("File scan w/o parsing"))
                                     .Plot(WithMeta([&report](Plotter p) {
-                                      for (size_t i = 0; i < report.subs.size(); ++i) {
-                                        p(report.subs[i], 1e-3 * report.parsing_file_scan_ms[i]);
-                                      }
-                                    })
+                                            for (size_t i = 0; i < report.subs.size(); ++i) {
+                                              p(report.subs[i], 1e-3 * report.parsing_file_scan_ms[i]);
+                                            }
+                                          })
                                               .LineWidth(5)
                                               .Color("rgb '#00B900'")
                                               .Name("File scan with parsing"));

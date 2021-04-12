@@ -25,13 +25,11 @@ SOFTWARE.
 #ifndef KARL_TEST_SERVICE_IS_PRIME_H
 #define KARL_TEST_SERVICE_IS_PRIME_H
 
-#include "../../port.h"
-
 #include <atomic>
 
-#include "../claire.h"
-
 #include "../../blocks/http/api.h"
+#include "../../port.h"
+#include "../claire.h"
 
 namespace karl_unittest {
 
@@ -52,12 +50,12 @@ class ServiceIsPrime final {
  public:
   explicit ServiceIsPrime(uint16_t port, const current::karl::Locator& karl)
       : counter_(0ull),
-        http_scope_(HTTP(current::net::BarePort(port)).Register("/is_prime",
-                                        [this](Request r) {
-                                          ++counter_;
-                                          r(IsPrime(current::FromString<int>(r.url.query.get("x", "0"))) ? "YES\n"
-                                                                                                         : "NO\n");
-                                        })),
+        http_scope_(HTTP(current::net::BarePort(port))
+                        .Register("/is_prime",
+                                  [this](Request r) {
+                                    ++counter_;
+                                    r(IsPrime(current::FromString<int>(r.url.query.get("x", "0"))) ? "YES\n" : "NO\n");
+                                  })),
         claire_(karl, "is_prime", port) {
     const auto status_reporter = [this]() -> is_prime { return is_prime(counter_); };
 #ifdef CURRENT_MOCK_TIME

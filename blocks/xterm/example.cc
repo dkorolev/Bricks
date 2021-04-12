@@ -2,10 +2,9 @@
 #include <sstream>
 #include <thread>
 
+#include "../../bricks/dflags/dflags.h"
 #include "progress.h"
 #include "vt100.h"
-
-#include "../../bricks/dflags/dflags.h"
 
 DEFINE_double(progress_line_delay, 0.5, "The delay, in seconds, between progress updates.");
 
@@ -19,8 +18,7 @@ int main(int argc, char** argv) {
     // Basic VT100 demo.
     using namespace current::vt100;
 
-    std::cout << "Default, " << bold << "bold" << normal << ", " << dim << "dim" << normal << ", done."
-              << std::endl;
+    std::cout << "Default, " << bold << "bold" << normal << ", " << dim << "dim" << normal << ", done." << std::endl;
 #ifndef CURRENT_WINDOWS
     std::cout << "Default, " << italic << "italic" << noitalic << '.' << std::endl;
 #endif  // CURRENT_WINDOWS
@@ -48,10 +46,9 @@ int main(int argc, char** argv) {
     std::cout << "Default, " << background(red) << blue << bold << "blue on red " << reverse << " reversed "
               << noreverse << " back to blue on red" << reset << '.' << std::endl;
 
-    std::cout << "Default, " << strikeout << "no " << red << "red" << bold << " bold" << italic << " italic"
-              << noitalic << ' ' << underlined << "underlined" << nounderlined << ' ' << doubleunderlined
-              << "doubleunderlined" << nounderlined << normal << default_color << " style" << nostrikeout
-              << '.' << reset << std::endl;
+    std::cout << "Default, " << strikeout << "no " << red << "red" << bold << " bold" << italic << " italic" << noitalic
+              << ' ' << underlined << "underlined" << nounderlined << ' ' << doubleunderlined << "doubleunderlined"
+              << nounderlined << normal << default_color << " style" << nostrikeout << '.' << reset << std::endl;
   }
 
   {
@@ -86,7 +83,7 @@ int main(int argc, char** argv) {
     }
     std::cout << "Done." << std::endl;
   }
-  #endif
+#endif
 
   if (false) {
     // NOTE(dkorolev): This fails on my Linux. :/ Prints `Test3> tttesting ... OK`, then `Test3> ttDone.` at the end.

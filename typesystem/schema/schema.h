@@ -27,24 +27,20 @@ SOFTWARE.
 #ifndef CURRENT_TYPE_SYSTEM_SCHEMA_SCHEMA_H
 #define CURRENT_TYPE_SYSTEM_SCHEMA_SCHEMA_H
 
-#include "../../port.h"
-
 #include <functional>
 #include <set>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 
-#include "json_schema_format.h"
-
+#include "../../bricks/exception.h"
+#include "../../bricks/strings/strings.h"
+#include "../../bricks/util/sha256.h"
+#include "../../bricks/util/singleton.h"
+#include "../../port.h"
 #include "../reflection/reflection.h"
 #include "../serialization/json.h"
-
-#include "../../bricks/strings/strings.h"
-#include "../../bricks/util/singleton.h"
-#include "../../bricks/util/sha256.h"
-
-#include "../../bricks/exception.h"
+#include "json_schema_format.h"
 
 namespace current {
 namespace reflection {
@@ -169,11 +165,13 @@ struct CurrentStructPrinter<CPPLanguageSelector::CurrentStructs> {
     std::ostream& os_;
     const std::string type_code_;
     OptionalNamespaceScope(std::ostream& os, TypeID type_id) : os_(os), type_code_(current::ToString(type_id)) {
-      os_ << "#ifndef CURRENT_SCHEMA_FOR_T" << type_code_ << '\n' << "#define CURRENT_SCHEMA_FOR_T" << type_code_
-          << '\n' << "namespace t" << type_code_ << " {\n";
+      os_ << "#ifndef CURRENT_SCHEMA_FOR_T" << type_code_ << '\n'
+          << "#define CURRENT_SCHEMA_FOR_T" << type_code_ << '\n'
+          << "namespace t" << type_code_ << " {\n";
     }
     ~OptionalNamespaceScope() {
-      os_ << "}  // namespace t" << type_code_ << '\n' << "#endif  // CURRENT_SCHEMA_FOR_T_" << type_code_ << '\n'
+      os_ << "}  // namespace t" << type_code_ << '\n'
+          << "#endif  // CURRENT_SCHEMA_FOR_T_" << type_code_ << '\n'
           << '\n';
     }
   };
@@ -422,8 +420,10 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
         os_ << "#endif  // CURRENT_NAMESPACE_" << nmspc << "_DEFINED\n";
 
         // Thing two: natural evolvers for all the generated types.
-        os_ << '\n' << "namespace current {\n"
-            << "namespace type_evolution {\n" << '\n';
+        os_ << '\n'
+            << "namespace current {\n"
+            << "namespace type_evolution {\n"
+            << '\n';
 
         // To only output distinct `Variant<>` & `CURRENT_VARIANT`-s once.
         // TODO(dkorolev): Strictly speaking, unnecessary, as we guard each evolver by its own `#ifdef`.
@@ -452,7 +452,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
             }
             const std::string origin_guard =
                 "DEFAULT_EVOLUTION_" + current::strings::ToUpper(SHA256(origin)) + "  // " + origin;
-            os_ << "#ifndef " << origin_guard << '\n' << "#define " << origin_guard << '\n'
+            os_ << "#ifndef " << origin_guard << '\n'
+                << "#define " << origin_guard << '\n'
                 << "template <typename CURRENT_ACTIVE_EVOLVER>\n"
                 << "struct Evolve<" << nmspc << ", " << origin << ", CURRENT_ACTIVE_EVOLVER> {\n"
                 << "  using FROM = " << nmspc << ";\n"
@@ -475,7 +476,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
             }
             os_ << "  }\n"
                 << "};\n"
-                << "#endif\n" << '\n';
+                << "#endif\n"
+                << '\n';
           } else if (Exists<ReflectedType_Variant>(type_substance)) {
             // Default evolver for `CURRENT_VARIANT`, or for a plain `Variant<>`.
             const auto bare_variant_name = Value<ReflectedType_Variant>(type_substance).name;
@@ -503,7 +505,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                 "DEFAULT_EVOLUTION_" + current::strings::ToUpper(SHA256(origin)) + "  // " + origin;
             os_ << "// Default evolution for `Variant<" << current::strings::Join(cases, ", ") << ">`.\n";
             const std::string evltr = nmspc + '_' + bare_variant_name + "_Cases";
-            os_ << "#ifndef " << origin_guard << '\n' << "#define " << origin_guard << '\n'
+            os_ << "#ifndef " << origin_guard << '\n'
+                << "#define " << origin_guard << '\n'
                 << "template <typename DST, typename FROM_NAMESPACE, typename INTO, typename CURRENT_ACTIVE_EVOLVER>\n"
                 << "struct " << evltr << " {\n"
                 << "  DST& into;\n"
@@ -527,7 +530,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                 << ", INTO, CURRENT_ACTIVE_EVOLVER>(into));\n"
                 << "  }\n"
                 << "};\n"
-                << "#endif\n" << '\n';
+                << "#endif\n"
+                << '\n';
           } else if (Exists<ReflectedType_Enum>(type_substance)) {
             // Default evolver for `CURRENT_ENUM`.
             const auto& e = Value<ReflectedType_Enum>(type_substance);
@@ -535,7 +539,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
             const std::string origin_guard =
                 "DEFAULT_EVOLUTION_" + current::strings::ToUpper(SHA256(origin)) + "  // " + origin;
             os_ << "// Default evolution for `CURRENT_ENUM(" << e.name << ")`.\n"
-                << "#ifndef " << origin_guard << '\n' << "#define " << origin_guard << '\n'
+                << "#ifndef " << origin_guard << '\n'
+                << "#define " << origin_guard << '\n'
                 << "template <typename CURRENT_ACTIVE_EVOLVER>\n"
                 << "struct Evolve<" << nmspc << ", " << origin << ", CURRENT_ACTIVE_EVOLVER> {\n"
                 << "  template <typename INTO>\n"
@@ -544,7 +549,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                 << "    into = static_cast<typename INTO::" << e.name << ">(from);\n"
                 << "  }\n"
                 << "};\n"
-                << "#endif\n" << '\n';
+                << "#endif\n"
+                << '\n';
           } else if (Exists<ReflectedType_Optional>(type_substance)) {
             // Default evolver for this particular `Optional<T>`.
             // The global, top-level one, can only work if the underlying type does not change.
@@ -567,7 +573,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                   "DEFAULT_EVOLUTION_" + current::strings::ToUpper(SHA256(origin)) + "  // " + origin;
               // No need to spell out evolution of `Optional<>` for basic types, string-s, and millis/micros.
               os_ << "// Default evolution for `Optional<" << bare_optional_type_name << ">`.\n"
-                  << "#ifndef " << origin_guard << '\n' << "#define " << origin_guard << '\n'
+                  << "#ifndef " << origin_guard << '\n'
+                  << "#define " << origin_guard << '\n'
                   << "template <typename CURRENT_ACTIVE_EVOLVER>\n"
                   << "struct Evolve<" << nmspc << ", " << origin << ", CURRENT_ACTIVE_EVOLVER> {\n"
                   << "  template <typename INTO, typename INTO_TYPE>\n"
@@ -584,7 +591,8 @@ struct LanguageSyntaxCPP : CurrentStructPrinter<CPP_LANGUAGE_SELECTOR> {
                   << "    }\n"
                   << "  }\n"
                   << "};\n"
-                  << "#endif\n" << '\n';
+                  << "#endif\n"
+                  << '\n';
             }
           }
         }
@@ -1656,7 +1664,7 @@ struct ToStringImpl<reflection::Language, false, true> final {
     }
   }
 };
-}  // namespace current::strings
+}  // namespace strings
 
 }  // namespace current
 

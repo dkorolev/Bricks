@@ -22,10 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "infer.h"
-
 #include "../../bricks/dflags/dflags.h"
 #include "../../bricks/file/file.h"
+#include "infer.h"
 
 DEFINE_string(input, "input_data.json", "The name of the input file containing the JSON to parse.");
 

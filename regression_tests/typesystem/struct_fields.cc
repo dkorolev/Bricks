@@ -25,11 +25,9 @@ SOFTWARE.
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 
-#include "../../typesystem/schema/schema.h"
-
-#include "../../bricks/file/file.h"
-
 #include "../../3rdparty/gtest/gtest-main.h"
+#include "../../bricks/file/file.h"
+#include "../../typesystem/schema/schema.h"
 
 namespace type_test {
 
@@ -39,8 +37,8 @@ namespace type_test {
 
 TEST(TypeTest, StructFields) {
   using namespace type_test;
-  using current::reflection::StructSchema;
   using current::reflection::Language;
+  using current::reflection::StructSchema;
 
   StructWithManyFields foo;
   foo.z1 = 42u;

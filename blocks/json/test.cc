@@ -22,9 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
 
-#include "json.h"
-
 #include "../../3rdparty/gtest/gtest-main-with-dflags.h"
+#include "json.h"
 
 TEST(UniversalJSON, Primitives) {
   using namespace current::json;
@@ -121,9 +120,8 @@ TEST(UniversalJSON, Object) {
 
   using JO = JSONObject;
   using JN = JSONNumber;
-  EXPECT_EQ(
-      "{\"x\":42,\"y\":{\"a\":1,\"b\":2}}",
-      AsJSON(JO().push_back("x", JN(42)).push_back("y", JO().push_back("a", JN(1)).push_back("b", JN(2)))));
+  EXPECT_EQ("{\"x\":42,\"y\":{\"a\":1,\"b\":2}}",
+            AsJSON(JO().push_back("x", JN(42)).push_back("y", JO().push_back("a", JN(1)).push_back("b", JN(2)))));
 }
 
 TEST(UniversalJSON, FloatingPoint) {

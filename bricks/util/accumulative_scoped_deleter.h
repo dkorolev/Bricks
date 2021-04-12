@@ -25,10 +25,10 @@ SOFTWARE.
 #ifndef BRICKS_UTIL_ACCUMULATIVE_SCOPED_DELETER_H
 #define BRICKS_UTIL_ACCUMULATIVE_SCOPED_DELETER_H
 
-#include "../../port.h"
-
-#include <vector>
 #include <functional>
+#include <vector>
+
+#include "../../port.h"
 
 namespace current {
 
@@ -45,8 +45,7 @@ class AccumulativeScopedDeleter {
   AccumulativeScopedDeleter(std::function<void()> f) : captured_{f} {}
 
   template <bool B>
-  AccumulativeScopedDeleter(AccumulativeScopedDeleter<DIFFERENTIATOR, B>&& rhs)
-      : captured_(std::move(rhs.captured_)) {
+  AccumulativeScopedDeleter(AccumulativeScopedDeleter<DIFFERENTIATOR, B>&& rhs) : captured_(std::move(rhs.captured_)) {
     rhs.captured_.clear();
   }
   template <bool B>

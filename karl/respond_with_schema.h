@@ -27,9 +27,8 @@ SOFTWARE.
 #ifndef KARL_RESPOND_WITH_SCHEMA_H
 #define KARL_RESPOND_WITH_SCHEMA_H
 
-#include "../port.h"
-
 #include "../blocks/http/api.h"
+#include "../port.h"
 #include "../typesystem/schema/schema.h"
 
 namespace current {
@@ -42,7 +41,7 @@ void RespondWithSchema(Request r) {
   r(schema.GetSchemaInfo().Describe<L>());
 }
 
-}  // namespace current::karl
+}  // namespace karl
 }  // namespace current
 
 #endif  // KARL_RESPOND_WITH_SCHEMA_H

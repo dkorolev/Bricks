@@ -24,12 +24,10 @@ SOFTWARE.
 
 #ifndef CURRENT_COVERAGE_REPORT_MODE
 
-#include "../../storage/storage.h"
-#include "../../storage/persister/stream.h"
-
-#include "../../bricks/file/file.h"
-
 #include "../../3rdparty/gtest/gtest-main.h"
+#include "../../bricks/file/file.h"
+#include "../../storage/persister/stream.h"
+#include "../../storage/storage.h"
 
 namespace type_test {
 

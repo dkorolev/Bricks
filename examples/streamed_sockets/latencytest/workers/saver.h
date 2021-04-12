@@ -30,12 +30,11 @@ SOFTWARE.
 #include <cstdio>
 #include <queue>
 
-#include "../blob.h"
-
 #include "../../../../bricks/file/file.h"
 #include "../../../../bricks/net/tcp/tcp.h"
 #include "../../../../bricks/strings/printf.h"
 #include "../../../../bricks/time/chrono.h"
+#include "../blob.h"
 
 namespace current::examples::streamed_sockets {
 

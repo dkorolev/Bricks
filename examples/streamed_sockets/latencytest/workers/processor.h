@@ -28,10 +28,9 @@ SOFTWARE.
 #include <cstdlib>
 #include <iostream>
 
-#include "../blob.h"
-
 #include "../../../../bricks/net/tcp/tcp.h"
 #include "../../../../bricks/time/chrono.h"
+#include "../blob.h"
 
 namespace current::examples::streamed_sockets {
 
