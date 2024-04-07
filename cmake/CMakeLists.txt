@@ -76,7 +76,7 @@ endif()
 set_property(GLOBAL PROPERTY C5T_PATH ${C5T_DEP_DIR_current})
 
 set(C5T_DEPS_1 $ENV{C5T_DEPS})
-if(NOT "${C5T_DEPS}" STREQUAL "")
+if(NOT "${C5T_DEPS_1}" STREQUAL "")
   string(REPLACE ":" ";" C5T_DEPS_2 "${C5T_DEPS_1}")
   string(REPLACE " " ";" C5T_DEPS_3 "${C5T_DEPS_2}")
   foreach(C5T_DEP IN LISTS C5T_DEPS_3)
