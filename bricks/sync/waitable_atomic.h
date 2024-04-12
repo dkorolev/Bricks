@@ -60,6 +60,9 @@ class ScopedUniqueLock {
   explicit ScopedUniqueLock(std::mutex& mutex) : lock_(mutex) {}
   ScopedUniqueLock(ScopedUniqueLock&& rhs) : lock_(std::move(rhs.lock_)) {}
 
+ protected:
+  ~ScopedUniqueLock() = default;  // The destructor of a non-`final` class should be `virtual` or `protected`.
+
  private:
   std::unique_lock<std::mutex> lock_;
 
