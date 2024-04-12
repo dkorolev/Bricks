@@ -254,7 +254,6 @@ TEST(OwnedBorrowed, UseInternalIsDestructingGetter) {
 }
 
 TEST(WaitableAtomic, Smoke) {
-  using current::IntrusiveClient;
   using current::WaitableAtomic;
 
   struct Object {
@@ -264,54 +263,39 @@ TEST(WaitableAtomic, Smoke) {
     bool y_done = false;
   };
 
+  // The object that is being mutated.
   WaitableAtomic<Object> object;
-  {
-    // This scope runs asynchronous operations in two dedicated threads.
-    WaitableAtomic<bool, true> top_level_lock;
 
-    // The `++x` thread uses mutable accessors.
-    std::thread(
-        [&top_level_lock, &object](IntrusiveClient top_level_client) {
-          // Should be able to register another client for `top_level_lock`.
-          ASSERT_TRUE(bool(top_level_lock.RegisterScopedClient()));
-          while (top_level_client) {
-            // This loop will be terminated as `top_level_lock` will be leaving the scope.
-            ++object.MutableScopedAccessor()->x;
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-          }
-          // Should no longer be able to register another client for `top_level_lock`.
-          ASSERT_FALSE(bool(top_level_lock.RegisterScopedClient()));
-          std::this_thread::sleep_for(std::chrono::milliseconds(10));
-          object.MutableScopedAccessor()->x_done = true;
-        },
-        top_level_lock.RegisterScopedClient())
-        .detach();
+  // This scope runs asynchronous operations in two dedicated threads.
+  WaitableAtomic<bool> done_flag(false);
 
-    // The `++y` thread uses the functional style.
-    std::thread(
-        [&top_level_lock, &object](IntrusiveClient top_level_client) {
-          // Should be able to register another client for `top_level_lock`.
-          ASSERT_TRUE(bool(top_level_lock.RegisterScopedClient()));
-          while (top_level_client) {
-            // This loop will be terminated as `top_level_lock` will be leaving the scope.
-            object.MutableUse([](Object& object) { ++object.y; });
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-          }
-          // Should no longer be able to register another client for `top_level_lock`.
-          ASSERT_FALSE(bool(top_level_lock.RegisterScopedClient()));
-          std::this_thread::sleep_for(std::chrono::milliseconds(10));
-          object.MutableUse([](Object& object) { object.y_done = true; });
-        },
-        top_level_lock.RegisterScopedClient())
-        .detach();
+  // The `++x` thread uses mutable accessors.
+  std::thread(
+      [&done_flag, &object]() {
+        while (!done_flag.GetValue()) {
+          ++object.MutableScopedAccessor()->x;
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        object.MutableScopedAccessor()->x_done = true;
+      }).detach();
 
-    // Let `++x` and `++y` threads run 25ms.
-    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+  // The `++y` thread uses the functional style.
+  std::thread(
+      [&done_flag, &object]() {
+        while (!done_flag.GetValue()) {
+          object.MutableUse([](Object& object) { ++object.y; });
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        object.MutableUse([](Object& object) { object.y_done = true; });
+      }).detach();
 
-    // This block will only finish when both client threads have terminated.
-    // This is the reason behind using `.detach()` instead of `.join()`,
-    // since the latter would ruin the purpose of the test.
-  }
+  // Let `++x` and `++y` threads run for 25ms.
+  std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+  done_flag.SetValue(true);
+  object.Wait([](const Object& o) { return o.x_done && o.y_done; });
 
   // Analyze the result.
   Object copy_of_object(object.GetValue());
@@ -352,15 +336,6 @@ TEST(WaitableAtomic, ProxyConstructor) {
 
   WaitableAtomic<NonDefaultConstructibleObject> object(1, 1);
   EXPECT_EQ(2, object.GetValue().APlusB());
-}
-
-TEST(WaitableAtomic, IntrusiveClientsCanBeTransferred) {
-  using current::IntrusiveClient;
-  using current::WaitableAtomic;
-
-  WaitableAtomic<bool, true> object;
-  auto f = [](IntrusiveClient& c) { static_cast<void>(c); };
-  std::thread([&f](IntrusiveClient c) { f(c); }, object.RegisterScopedClient()).detach();
 }
 
 TEST(WaitableAtomic, WaitFor) {

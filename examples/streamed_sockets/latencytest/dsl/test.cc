@@ -28,6 +28,8 @@ SOFTWARE.
 
 #include "../../../../3rdparty/gtest/gtest-main.h"
 #include "../../../../bricks/strings/join.h"
+#include "../../../../bricks/strings/printf.h"
+#include "../../../../bricks/util/singleton.h"
 
 #ifndef CURRENT_FOR_CPP14  // NOTE(dkorolev): Excluding this part from the C++14 version of Current.
 
