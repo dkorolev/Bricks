@@ -24,23 +24,13 @@ SOFTWARE.
 
 // WaitableAtomic<T> acts as an atomic wrapper over type T with one additional feature: the clients
 // can wait for updates on this object instead of using spin locks or other external waiting primitives.
-// Additionally, if the second template parameter is set to true, WaitableAtomic<T, true> allows
-// creating scoped clients via `IntrusiveClient client = my_waitable_atomic.RegisterScopedClient()`.
-// When an instance of intrusive WaitableAtomic is going out of scope:
-// 1) Its registered clients will be notified.           (IntrusiveClient supports `operator bool()`).
-// 2) Pending wait operations, if any, will be aborted.  (And return `false`.)
-// 3) WaitableAtomic will wait for all the clients to gracefully terminate (go out of scope)
-//    before destructing the data object contained within this WaitableAtomic.
 
 #ifndef BRICKS_WAITABLE_ATOMIC_H
 #define BRICKS_WAITABLE_ATOMIC_H
 
-#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <mutex>
-
-#include "../time/chrono.h"
 
 #ifdef CURRENT_FOR_CPP14
 #include "../template/weed.h"
