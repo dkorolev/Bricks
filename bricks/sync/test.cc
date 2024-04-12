@@ -253,6 +253,7 @@ TEST(OwnedBorrowed, UseInternalIsDestructingGetter) {
   thread->join();
 }
 
+#if 0
 TEST(WaitableAtomic, Smoke) {
   using current::IntrusiveClient;
   using current::WaitableAtomic;
@@ -339,6 +340,7 @@ TEST(WaitableAtomic, Smoke) {
   EXPECT_EQ(copy_of_object.x, object.ImmutableUse([](const Object& object) { return object.x; }));
   EXPECT_EQ(copy_of_object.y + 1u, object.MutableUse([](Object& object) { return ++object.y; }));
 }
+#endif
 
 TEST(WaitableAtomic, ProxyConstructor) {
   using current::WaitableAtomic;
@@ -354,6 +356,7 @@ TEST(WaitableAtomic, ProxyConstructor) {
   EXPECT_EQ(2, object.GetValue().APlusB());
 }
 
+#if 0
 TEST(WaitableAtomic, IntrusiveClientsCanBeTransferred) {
   using current::IntrusiveClient;
   using current::WaitableAtomic;
@@ -362,6 +365,7 @@ TEST(WaitableAtomic, IntrusiveClientsCanBeTransferred) {
   auto f = [](IntrusiveClient& c) { static_cast<void>(c); };
   std::thread([&f](IntrusiveClient c) { f(c); }, object.RegisterScopedClient()).detach();
 }
+#endif
 
 TEST(WaitableAtomic, WaitFor) {
   using current::WaitableAtomic;

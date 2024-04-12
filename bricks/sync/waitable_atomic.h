@@ -337,6 +337,7 @@ class WaitableAtomicImpl {
     BasicImpl(BasicImpl&&) = delete;
   };
 
+#if 0
   class IntrusiveImpl : public BasicImpl, public IntrusiveClient::Interface {
    public:
     using data_t = DATA;
@@ -424,8 +425,10 @@ class WaitableAtomicImpl {
     void operator=(const IntrusiveImpl&) = delete;
     IntrusiveImpl(IntrusiveImpl&&) = delete;
   };
-
   using type = std::conditional_t<INTRUSIVE, IntrusiveImpl, BasicImpl>;
+#else
+  using type = BasicImpl;
+#endif
 };
 
 template <typename DATA, bool INTRUSIVE = false>
