@@ -110,332 +110,232 @@ class IntrusiveClient final {
   Interface* intrusive_object_;
 };
 
-template <typename DATA, bool INTRUSIVE = false>
-class WaitableAtomicImpl {
+template <typename DATA>
+class WaitableAtomic {
  public:
-  class BasicImpl {
-   public:
-    using data_t = DATA;
-    enum { IS_INTRUSIVE = false };
+  using data_t = DATA;
 
-    template <typename... ARGS>
-    BasicImpl(ARGS&&... args) : data_(std::forward<ARGS>(args)...) {}
+  template <typename... ARGS>
+  WaitableAtomic(ARGS&&... args) : data_(std::forward<ARGS>(args)...) {}
 
-    BasicImpl(const DATA& data) : data_(data) {}
+  WaitableAtomic(const DATA& data) : data_(data) {}
 
-    template <typename POINTER>
-    struct NotifyIfMutable {
-      class ImmutableAccessorDoesNotNotify {
-       public:
-        explicit ImmutableAccessorDoesNotNotify(POINTER*) {}
-      };
-
-      class MutableAccessorDoesNotify {
-       public:
-        explicit MutableAccessorDoesNotify(POINTER* parent) : parent_(parent), mark_as_unmodified_(false) {}
-        ~MutableAccessorDoesNotify() {
-          if (!mark_as_unmodified_) {
-            parent_->Notify();
-          }
-        }
-        void MarkAsUnmodified() { mark_as_unmodified_ = true; }
-
-       private:
-        POINTER* parent_;
-        bool mark_as_unmodified_;
-      };
-
-      using impl_t =
-          std::conditional_t<std::is_const<POINTER>::value, ImmutableAccessorDoesNotNotify, MutableAccessorDoesNotify>;
+  template <typename POINTER>
+  struct NotifyIfMutable {
+    class ImmutableAccessorDoesNotNotify {
+     public:
+      explicit ImmutableAccessorDoesNotNotify(POINTER*) {}
     };
 
-    // A generic implementation for both mutable and immutable scoped accessors.
-    template <class PARENT>
-    class ScopedAccessorImpl final : private ScopedUniqueLock, public NotifyIfMutable<PARENT>::impl_t {
+    class MutableAccessorDoesNotify {
      public:
-      using parent_t = PARENT;
-      using optional_notifier_t = typename NotifyIfMutable<PARENT>::impl_t;
-      using data_t = std::
-          conditional_t<std::is_const<parent_t>::value, const typename parent_t::data_t, typename parent_t::data_t>;
-
-      explicit ScopedAccessorImpl(parent_t* parent)
-          : ScopedUniqueLock(parent->data_mutex_), optional_notifier_t(parent), pdata_(&parent->data_) {}
-
-      ScopedAccessorImpl(ScopedAccessorImpl&& rhs)
-          : ScopedUniqueLock(std::move(rhs)), optional_notifier_t(rhs), pdata_(rhs.pdata_) {}
-
-      ~ScopedAccessorImpl() {}
-
-      ScopedAccessorImpl() = delete;
-      ScopedAccessorImpl(const ScopedAccessorImpl&) = delete;
-      void operator=(const ScopedAccessorImpl&) = delete;
-
-      data_t* operator->() const { return pdata_; }
-      data_t& operator*() const { return *pdata_; }
+      explicit MutableAccessorDoesNotify(POINTER* parent) : parent_(parent), mark_as_unmodified_(false) {}
+      ~MutableAccessorDoesNotify() {
+        if (!mark_as_unmodified_) {
+          parent_->Notify();
+        }
+      }
+      void MarkAsUnmodified() { mark_as_unmodified_ = true; }
 
      private:
-      data_t* pdata_;
+      POINTER* parent_;
+      bool mark_as_unmodified_;
     };
 
-    using MutableAccessor = ScopedAccessorImpl<BasicImpl>;
-    using ImmutableAccessor = ScopedAccessorImpl<const BasicImpl>;
-
-    friend class ScopedAccessorImpl<BasicImpl>;
-    friend class ScopedAccessorImpl<const BasicImpl>;
-
-    ImmutableAccessor ImmutableScopedAccessor() const { return ImmutableAccessor(this); }
-
-    MutableAccessor MutableScopedAccessor() { return MutableAccessor(this); }
-
-    void Notify() { data_condition_variable_.notify_all(); }
-
-    void UseAsLock(std::function<void()> f) const {
-      std::unique_lock<std::mutex> lock(data_t::data_mutex_);
-      f();
-    }
-
-    bool Wait(std::function<bool(const data_t&)> predicate) const {
-      std::unique_lock<std::mutex> lock(data_mutex_);
-      if (!predicate(data_)) {
-        const data_t& data = data_;
-        data_condition_variable_.wait(lock, [&predicate, &data] { return predicate(data); });
-      }
-      return true;
-    }
-
-#ifndef CURRENT_FOR_CPP14
-
-    // NOTE(dkorolev): Deliberately not bothering with C++14 for this two-lambdas `Wait()`.
-    // TODO(dkorolev): The `.Wait()` above always returning `true` could use some TLC.
-
-    template <typename F>
-    std::invoke_result_t<F, data_t&> Wait(std::function<bool(const data_t&)> wait_predicate, F&& retval_predicate) {
-      std::unique_lock<std::mutex> lock(data_mutex_);
-      if (!wait_predicate(data_)) {
-        const data_t& data = data_;
-        data_condition_variable_.wait(lock, [&wait_predicate, &data] { return wait_predicate(data); });
-        return retval_predicate(data_);
-      } else {
-        return retval_predicate(data_);
-      }
-    }
-
-#endif  // CURRENT_FOR_CPP14
-
-    template <typename T>
-    bool WaitFor(std::function<bool(const data_t&)> predicate, T duration) const {
-      std::unique_lock<std::mutex> lock(data_mutex_);
-      if (!predicate(data_)) {
-        const data_t& data = data_;
-        return data_condition_variable_.wait_for(lock, duration, [&predicate, &data] { return predicate(data); });
-      }
-      return true;
-    }
-
-#ifndef CURRENT_FOR_CPP14
-
-    // NOTE(dkorolev): Deliberately not bothering with C++14 for these three- and four-argument `WaitFor()`-s.
-
-    template <typename T, typename F>
-    std::invoke_result_t<F, data_t&> WaitFor(std::function<bool(const data_t&)> predicate,
-                                             F&& retval_predicate,
-                                             T duration) {
-      std::unique_lock<std::mutex> lock(data_mutex_);
-      if (!predicate(data_)) {
-        const data_t& data = data_;
-        if (data_condition_variable_.wait_for(lock, duration, [&predicate, &data] { return predicate(data); })) {
-          return retval_predicate(data_);
-        } else {
-          // The three-argument `WaitFor()` assumes the default constructor for the return type indicates that
-          // the wait should continue. Use the four-argument `WaitFor()` to provide a custom retval initializer.
-          // The custom retval predicate can also mutate the waited upon object as it sees fit.
-          return std::invoke_result_t<F, data_t&>();
-        }
-      } else {
-        return retval_predicate(data_);
-      }
-    }
-
-    template <typename T, typename F, typename G>
-    std::invoke_result_t<F, data_t&> WaitFor(std::function<bool(const data_t&)> predicate,
-                                             F&& retval_predicate,
-                                             G&& wait_unsuccessul_predicate,
-                                             T duration) {
-      std::unique_lock<std::mutex> lock(data_mutex_);
-      if (!predicate(data_)) {
-        const data_t& data = data_;
-        if (data_condition_variable_.wait_for(lock, duration, [&predicate, &data] { return predicate(data); })) {
-          return retval_predicate(data_);
-        } else {
-          return wait_unsuccessul_predicate(data_);
-        }
-      } else {
-        return retval_predicate(data_);
-      }
-    }
-
-
-#endif  // CURRENT_FOR_CPP14
-
-#ifndef CURRENT_FOR_CPP14
-
-    template <typename F, typename... ARGS>
-    std::invoke_result_t<F, const data_t&> ImmutableUse(F&& f, ARGS&&... args) const {
-      auto scope = ImmutableScopedAccessor();
-      return f(*scope, std::forward<ARGS>(args)...);
-    }
-
-    template <typename F, typename... ARGS>
-    std::invoke_result_t<F, data_t&, ARGS...> MutableUse(F&& f, ARGS&&... args) {
-      auto scope = MutableScopedAccessor();
-      return f(*scope, std::forward<ARGS>(args)...);
-    }
-
-#else
-
-    template <typename F, typename... ARGS>
-    weed::call_with_type<F, const data_t&, ARGS...> ImmutableUse(F&& f, ARGS&&... args) const {
-      auto scope = ImmutableScopedAccessor();
-      return f(*scope, std::forward<ARGS>(args)...);
-    }
-
-    template <typename F, typename... ARGS>
-    weed::call_with_type<F, data_t&, ARGS...> MutableUse(F&& f, ARGS&&... args) {
-      auto scope = MutableScopedAccessor();
-      return f(*scope, std::forward<ARGS>(args)...);
-    }
-
-#endif  // CURRENT_FOR_CPP14
-
-    bool PotentiallyMutableUse(std::function<bool(data_t&)> f) {
-      auto scope = MutableScopedAccessor();
-      if (f(*scope)) {
-        return true;
-      } else {
-        scope.MarkAsUnmodified();
-        return false;
-      }
-    }
-    data_t GetValue() const { return *ImmutableScopedAccessor(); }
-
-    void SetValue(const data_t& data) { *MutableScopedAccessor() = data; }
-
-    void SetValueIf(std::function<bool(const data_t&)> predicate, const data_t& data) {
-      auto a = MutableScopedAccessor();
-      if (predicate(*a)) {
-        *a = data;
-      } else {
-        a.MarkAsUnmodified();
-      }
-    }
-
-   protected:
-    data_t data_;
-    mutable std::mutex data_mutex_;
-    mutable std::condition_variable data_condition_variable_;
-
-   private:
-    BasicImpl(const BasicImpl&) = delete;
-    void operator=(const BasicImpl&) = delete;
-    BasicImpl(BasicImpl&&) = delete;
+    using impl_t =
+        std::conditional_t<std::is_const<POINTER>::value, ImmutableAccessorDoesNotNotify, MutableAccessorDoesNotify>;
   };
 
-#if 0
-  class IntrusiveImpl : public BasicImpl, public IntrusiveClient::Interface {
+  // A generic implementation for both mutable and immutable scoped accessors.
+  template <class PARENT>
+  class ScopedAccessorImpl final : private ScopedUniqueLock, public NotifyIfMutable<PARENT>::impl_t {
    public:
-    using data_t = DATA;
-    enum { IS_INTRUSIVE = true };
+    using parent_t = PARENT;
+    using optional_notifier_t = typename NotifyIfMutable<PARENT>::impl_t;
+    using data_t = std::
+        conditional_t<std::is_const<parent_t>::value, const typename parent_t::data_t, typename parent_t::data_t>;
 
-    explicit IntrusiveImpl(CustomWaitableAtomicDestructor* destructor_ptr = nullptr)
-        : destructing_(false), destructor_ptr_(destructor_ptr) {
-      RefCounterTryIncrease();
-    }
+    explicit ScopedAccessorImpl(parent_t* parent)
+        : ScopedUniqueLock(parent->data_mutex_), optional_notifier_t(parent), pdata_(&parent->data_) {}
 
-    explicit IntrusiveImpl(const data_t& data, CustomWaitableAtomicDestructor* destructor_ptr = nullptr)
-        : BasicImpl(data), destructing_(false), destructor_ptr_(destructor_ptr) {
-      RefCounterTryIncrease();
-    }
+    ScopedAccessorImpl(ScopedAccessorImpl&& rhs)
+        : ScopedUniqueLock(std::move(rhs)), optional_notifier_t(rhs), pdata_(rhs.pdata_) {}
 
-    virtual ~IntrusiveImpl() {
-      {
-        std::lock_guard<std::mutex> guard(BasicImpl::data_mutex_);
-        destructing_ = true;
-        BasicImpl::Notify();
-      }
-      RefCounterDecrease();
-      if (destructor_ptr_) {
-        destructor_ptr_->WaitableAtomicDestructing();  // LCOV_EXCL_LINE
-      }
-      {
-        // Wait for the registered scoped clients to leave their respective scopes.
-        std::unique_lock<std::mutex> lock(BasicImpl::data_mutex_);
-        if (ref_count_ > 0u) {
-          cv_.wait(lock, [this]() { return ref_count_ == 0u; });
-        }
-      }
-    }
+    ~ScopedAccessorImpl() {}
 
-    bool Wait(std::function<bool(const data_t&)> predicate) const {
-      std::unique_lock<std::mutex> lock(BasicImpl::data_mutex_);
-      if (destructing_) {
-        return false;
-      } else {
-        if (!predicate(BasicImpl::data_)) {
-          const data_t& data = BasicImpl::data_;
-          BasicImpl::data_condition_variable_.wait(
-              lock, [this, &predicate, &data] { return destructing_ || predicate(data); });
-        }
-        return !destructing_;
-      }
-    }
+    ScopedAccessorImpl() = delete;
+    ScopedAccessorImpl(const ScopedAccessorImpl&) = delete;
+    void operator=(const ScopedAccessorImpl&) = delete;
 
-    IntrusiveClient RegisterScopedClient() { return IntrusiveClient(this); }
-
-    virtual bool RefCounterTryIncrease() override {
-      {
-        std::lock_guard<std::mutex> guard(BasicImpl::data_mutex_);
-        if (destructing_) {
-          return false;
-        } else {
-          ++ref_count_;
-        }
-      }
-      cv_.notify_one();
-      return true;
-    }
-
-    virtual void RefCounterDecrease() override {
-      {
-        std::lock_guard<std::mutex> guard(BasicImpl::data_mutex_);
-        --ref_count_;
-      }
-      cv_.notify_one();
-    }
-
-    virtual bool IsDestructing() const override {
-      std::lock_guard<std::mutex> guard(BasicImpl::data_mutex_);
-      return destructing_;
-    }
-
-   protected:
-    std::atomic_bool destructing_;
-    size_t ref_count_ = 0;
-    std::condition_variable cv_;
-    CustomWaitableAtomicDestructor* destructor_ptr_ = nullptr;
+    data_t* operator->() const { return pdata_; }
+    data_t& operator*() const { return *pdata_; }
 
    private:
-    IntrusiveImpl(const IntrusiveImpl&) = delete;
-    void operator=(const IntrusiveImpl&) = delete;
-    IntrusiveImpl(IntrusiveImpl&&) = delete;
+    data_t* pdata_;
   };
-  using type = std::conditional_t<INTRUSIVE, IntrusiveImpl, BasicImpl>;
-#else
-  using type = BasicImpl;
-#endif
-};
 
-template <typename DATA, bool INTRUSIVE = false>
-using WaitableAtomic = typename WaitableAtomicImpl<DATA, INTRUSIVE>::type;
+  using MutableAccessor = ScopedAccessorImpl<WaitableAtomic>;
+  using ImmutableAccessor = ScopedAccessorImpl<const WaitableAtomic>;
+
+  friend class ScopedAccessorImpl<WaitableAtomic>;
+  friend class ScopedAccessorImpl<const WaitableAtomic>;
+
+  ImmutableAccessor ImmutableScopedAccessor() const { return ImmutableAccessor(this); }
+
+  MutableAccessor MutableScopedAccessor() { return MutableAccessor(this); }
+
+  void Notify() { data_condition_variable_.notify_all(); }
+
+  void UseAsLock(std::function<void()> f) const {
+    std::unique_lock<std::mutex> lock(data_t::data_mutex_);
+    f();
+  }
+
+  bool Wait(std::function<bool(const data_t&)> predicate) const {
+    std::unique_lock<std::mutex> lock(data_mutex_);
+    if (!predicate(data_)) {
+      const data_t& data = data_;
+      data_condition_variable_.wait(lock, [&predicate, &data] { return predicate(data); });
+    }
+    return true;
+  }
+
+#ifndef CURRENT_FOR_CPP14
+
+  // NOTE(dkorolev): Deliberately not bothering with C++14 for this two-lambdas `Wait()`.
+  // TODO(dkorolev): The `.Wait()` above always returning `true` could use some TLC.
+
+  template <typename F>
+  std::invoke_result_t<F, data_t&> Wait(std::function<bool(const data_t&)> wait_predicate, F&& retval_predicate) {
+    std::unique_lock<std::mutex> lock(data_mutex_);
+    if (!wait_predicate(data_)) {
+      const data_t& data = data_;
+      data_condition_variable_.wait(lock, [&wait_predicate, &data] { return wait_predicate(data); });
+      return retval_predicate(data_);
+    } else {
+      return retval_predicate(data_);
+    }
+  }
+
+#endif  // CURRENT_FOR_CPP14
+
+  template <typename T>
+  bool WaitFor(std::function<bool(const data_t&)> predicate, T duration) const {
+    std::unique_lock<std::mutex> lock(data_mutex_);
+    if (!predicate(data_)) {
+      const data_t& data = data_;
+      return data_condition_variable_.wait_for(lock, duration, [&predicate, &data] { return predicate(data); });
+    }
+    return true;
+  }
+
+#ifndef CURRENT_FOR_CPP14
+
+  // NOTE(dkorolev): Deliberately not bothering with C++14 for these three- and four-argument `WaitFor()`-s.
+
+  template <typename T, typename F>
+  std::invoke_result_t<F, data_t&> WaitFor(std::function<bool(const data_t&)> predicate,
+                                           F&& retval_predicate,
+                                           T duration) {
+    std::unique_lock<std::mutex> lock(data_mutex_);
+    if (!predicate(data_)) {
+      const data_t& data = data_;
+      if (data_condition_variable_.wait_for(lock, duration, [&predicate, &data] { return predicate(data); })) {
+        return retval_predicate(data_);
+      } else {
+        // The three-argument `WaitFor()` assumes the default constructor for the return type indicates that
+        // the wait should continue. Use the four-argument `WaitFor()` to provide a custom retval initializer.
+        // The custom retval predicate can also mutate the waited upon object as it sees fit.
+        return std::invoke_result_t<F, data_t&>();
+      }
+    } else {
+      return retval_predicate(data_);
+    }
+  }
+
+  template <typename T, typename F, typename G>
+  std::invoke_result_t<F, data_t&> WaitFor(std::function<bool(const data_t&)> predicate,
+                                           F&& retval_predicate,
+                                           G&& wait_unsuccessul_predicate,
+                                           T duration) {
+    std::unique_lock<std::mutex> lock(data_mutex_);
+    if (!predicate(data_)) {
+      const data_t& data = data_;
+      if (data_condition_variable_.wait_for(lock, duration, [&predicate, &data] { return predicate(data); })) {
+        return retval_predicate(data_);
+      } else {
+        return wait_unsuccessul_predicate(data_);
+      }
+    } else {
+      return retval_predicate(data_);
+    }
+  }
+
+
+#endif  // CURRENT_FOR_CPP14
+
+#ifndef CURRENT_FOR_CPP14
+
+  template <typename F, typename... ARGS>
+  std::invoke_result_t<F, const data_t&> ImmutableUse(F&& f, ARGS&&... args) const {
+    auto scope = ImmutableScopedAccessor();
+    return f(*scope, std::forward<ARGS>(args)...);
+  }
+
+  template <typename F, typename... ARGS>
+  std::invoke_result_t<F, data_t&, ARGS...> MutableUse(F&& f, ARGS&&... args) {
+    auto scope = MutableScopedAccessor();
+    return f(*scope, std::forward<ARGS>(args)...);
+  }
+
+#else
+
+  template <typename F, typename... ARGS>
+  weed::call_with_type<F, const data_t&, ARGS...> ImmutableUse(F&& f, ARGS&&... args) const {
+    auto scope = ImmutableScopedAccessor();
+    return f(*scope, std::forward<ARGS>(args)...);
+  }
+
+  template <typename F, typename... ARGS>
+  weed::call_with_type<F, data_t&, ARGS...> MutableUse(F&& f, ARGS&&... args) {
+    auto scope = MutableScopedAccessor();
+    return f(*scope, std::forward<ARGS>(args)...);
+  }
+
+#endif  // CURRENT_FOR_CPP14
+
+  bool PotentiallyMutableUse(std::function<bool(data_t&)> f) {
+    auto scope = MutableScopedAccessor();
+    if (f(*scope)) {
+      return true;
+    } else {
+      scope.MarkAsUnmodified();
+      return false;
+    }
+  }
+  data_t GetValue() const { return *ImmutableScopedAccessor(); }
+
+  void SetValue(const data_t& data) { *MutableScopedAccessor() = data; }
+
+  void SetValueIf(std::function<bool(const data_t&)> predicate, const data_t& data) {
+    auto a = MutableScopedAccessor();
+    if (predicate(*a)) {
+      *a = data;
+    } else {
+      a.MarkAsUnmodified();
+    }
+  }
+
+ protected:
+  data_t data_;
+  mutable std::mutex data_mutex_;
+  mutable std::condition_variable data_condition_variable_;
+
+ private:
+  WaitableAtomic(const WaitableAtomic&) = delete;
+  void operator=(const WaitableAtomic&) = delete;
+  WaitableAtomic(WaitableAtomic&&) = delete;
+};
 
 }  // namespace current
 
