@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.14.1)
 project(cmake_trivial_2023 C CXX)
 
 set (CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Threads REQUIRED)
 
 # Settings for `googletest`. It builds faste without `gmock`.
