@@ -199,11 +199,11 @@ class WaitableAtomic {
     f();
   }
 
-  bool Wait(std::function<bool(const data_t&)> predicate) const {
+  bool Wait(std::function<bool(const data_t&)> pred = [](const data_t& e) { return static_cast<bool>(e); }) const {
     std::unique_lock<std::mutex> lock(data_mutex_);
-    if (!predicate(data_)) {
+    if (!pred(data_)) {
       const data_t& data = data_;
-      data_condition_variable_.wait(lock, [&predicate, &data] { return predicate(data); });
+      data_condition_variable_.wait(lock, [&pred, &data] { return pred(data); });
     }
     return true;
   }
@@ -233,6 +233,16 @@ class WaitableAtomic {
     if (!predicate(data_)) {
       const data_t& data = data_;
       return data_condition_variable_.wait_for(lock, duration, [&predicate, &data] { return predicate(data); });
+    }
+    return true;
+  }
+
+  template <typename T>
+  bool WaitFor(T duration) const {
+    std::unique_lock<std::mutex> lock(data_mutex_);
+    if (!static_cast<bool>(data_)) {
+      const data_t& data = data_;
+      return data_condition_variable_.wait_for(lock, duration, [&data] { return static_cast<bool>(data); });
     }
     return true;
   }
@@ -337,8 +347,10 @@ class WaitableAtomic {
   struct WaitableAtomicSubscriberRemoverImpl final : WaitableAtomicSubscriberRemover {
     WaitableAtomic& self_;
     const size_t id_;
-    WaitableAtomicSubscriberRemoverImpl(WaitableAtomic& self, size_t id) : self_(self), id_(id) {}
-    void Remove() override {
+    // TODO(dkorolev): Use `DISALLOW_COPY_AND_ASSIGN`?!
+    WaitableAtomicSubscriberRemoverImpl(WaitableAtomicSubscriberRemoverImpl const&) = delete;
+    WaitableAtomicSubscriberRemoverImpl& operator=(WaitableAtomicSubscriberRemoverImpl const&) = delete;
+    WaitableAtomicSubscriberRemoverImpl(WaitableAtomic& self, size_t id) : self_(self), id_(id) {}    void Remove() override {
       // Okay to only lock the subscribers map, but not the data.
       std::lock_guard lock(self_.subscribers_mutex_);
       self_.subscribers_.erase(id_);
