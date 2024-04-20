@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/C5T/Current/actions/workflows/tests.yml/badge.svg?branch=stable)](https://github.com/C5T/Current/actions/workflows/tests.yml?query=branch%3Astable) [![cmake](https://github.com/C5T/Current/actions/workflows/cmake.yml/badge.svg?branch=stable)](https://github.com/C5T/Current/actions/workflows/cmake.yml?query=branch%3Astable)
 
-As of April 2024, Current has seen **10000 pull requests**. And counting!
+As of April 2024, Current has seen **1000 pull requests**. And counting!
 
 ## `cmake`
 
