@@ -7,9 +7,6 @@
 #include <sstream>
 #include <queue>
 
-#define htonll(x) ((1 == htonl(1)) ? (x) : (((uint64_t)htonl((x)&0xFFFFFFFFUL)) << 32) | htonl((uint32_t)((x) >> 32)))
-#define ntohll(x) ((1 == ntohl(1)) ? (x) : (((uint64_t)ntohl((x)&0xFFFFFFFFUL)) << 32) | ntohl((uint32_t)((x) >> 32)))
-
 CURRENT_STRUCT(Relay) {
   CURRENT_FIELD(key, std::string);
   CURRENT_FIELD(value, uint32_t);
@@ -176,7 +173,7 @@ class AsyncReplicatedContainer {
     auto size = c->BlockingRead(len_buf, sizeof(size_t));
     if (!size) throw;
     size_t* buffer_len = reinterpret_cast<size_t*>(len_buf);
-    *buffer_len = ntohll(*buffer_len);
+    *buffer_len = be64toh(*buffer_len);
 
     // Get the key
     char* key_buf = (char*)malloc(*buffer_len);
@@ -196,7 +193,7 @@ class AsyncReplicatedContainer {
     size = c->BlockingRead(repl_buf, sizeof(size_t));
     if (!size) throw;
     size_t* repl_len = reinterpret_cast<size_t*>(repl_buf);
-    *repl_len = ntohll(*repl_len);
+    *repl_len = be64toh(*repl_len);
 
     // Get the replica id
     char* repl_id_buf = (char*)malloc(*repl_len);
@@ -209,7 +206,7 @@ class AsyncReplicatedContainer {
     size = c->BlockingRead(clock_buf, sizeof(uint64_t));
     if (!size) throw;
     uint64_t* clock_int = reinterpret_cast<uint64_t*>(clock_buf);
-    *clock_int = ntohll(*clock_int);
+    *clock_int = be64toh(*clock_int);
     std::chrono::microseconds clock(*clock_int);
 
     // Prepare the relay object
@@ -232,7 +229,7 @@ class AsyncReplicatedContainer {
 
   void send_relay(Relay& r, current::net::Connection& c) {
     // Send key buffer size
-    size_t key_len = htonll(size_t(r.key.length()));
+    size_t key_len = htobe64(size_t(r.key.length()));
     c.BlockingWrite(&key_len, sizeof(key_len), true);
 
     // Send the key buffer
@@ -243,14 +240,14 @@ class AsyncReplicatedContainer {
     c.BlockingWrite(&value, sizeof(value), true);
 
     // Send replica id buffer size
-    key_len = htonll(size_t(r.replica_id.length()));
+    key_len = htobe64(size_t(r.replica_id.length()));
     c.BlockingWrite(&key_len, sizeof(key_len), true);
 
     // Send the replica id buffer
     c.BlockingWrite(r.replica_id.c_str(), r.replica_id.length(), true);
 
     // Send clock for given key/value
-    uint64_t time_data = htonll(r.clock.count());
+    uint64_t time_data = htobe64(r.clock.count());
     c.BlockingWrite(&time_data, sizeof(time_data), true);
   }
 
