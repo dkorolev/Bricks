@@ -169,43 +169,43 @@ class AsyncReplicatedContainer {
 
   Relay recv_relay(const std::unique_ptr<current::net::Connection>& c) {
     // Get buffer length
-    char* len_buf = (char*)malloc(sizeof(size_t));
-    auto size = c->BlockingRead(len_buf, sizeof(size_t));
+    std::vector<uint8_t> len_buf(sizeof(size_t));
+    auto size = c->BlockingRead(&len_buf[0], sizeof(size_t));
     if (!size) throw;
-    size_t* buffer_len = reinterpret_cast<size_t*>(len_buf);
+    size_t* buffer_len = reinterpret_cast<size_t*>(len_buf.data());
     *buffer_len = be64toh(*buffer_len);
 
     // Get the key
-    char* key_buf = (char*)malloc(*buffer_len);
-    size = c->BlockingRead(key_buf, *buffer_len);
+    std::vector<uint8_t> key_buf(*buffer_len);
+    size = c->BlockingRead(&key_buf[0], *buffer_len);
     if (!size) throw;
-    std::string key(key_buf, *buffer_len);
+    std::string key(key_buf.begin(), key_buf.end());
 
     // Get the value
-    char* val_buf = (char*)malloc(sizeof(uint32_t));
-    size = c->BlockingRead(val_buf, sizeof(uint32_t));
+    std::vector<uint8_t> val_buf(sizeof(uint32_t));
+    size = c->BlockingRead(&val_buf[0], sizeof(uint32_t));
     if (!size) throw;
-    uint32_t* value = reinterpret_cast<uint32_t*>(val_buf);
+    uint32_t* value = reinterpret_cast<uint32_t*>(val_buf.data());
     *value = ntohl(*value);
 
     // Get replica_id length
-    char* repl_buf = (char*)malloc(sizeof(size_t));
-    size = c->BlockingRead(repl_buf, sizeof(size_t));
+    std::vector<uint8_t> repl_buf(sizeof(size_t));
+    size = c->BlockingRead(&repl_buf[0], sizeof(size_t));
     if (!size) throw;
-    size_t* repl_len = reinterpret_cast<size_t*>(repl_buf);
+    size_t* repl_len = reinterpret_cast<size_t*>(repl_buf.data());
     *repl_len = be64toh(*repl_len);
 
     // Get the replica id
-    char* repl_id_buf = (char*)malloc(*repl_len);
-    size = c->BlockingRead(repl_id_buf, *repl_len);
+    std::vector<uint8_t> repl_id_buf(*repl_len);
+    size = c->BlockingRead(&repl_id_buf[0], *repl_len);
     if (!size) throw;
-    std::string replica_id(repl_id_buf, *repl_len);
+    std::string replica_id(repl_id_buf.begin(), repl_id_buf.end());
 
     // Get the clock
-    char* clock_buf = (char*)malloc(sizeof(uint64_t));
-    size = c->BlockingRead(clock_buf, sizeof(uint64_t));
+    std::vector<uint8_t> clock_buf(sizeof(uint64_t));
+    size = c->BlockingRead(&clock_buf[0], sizeof(uint64_t));
     if (!size) throw;
-    uint64_t* clock_int = reinterpret_cast<uint64_t*>(clock_buf);
+    uint64_t* clock_int = reinterpret_cast<uint64_t*>(clock_buf.data());
     *clock_int = be64toh(*clock_int);
     std::chrono::microseconds clock(*clock_int);
 
@@ -215,14 +215,6 @@ class AsyncReplicatedContainer {
     result.value = *value;
     result.replica_id = replica_id;
     result.clock = clock;
-
-    // Free memory
-    free(len_buf);
-    free(key_buf);
-    free(val_buf);
-    free(repl_buf);
-    free(repl_id_buf);
-    free(clock_buf);
 
     return result;
   }
