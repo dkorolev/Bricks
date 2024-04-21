@@ -36,7 +36,7 @@ struct SharedState final {
   bool die = false;
   std::map<std::string, uint32_t> data;
   std::map<std::string, std::chrono::microseconds> clock;
-  std::queue<std::pair<std::string, uint32_t> > replication_out;
+  std::map<std::string, std::queue<std::pair<std::string, uint32_t> > > replication_out;
 };
 
 class AsyncReplicatedContainer {
@@ -73,7 +73,15 @@ class AsyncReplicatedContainer {
       // Set clock and send update to replication thread
       if (replicate) {
         state.clock[tuple.first] = current::time::Now();
-        state.replication_out.push(std::move(tuple));
+
+        // Send relay to each node
+        for (auto& node : nodes) {
+          std::string nid = node_id(node.host, node.port);
+          if (nid == sid) {
+            continue;
+          }
+          state.replication_out[nid].push(std::move(tuple));
+        }
       }
     });
   }
@@ -94,7 +102,7 @@ class AsyncReplicatedContainer {
     std::vector<std::thread> readers;
 
     while (true) {
-      if(state.ImmutableUse([](SharedState const& state) { return state.die; })) {
+      if (state.ImmutableUse([](SharedState const& state) { return state.die; })) {
         break;
       }
       try {
@@ -119,17 +127,17 @@ class AsyncReplicatedContainer {
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
-    for(auto &reader : readers){
+    for (auto& reader : readers) {
       reader.join();
     }
   }
 
-  void replication_reader(const std::unique_ptr<current::net::Connection> &connection) {
+  void replication_reader(const std::unique_ptr<current::net::Connection>& connection) {
     int waits = 0;
     Relay buffer;
 
     while (waits < max_waits) {
-      if(state.ImmutableUse([](SharedState const& state) { return state.die; })) {
+      if (state.ImmutableUse([](SharedState const& state) { return state.die; })) {
         break;
       }
       try {
@@ -162,7 +170,7 @@ class AsyncReplicatedContainer {
     }
   }
 
-  Relay recv_relay(const std::unique_ptr<current::net::Connection> &c) {
+  Relay recv_relay(const std::unique_ptr<current::net::Connection>& c) {
     // Get buffer length
     char* len_buf = (char*)malloc(sizeof(size_t));
     auto size = c->BlockingRead(len_buf, sizeof(size_t));
@@ -254,6 +262,7 @@ class AsyncReplicatedContainer {
     };
     bool is_stop = false;
     Relay buffer;
+    std::string queue_id = node_id(host, port);
 
     while (true) {
       is_stop = state.ImmutableUse([](SharedState const& state) { return state.die; });
@@ -268,20 +277,22 @@ class AsyncReplicatedContainer {
               [port](SharedState& state) { std::cout << "Writer connected on port " << port << std::endl; });
         }
         while (true) {
-          auto data_or_die =
-              state.WaitFor([](SharedState const& state) { return state.die || !state.replication_out.empty(); },
-                            [this](SharedState& state) {
-                              if (state.die) {
-                                return MsgOrDie{state.die, std::pair<std::string, int>{}, current::time::Now()};
-                              }
-                              auto data = state.replication_out.front();
-                              state.replication_out.pop();
+          auto data_or_die = state.WaitFor(
+              [&queue_id](SharedState const& state) {
+                return state.die || !state.replication_out.at(queue_id).empty();
+              },
+              [this, &queue_id](SharedState& state) {
+                if (state.die) {
+                  return MsgOrDie{state.die, std::pair<std::string, int>{}, current::time::Now()};
+                }
+                auto data = state.replication_out[queue_id].front();
+                state.replication_out[queue_id].pop();
 
-                              auto clock = state.clock[data.first];
-                              MsgOrDie result = MsgOrDie{false, std::move(data), std::move(clock)};
-                              return result;
-                            },
-                            std::chrono::milliseconds(50));
+                auto clock = state.clock[data.first];
+                MsgOrDie result = MsgOrDie{false, std::move(data), std::move(clock)};
+                return result;
+              },
+              std::chrono::milliseconds(50));
           if (data_or_die.die) {
             break;
           }
@@ -314,6 +325,10 @@ class AsyncReplicatedContainer {
       if (nid == sid) {
         continue;
       }
+
+      state.MutableUse([this, &nid](SharedState& state) {
+        state.replication_out[nid] = std::queue<std::pair<std::string, uint32_t> >();
+      });
       writers.push_back(std::thread([this, &node] { writer(node.host, node.port); }));
       if (is_verbose) {
         std::cout << "Replicated with node " << nid << std::endl;
