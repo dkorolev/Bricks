@@ -47,7 +47,7 @@ class AsyncReplicatedContainer {
   std::vector<ReplicationNode> nodes;
   current::WaitableAtomic<SharedState> state;
   std::vector<std::thread> writers;
-  std::vector<std::thread> readers;
+  std::thread reader;
   std::thread monitor;
   uint32_t delay;
   bool is_verbose;
@@ -90,19 +90,15 @@ class AsyncReplicatedContainer {
   }
   ~AsyncReplicatedContainer() { stop(); }
 
-  void reader(uint16_t port) {
-    int waits = 0;
-    bool is_stop = false;
-    Relay buffer;
+  void connection_handler(uint16_t port) {
+    std::vector<std::thread> readers;
 
     while (true) {
-      is_stop = state.ImmutableUse([](SharedState const& state) { return state.die; });
-      if (is_stop) {
+      if(state.ImmutableUse([](SharedState const& state) { return state.die; })) {
         break;
       }
       try {
         current::net::Socket socket((current::net::BarePort(port)));
-        // FIXME? how to accept multiple connections on same port with SO_REUSEADDR/REUSEPORT
         current::net::Connection connection(socket.Accept());
 
         if (is_verbose) {
@@ -110,41 +106,9 @@ class AsyncReplicatedContainer {
               [port](SharedState& state) { std::cout << "Reader connected on port " << port << std::endl; });
         }
 
-        while (waits < max_waits) {
-          is_stop = state.ImmutableUse([](SharedState const& state) { return state.die; });
-          if (is_stop) {
-            break;
-          }
-          try {
-            // Get the data size
-            buffer = recv_relay(connection);
-
-            state.MutableUse([&buffer, this](SharedState& state) {
-              std::pair<std::string, int> data(buffer.key, buffer.value);
-              bool is_insert = state.data.find(buffer.key) == state.data.end();
-              bool is_valid_update = (!is_insert) && (buffer.clock > state.clock[buffer.key]);
-
-              // new row
-              if (is_insert || is_valid_update) {
-                state.clock[buffer.key] = buffer.clock;
-                state.data[buffer.key] = buffer.value;
-              }
-              if (is_verbose) {
-                if (is_insert) {
-                  std::cout << "NEW [" << buffer.replica_id << "] key " << buffer.key << std::endl;
-                } else if (is_valid_update) {
-                  std::cout << "REPLICATED [" << buffer.replica_id << "] key " << buffer.key << std::endl;
-                } else {
-                  std::cout << "IGNORED [" << buffer.replica_id << "] key " << buffer.key << std::endl;
-                }
-              }
-            });
-          } catch (const current::Exception& e) {
-            waits += 1;
-            std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-          }
-        }
-        waits = 0;
+        readers.push_back(std::thread([this, conn = std::make_unique<current::net::Connection>(std::move(connection))] {
+          replication_reader(std::move(conn));
+        }));
       } catch (const current::Exception& e) {
         if (show_network_err) {
           state.MutableUse([&e](SharedState& state) {
@@ -155,46 +119,86 @@ class AsyncReplicatedContainer {
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
-    // stopped
+    for(auto &reader : readers){
+      reader.join();
+    }
   }
 
-  Relay recv_relay(current::net::Connection& c) {
+  void replication_reader(const std::unique_ptr<current::net::Connection> &connection) {
+    int waits = 0;
+    Relay buffer;
+
+    while (waits < max_waits) {
+      if(state.ImmutableUse([](SharedState const& state) { return state.die; })) {
+        break;
+      }
+      try {
+        // Get the data size
+        buffer = recv_relay(connection);
+        state.MutableUse([&buffer, this](SharedState& state) {
+          std::pair<std::string, int> data(buffer.key, buffer.value);
+          bool is_insert = state.data.find(buffer.key) == state.data.end();
+          bool is_valid_update = (!is_insert) && (buffer.clock > state.clock[buffer.key]);
+
+          // new row
+          if (is_insert || is_valid_update) {
+            state.clock[buffer.key] = buffer.clock;
+            state.data[buffer.key] = buffer.value;
+          }
+          if (is_verbose) {
+            if (is_insert) {
+              std::cout << "NEW [" << buffer.replica_id << "] key " << buffer.key << std::endl;
+            } else if (is_valid_update) {
+              std::cout << "REPLICATED [" << buffer.replica_id << "] key " << buffer.key << std::endl;
+            } else {
+              std::cout << "IGNORED [" << buffer.replica_id << "] key " << buffer.key << std::endl;
+            }
+          }
+        });
+      } catch (const current::Exception& e) {
+        waits += 1;
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+      }
+    }
+  }
+
+  Relay recv_relay(const std::unique_ptr<current::net::Connection> &c) {
     // Get buffer length
     char* len_buf = (char*)malloc(sizeof(size_t));
-    auto size = c.BlockingRead(len_buf, sizeof(size_t));
+    auto size = c->BlockingRead(len_buf, sizeof(size_t));
     if (!size) throw;
     size_t* buffer_len = reinterpret_cast<size_t*>(len_buf);
     *buffer_len = ntohll(*buffer_len);
 
     // Get the key
     char* key_buf = (char*)malloc(*buffer_len);
-    size = c.BlockingRead(key_buf, *buffer_len);
+    size = c->BlockingRead(key_buf, *buffer_len);
     if (!size) throw;
     std::string key(key_buf, *buffer_len);
 
     // Get the value
     char* val_buf = (char*)malloc(sizeof(uint32_t));
-    size = c.BlockingRead(val_buf, sizeof(uint32_t));
+    size = c->BlockingRead(val_buf, sizeof(uint32_t));
     if (!size) throw;
     uint32_t* value = reinterpret_cast<uint32_t*>(val_buf);
     *value = ntohl(*value);
 
     // Get replica_id length
     char* repl_buf = (char*)malloc(sizeof(size_t));
-    size = c.BlockingRead(repl_buf, sizeof(size_t));
+    size = c->BlockingRead(repl_buf, sizeof(size_t));
     if (!size) throw;
     size_t* repl_len = reinterpret_cast<size_t*>(repl_buf);
     *repl_len = ntohll(*repl_len);
 
     // Get the replica id
     char* repl_id_buf = (char*)malloc(*repl_len);
-    size = c.BlockingRead(repl_id_buf, *repl_len);
+    size = c->BlockingRead(repl_id_buf, *repl_len);
     if (!size) throw;
     std::string replica_id(repl_id_buf, *repl_len);
 
     // Get the clock
     char* clock_buf = (char*)malloc(sizeof(uint64_t));
-    size = c.BlockingRead(clock_buf, sizeof(uint64_t));
+    size = c->BlockingRead(clock_buf, sizeof(uint64_t));
     if (!size) throw;
     uint64_t* clock_int = reinterpret_cast<uint64_t*>(clock_buf);
     *clock_int = ntohll(*clock_int);
@@ -310,12 +314,12 @@ class AsyncReplicatedContainer {
       if (nid == sid) {
         continue;
       }
-      readers.push_back(std::thread([this, &node] { reader(reader_port); }));
       writers.push_back(std::thread([this, &node] { writer(node.host, node.port); }));
       if (is_verbose) {
         std::cout << "Replicated with node " << nid << std::endl;
       }
     }
+    reader = std::thread([this] { connection_handler(reader_port); });
     is_ready = true;
   }
   void stop() {
@@ -325,9 +329,7 @@ class AsyncReplicatedContainer {
     // Set die state
     state.MutableUse([](SharedState& state) { state.die = true; });
     // Join replication threads
-    for (auto& r : readers) {
-      r.join();
-    }
+    reader.join();
     for (auto& w : writers) {
       w.join();
     }

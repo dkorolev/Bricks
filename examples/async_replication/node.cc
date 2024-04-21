@@ -22,6 +22,7 @@ int main(int argc, char** argv) {
                                              std::vector<ReplicationNode>{
                                                  ReplicationNode{"127.0.0.1", uint16_t(8881)},
                                                  ReplicationNode{"127.0.0.1", uint16_t(8882)},
+                                                 ReplicationNode{"127.0.0.1", uint16_t(8883)},
                                              },
                                              FLAGS_delay,
                                              true,
