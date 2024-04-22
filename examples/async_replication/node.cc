@@ -1,5 +1,6 @@
 #include "../../bricks/dflags/dflags.h"
 #include "async_replicated_container.h"
+#include "vector_clock.h"
 #include <random>
 
 DEFINE_string(host, "127.0.0.1", "Hostname for the server");
@@ -29,7 +30,7 @@ int main(int argc, char** argv) {
                                              false,
                                              10};
 
-  AsyncReplicatedContainer storage(conf);
+  AsyncReplicatedContainer<StrictVectorClock> storage(conf);
   storage.start();
   storage.start_monitor(keys, FLAGS_monitor_delay);
   while (true) {

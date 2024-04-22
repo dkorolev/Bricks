@@ -31,12 +31,13 @@ struct ReplicationConfig final {
   uint32_t max_waits;
 };
 
+template <class CLOCK_T>
 class AsyncReplicatedContainer {
  private:
   struct SharedState final {
     bool die = false;
     std::map<std::string, uint32_t> data;
-    std::map<std::string, VectorClock> clock;
+    std::map<std::string, CLOCK_T> clock;
     std::map<std::string, std::queue<std::pair<std::string, uint32_t> > > replication_out;
   };
 
@@ -73,7 +74,7 @@ class AsyncReplicatedContainer {
       // Set clock and send update to replication thread
       if (replicate) {
         if (state.clock.find(tuple.first) == state.clock.end()) {
-          state.clock[tuple.first] = VectorClock(nodes.size(), clock_id);
+          state.clock[tuple.first] = CLOCK_T(nodes.size(), clock_id);
         }
         state.clock[tuple.first].step();
 
@@ -155,7 +156,7 @@ class AsyncReplicatedContainer {
         state.MutableUse([&buffer, this](SharedState& state) {
           bool is_insert = state.data.find(buffer.key) == state.data.end();
           if (is_insert) {
-            state.clock[buffer.key] = VectorClock(nodes.size(), clock_id);
+            state.clock[buffer.key] = CLOCK_T(nodes.size(), clock_id);
           }
           bool is_valid_update = state.clock[buffer.key].merge(buffer.clock, is_insert);
           if (is_valid_update) {

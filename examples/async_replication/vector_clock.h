@@ -10,12 +10,12 @@ class VectorClock {
   uint32_t local_id;
 
  public:
-  VectorClock(uint32_t size, uint32_t node_id) {
+  explicit VectorClock(uint32_t size, uint32_t node_id) {
     // Set local process id and cluster size
     local_id = node_id;
     clock.resize(size, current::time::Now());
   }
-  VectorClock() {
+  explicit VectorClock() {
     // Lamport clocks for size=1
     VectorClock(1, 0);
   }
@@ -86,7 +86,10 @@ class VectorClock {
   }
 };
 
-class StrictVectorClock : VectorClock {
+class StrictVectorClock : public VectorClock {
+  using VectorClock::VectorClock;
+
+ public:
   static bool is_conflicting(Clocks &v1, Clocks &v2) {
     // Check if v1 is in sync with v2 and v1 is strictly early then v2
     return !is_parallel(v1, v2) && is_early(v1, v2);
