@@ -30,18 +30,16 @@ class VectorClock {
     return clock;
   }
 
-  bool is_conflicting(Clocks &to_compare) {
+  static bool is_conflicting(Clocks &v1, Clocks &v2) {
     // default implementation
     // returns true if there are no conflicts for merging
-    return is_lte(clock, to_compare);
+    return is_lte(v1, v2);
   }
 
-  // TODO add merge with lambda
-
-  bool merge(Clocks &to_compare, bool force) {
+  bool merge(Clocks &to_compare, bool force, std::function<bool(Clocks &v1, Clocks &v2)> validator) {
     // Merges vector clock if there is no conflicts
     // force flag is used for inserts (from other nodes)
-    if (!force && is_conflicting(to_compare)) {
+    if (!force && validator(clock, to_compare)) {
       return false;
     }
     for (size_t i = 0; i < clock.size(); i++) {
@@ -50,6 +48,8 @@ class VectorClock {
     step();
     return true;
   }
+
+  bool merge(Clocks &to_compare, bool force) { return merge(to_compare, force, is_conflicting); }
 
   static bool is_same(Clocks &v1, Clocks &v2) {
     // Happens on exactly same moment
@@ -87,8 +87,8 @@ class VectorClock {
 };
 
 class StrictVectorClock : VectorClock {
-  bool is_conflicting(Clocks &to_compare) {
+  static bool is_conflicting(Clocks &v1, Clocks &v2) {
     // Check if v1 is in sync with v2 and v1 is strictly early then v2
-    return !is_parallel(clock, to_compare) && is_early(clock, to_compare);
+    return !is_parallel(v1, v2) && is_early(v1, v2);
   }
 };
