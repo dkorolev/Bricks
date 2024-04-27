@@ -15,6 +15,13 @@ class VectorClock {
     local_id = node_id;
     clock.resize(size, current::time::Now());
   }
+
+  explicit VectorClock(Clocks &v, uint32_t node_id) {
+    // Constructor for existing clock, used for inserting new data
+    local_id = node_id;
+    clock = v;
+  }
+
   explicit VectorClock() {
     // Lamport clocks for size=1
     VectorClock(1, 0);
@@ -36,10 +43,10 @@ class VectorClock {
     return is_lte(v1, v2);
   }
 
-  bool merge(Clocks &to_compare, bool force, std::function<bool(Clocks &v1, Clocks &v2)> validator) {
+  bool merge(Clocks &to_compare, std::function<bool(Clocks &v1, Clocks &v2)> validator) {
     // Merges vector clock if there is no conflicts
     // force flag is used for inserts (from other nodes)
-    if (!force && validator(clock, to_compare)) {
+    if (validator(clock, to_compare)) {
       return false;
     }
     for (size_t i = 0; i < clock.size(); i++) {
@@ -49,7 +56,7 @@ class VectorClock {
     return true;
   }
 
-  bool merge(Clocks &to_compare, bool force) { return merge(to_compare, force, is_conflicting); }
+  bool merge(Clocks &to_compare) { return merge(to_compare, is_conflicting); }
 
   static bool is_same(Clocks &v1, Clocks &v2) {
     // Happens on exactly same moment

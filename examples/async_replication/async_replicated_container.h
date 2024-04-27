@@ -155,10 +155,12 @@ class AsyncReplicatedContainer {
         buffer = recv_relay(connection);
         state.MutableUse([&buffer, this](SharedState& state) {
           bool is_insert = state.data.find(buffer.key) == state.data.end();
+          bool is_valid_update = false;
           if (is_insert) {
-            state.clock[buffer.key] = CLOCK_T(nodes.size(), clock_id);
+            state.clock[buffer.key] = CLOCK_T(buffer.clock, clock_id);
+          } else {
+            is_valid_update = state.clock[buffer.key].merge(buffer.clock);
           }
-          bool is_valid_update = state.clock[buffer.key].merge(buffer.clock, is_insert);
           if (is_valid_update) {
             state.data[buffer.key] = buffer.value;
           }
@@ -194,6 +196,7 @@ class AsyncReplicatedContainer {
     std::string key(key_buf.begin(), key_buf.end());
 
     // Get the value
+    // TODO: template value serialization
     uint32_t value;
     size = c->BlockingRead(reinterpret_cast<uint8_t*>(&value), sizeof(value));
     if (!size) throw;
