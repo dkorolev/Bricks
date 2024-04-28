@@ -4,17 +4,10 @@
 #include "../../blocks/http/api.h"
 #include "../../bricks/time/chrono.h"
 
-#include "vector_clock.h"
+#include "../../bricks/distributed/vector_clock.h"
 
 #include <sstream>
 #include <queue>
-
-CURRENT_STRUCT(Relay) {
-  CURRENT_FIELD(key, std::string);
-  CURRENT_FIELD(value, uint32_t);
-  CURRENT_FIELD(replica_id, std::string);
-  CURRENT_FIELD(clock, Clocks);
-};
 
 struct ReplicationNode final {
   std::string host;
@@ -31,14 +24,35 @@ struct ReplicationConfig final {
   uint32_t max_waits;
 };
 
-template <class CLOCK_T>
+struct Uint32Value final {
+  uint32_t data;
+  void send(current::net::Connection& c) {
+    uint32_t to_send = htonl(data);
+    c.BlockingWrite(&to_send, sizeof(to_send), true);
+  }
+  static Uint32Value recv(const std::unique_ptr<current::net::Connection>& c) {
+    uint32_t value;
+    auto size = c->BlockingRead(reinterpret_cast<uint8_t*>(&value), sizeof(value));
+    if (!size) throw;
+    value = ntohl(value);
+    return Uint32Value{value};
+  }
+};
+
+template <class CLOCK_T, class VALUE_T>
 class AsyncReplicatedContainer {
  private:
+  struct Relay final {
+    std::string key;
+    VALUE_T value;
+    std::string replica_id;
+    Clocks clock;
+  };
   struct SharedState final {
     bool die = false;
-    std::map<std::string, uint32_t> data;
+    std::map<std::string, VALUE_T> data;
     std::map<std::string, CLOCK_T> clock;
-    std::map<std::string, std::queue<std::pair<std::string, uint32_t> > > replication_out;
+    std::map<std::string, std::queue<Relay> > replication_out;
   };
 
   std::string sid;
@@ -63,7 +77,7 @@ class AsyncReplicatedContainer {
   std::string node_id(const ReplicationNode& node) { return node_id(node.host, node.port); }
 
   // Internal method to apply replication or set new value and replicate
-  void update(std::pair<std::string, uint32_t> tuple, bool replicate) {
+  void update(std::pair<std::string, VALUE_T> tuple, bool replicate) {
     if (!is_ready) {
       throw std::logic_error("Replication is not ready");
     }
@@ -78,13 +92,19 @@ class AsyncReplicatedContainer {
         }
         state.clock[tuple.first].step();
 
+        Relay to_send;
+        to_send.key = tuple.first;
+        to_send.value = tuple.second;
+        to_send.replica_id = sid;
+        to_send.clock = state.clock[tuple.first].state();
+
         // Send relay to each node
         for (auto& node : nodes) {
           std::string nid = node_id(node.host, node.port);
           if (nid == sid) {
             continue;
           }
-          state.replication_out[nid].push(std::move(tuple));
+          state.replication_out[nid].push(to_send);
         }
       }
     });
@@ -155,12 +175,10 @@ class AsyncReplicatedContainer {
         buffer = recv_relay(connection);
         state.MutableUse([&buffer, this](SharedState& state) {
           bool is_insert = state.data.find(buffer.key) == state.data.end();
-          bool is_valid_update = false;
           if (is_insert) {
             state.clock[buffer.key] = CLOCK_T(buffer.clock, clock_id);
-          } else {
-            is_valid_update = state.clock[buffer.key].merge(buffer.clock);
           }
+          bool is_valid_update = state.clock[buffer.key].merge(buffer.clock, is_insert);
           if (is_valid_update) {
             state.data[buffer.key] = buffer.value;
           }
@@ -196,11 +214,7 @@ class AsyncReplicatedContainer {
     std::string key(key_buf.begin(), key_buf.end());
 
     // Get the value
-    // TODO: template value serialization
-    uint32_t value;
-    size = c->BlockingRead(reinterpret_cast<uint8_t*>(&value), sizeof(value));
-    if (!size) throw;
-    value = ntohl(value);
+    VALUE_T value = VALUE_T::recv(c);
 
     // Get replica_id length
     size_t repl_len;
@@ -221,7 +235,7 @@ class AsyncReplicatedContainer {
       size = c->BlockingRead(reinterpret_cast<uint8_t*>(&clock_int), sizeof(clock_int));
       if (!size) throw;
       clock_int = be64toh(clock_int);
-      clock[i] = std::chrono::microseconds(clock_int);
+      clock[i] = clock_int;  // std::chrono::milliseconds(clock_int);
     }
 
     // Prepare the relay object
@@ -243,8 +257,7 @@ class AsyncReplicatedContainer {
     c.BlockingWrite(r.key.c_str(), r.key.length(), true);
 
     // Send the value
-    uint32_t value = htonl(r.value);
-    c.BlockingWrite(&value, sizeof(value), true);
+    r.value.send(c);
 
     // Send replica id buffer size
     key_len = htobe64(size_t(r.replica_id.length()));
@@ -255,7 +268,7 @@ class AsyncReplicatedContainer {
 
     // Send vector clock for given key/value
     for (size_t i = 0; i < nodes.size(); i++) {
-      uint64_t time_data = htobe64(r.clock[i].count());
+      uint64_t time_data = htobe64(r.clock[i]);
       c.BlockingWrite(&time_data, sizeof(time_data), true);
     }
   }
@@ -263,8 +276,7 @@ class AsyncReplicatedContainer {
   void writer(std::string host, uint16_t port) {
     struct MsgOrDie {
       bool die;
-      std::pair<std::string, int> data;
-      Clocks clock;
+      Relay to_send;
     };
     bool is_stop = false;
     Relay buffer;
@@ -288,28 +300,25 @@ class AsyncReplicatedContainer {
               },
               [this, &queue_id](SharedState& state) {
                 if (state.die) {
-                  return MsgOrDie{state.die, std::pair<std::string, int>{}, Clocks()};
+                  return MsgOrDie{state.die, Relay()};
                 }
                 auto data = state.replication_out[queue_id].front();
                 state.replication_out[queue_id].pop();
+                state.clock[data.key].step();
+                data.clock = state.clock[data.key].state();
+                data.value = state.data[data.key];
 
-                state.clock[data.first].step();
-                auto clock = state.clock[data.first].state();
-                MsgOrDie result = MsgOrDie{false, std::move(data), std::move(clock)};
+                // send_relay(data, conn);
+                MsgOrDie result = MsgOrDie{false, std::move(data)};
                 return result;
               },
-              std::chrono::milliseconds(50));
+              std::chrono::milliseconds(1));
           if (data_or_die.die) {
             break;
           }
           // If WaitFor returns data send it
-          if (data_or_die.data.first != "") {
-            Relay to_send;
-            to_send.key = data_or_die.data.first;
-            to_send.value = data_or_die.data.second;
-            to_send.replica_id = sid;
-            to_send.clock = data_or_die.clock;
-            send_relay(to_send, conn);
+          if (data_or_die.to_send.key != "") {
+            send_relay(data_or_die.to_send, conn);
           }
           std::this_thread::sleep_for(std::chrono::milliseconds(delay));
         }
@@ -332,9 +341,7 @@ class AsyncReplicatedContainer {
         continue;
       }
 
-      state.MutableUse([this, &nid](SharedState& state) {
-        state.replication_out[nid] = std::queue<std::pair<std::string, uint32_t> >();
-      });
+      state.MutableUse([this, &nid](SharedState& state) { state.replication_out[nid] = std::queue<Relay>(); });
       writers.push_back(std::thread([this, &node] { writer(node.host, node.port); }));
       if (is_verbose) {
         std::cout << "Replicated with node " << nid << " with clock_id " << clock_id << std::endl;
@@ -364,14 +371,14 @@ class AsyncReplicatedContainer {
   }
 
   // Wrapper to set new value and replicate
-  void set(std::pair<std::string, uint32_t> tuple) {
+  void set(std::pair<std::string, VALUE_T> tuple) {
     if (is_verbose) {
       std::cout << "SET key " << tuple.first << std::endl;
     }
     update(tuple, true);
   }
 
-  int get(std::string key) {
+  VALUE_T get(std::string key) {
     if (!is_ready) {
       throw std::logic_error("Replication is not ready");
     }
@@ -416,8 +423,11 @@ class AsyncReplicatedContainer {
           }
           auto info = get_info(key);
           stop = state.MutableUse([&info, this](SharedState& state) {
-            std::cout << "key= " << info.key << " val= " << info.value << " clock= " << info.clock[clock_id].count()
-                      << std::endl;
+            std::cout << "key= " << info.key << " val= " << info.value.data << " clock= ";
+            for (size_t i = 0; i < state.clock[info.key].state().size(); i++) {
+              std::cout << info.clock[i] << " ";
+            }
+            std::cout << std::endl;
             return state.die;
           });
         }

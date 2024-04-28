@@ -2,7 +2,7 @@
 
 #include "../../bricks/time/chrono.h"
 
-typedef std::vector<std::chrono::microseconds> Clocks;
+typedef std::vector<uint64_t> Clocks;
 
 class VectorClock {
  protected:
@@ -13,23 +13,28 @@ class VectorClock {
   explicit VectorClock(uint32_t size, uint32_t node_id) {
     // Set local process id and cluster size
     local_id = node_id;
-    clock.resize(size, current::time::Now());
+    clock.resize(size, 0);
   }
 
   explicit VectorClock(Clocks &v, uint32_t node_id) {
     // Constructor for existing clock, used for inserting new data
     local_id = node_id;
-    clock = v;
+    clock = Clocks(v.begin(), v.end());
   }
 
   explicit VectorClock() {
     // Lamport clocks for size=1
-    VectorClock(1, 0);
+    local_id = 0;
+    clock.push_back(0);
   }
 
-  void step() {
+  void step(uint64_t add = 0) {
     // T[i] = T[i] + 1 for logical step
-    clock[local_id] = current::time::Now();
+    if (!add) {
+      clock[local_id]++;
+    } else {
+      clock[local_id] = add;
+    }
   }
 
   Clocks &state() {
@@ -40,23 +45,24 @@ class VectorClock {
   static bool is_conflicting(Clocks &v1, Clocks &v2) {
     // default implementation
     // returns true if there are no conflicts for merging
-    return is_lte(v1, v2);
+    return !is_lte(v1, v2);
   }
 
-  bool merge(Clocks &to_compare, std::function<bool(Clocks &v1, Clocks &v2)> validator) {
-    // Merges vector clock if there is no conflicts
-    // force flag is used for inserts (from other nodes)
-    if (validator(clock, to_compare)) {
-      return false;
-    }
+  bool merge(Clocks &to_compare,
+             std::function<bool(Clocks &v1, Clocks &v2)> validator,
+             bool force = false,
+             uint64_t add = 0) {
+    bool is_conflicted = !force && validator(clock, to_compare);
     for (size_t i = 0; i < clock.size(); i++) {
-      clock[i] == max(clock[i], to_compare[i]);
+      clock[i] = std::max(clock[i], to_compare[i]);
     }
-    step();
-    return true;
+    step(add);
+    return !is_conflicted;
   }
 
-  bool merge(Clocks &to_compare) { return merge(to_compare, is_conflicting); }
+  bool merge(Clocks &to_compare, bool force = false, uint64_t add = 0) {
+    return merge(to_compare, is_conflicting, force, add);
+  }
 
   static bool is_same(Clocks &v1, Clocks &v2) {
     // Happens on exactly same moment
@@ -99,6 +105,9 @@ class StrictVectorClock : public VectorClock {
  public:
   static bool is_conflicting(Clocks &v1, Clocks &v2) {
     // Check if v1 is in sync with v2 and v1 is strictly early then v2
-    return !is_parallel(v1, v2) && is_early(v1, v2);
+    return !(!is_parallel(v1, v2) && is_early(v1, v2));
+  }
+  bool merge(Clocks &to_compare, bool force = false, uint64_t add = 0) {
+    return VectorClock::merge(to_compare, is_conflicting, force, add);
   }
 };
