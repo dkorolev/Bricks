@@ -28,13 +28,9 @@ class VectorClock {
     clock.push_back(0);
   }
 
-  void step(uint64_t add = 0) {
+  void step() {
     // T[i] = T[i] + 1 for logical step
-    if (!add) {
-      clock[local_id]++;
-    } else {
-      clock[local_id] = add;
-    }
+    clock[local_id]++;
   }
 
   Clocks &state() {
@@ -48,21 +44,18 @@ class VectorClock {
     return !is_lte(v1, v2);
   }
 
-  bool merge(Clocks &to_compare,
-             std::function<bool(Clocks &v1, Clocks &v2)> validator,
-             bool force = false,
-             uint64_t add = 0) {
-    bool is_conflicted = !force && validator(clock, to_compare);
+  bool merge(Clocks &to_compare, std::function<bool(Clocks &v1, Clocks &v2)> validator) {
+    // Do we need to generalize validation, or it's ok to always merge vectors?
+    // It's valid for replication example, but maybe in some cases we should not merge
+    bool is_data_conflicted = validator(clock, to_compare);
     for (size_t i = 0; i < clock.size(); i++) {
       clock[i] = std::max(clock[i], to_compare[i]);
     }
-    step(add);
-    return !is_conflicted;
+    step();
+    return !is_data_conflicted;
   }
 
-  bool merge(Clocks &to_compare, bool force = false, uint64_t add = 0) {
-    return merge(to_compare, is_conflicting, force, add);
-  }
+  bool merge(Clocks &to_compare) { return merge(to_compare, is_conflicting); }
 
   static bool is_same(Clocks &v1, Clocks &v2) {
     // Happens on exactly same moment
@@ -107,7 +100,5 @@ class StrictVectorClock : public VectorClock {
     // Check if v1 is in sync with v2 and v1 is strictly early then v2
     return !(!is_parallel(v1, v2) && is_early(v1, v2));
   }
-  bool merge(Clocks &to_compare, bool force = false, uint64_t add = 0) {
-    return VectorClock::merge(to_compare, is_conflicting, force, add);
-  }
+  bool merge(Clocks &to_compare) { return VectorClock::merge(to_compare, is_conflicting); }
 };

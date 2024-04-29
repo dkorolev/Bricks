@@ -48,7 +48,7 @@ TEST(VectorClock, Merge) {
   // Merge correct update
   Clocks c2 = {2, 3};
   // each element is greater - ok to merge
-  EXPECT_EQ(true, v.merge(c2, false, 3));
+  EXPECT_EQ(true, v.merge(c2));
   auto cur_state = v.state();
   // local time should be updated after merge
   EXPECT_GT(cur_state[0], c2[0]);
@@ -67,10 +67,10 @@ TEST(VectorClock, Merge) {
   v = VectorClock(c1, 0);
   c2 = {1, 3};
   // 0 is equeal, 1 is greater - ok to merge
-  EXPECT_EQ(true, v.merge(c2, false, 3));
+  EXPECT_EQ(true, v.merge(c2));
   cur_state = v.state();
   // local time should be updated after merge
-  EXPECT_GT(cur_state[0], c2[0] + 1);
+  EXPECT_GT(cur_state[0], c2[0]);
   // merged time should be equal c2[1]
   EXPECT_EQ(c2[1], cur_state[1]);
 
@@ -91,12 +91,10 @@ TEST(VectorClock, CustomValidator) {
 
   Clocks c2 = {0, 1};
   // Check custom validation lambda - merge all events
-  EXPECT_EQ(true,
-            v.merge(
-                c2, [](Clocks&, Clocks&) { return false; }, false, 3));
+  EXPECT_EQ(true, v.merge(c2, [](Clocks&, Clocks&) { return false; }));
   auto cur_state = v.state();
   // local time should be updated after merge
-  EXPECT_GT(cur_state[0], c1[0] + 1);
+  EXPECT_GT(cur_state[0], c1[0]);
   // merged time should be equal to max(t[1], t'[1]) = base + 2
   EXPECT_EQ(c2[1] + 1, cur_state[1]);
 }
@@ -109,10 +107,10 @@ TEST(VectorClock, StrictMerge) {
   // Merge correct update
   Clocks c2 = {2, 3};
   // each element is greater - ok to merge
-  EXPECT_EQ(true, v.merge(c2, false, 4));
+  EXPECT_EQ(true, v.merge(c2));
   auto cur_state = v.state();
   // local time should be updated after merge
-  EXPECT_GT(cur_state[0], c2[1]);
+  EXPECT_GT(cur_state[0], c2[0]);
   // merged time should be equal c2[1]
   EXPECT_EQ(c2[1], cur_state[1]);
 

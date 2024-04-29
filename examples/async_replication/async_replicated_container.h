@@ -178,8 +178,8 @@ class AsyncReplicatedContainer {
           if (is_insert) {
             state.clock[buffer.key] = CLOCK_T(buffer.clock, clock_id);
           }
-          bool is_valid_update = state.clock[buffer.key].merge(buffer.clock, is_insert);
-          if (is_valid_update) {
+          bool is_valid_update = state.clock[buffer.key].merge(buffer.clock);
+          if (is_insert || is_valid_update) {
             state.data[buffer.key] = buffer.value;
           }
 
