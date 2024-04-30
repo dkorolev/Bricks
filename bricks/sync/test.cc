@@ -349,3 +349,42 @@ TEST(WaitableAtomic, WaitFor) {
     EXPECT_FALSE(b2.WaitFor([](bool b) { return b; }, std::chrono::milliseconds(1)));
   }
 }
+
+TEST(WaitableAtomic, NotifiesOfChangesInWait) {
+  struct Obj final {
+    bool done = false;
+    int from = 0;
+    int into = 0;
+  };
+  current::WaitableAtomic<Obj> obj;
+  int extracted_into = 0;
+
+  std::thread t([&obj, &extracted_into]() {
+    bool done = false;
+    while (!done) {
+     obj.Wait(
+         [](const Obj& o) { return o.done || o.from != 0; },
+         [&done, &extracted_into](Obj& o) {
+           if (o.done) {
+             done = true;
+           }
+           if (o.from) {
+             // NOTE(dkorolev): This delay  0.1ms, which is sufficient. I have tested the code with:
+             // ./.current/test --gtest_filter=WaitableAtomic.NotifiesOfChangesInWai --gtest_repeat=-1
+             std::this_thread::sleep_for(std::chrono::microseconds(100));
+             o.into = o.from;
+             o.from = 0;
+             extracted_into = o.into;
+           }
+         });
+    }
+  });
+
+  EXPECT_EQ(extracted_into, 0);
+  obj.MutableScopedAccessor()->from = 1;
+  obj.Wait([](const Obj& o) { return o.from == 0; });
+  EXPECT_EQ(extracted_into, 1);
+
+  obj.MutableScopedAccessor()->done = true;
+  t.join();
+}
