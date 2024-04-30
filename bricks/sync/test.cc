@@ -369,7 +369,7 @@ TEST(WaitableAtomic, NotifiesOfChangesInWait) {
              done = true;
            }
            if (o.from) {
-             // NOTE(dkorolev): This delay  0.1ms, which is sufficient. I have tested the code with:
+             // NOTE(dkorolev): This delay is 0.1ms, which is sufficient. I have tested the code with:
              // ./.current/test --gtest_filter=WaitableAtomic.NotifiesOfChangesInWai --gtest_repeat=-1
              std::this_thread::sleep_for(std::chrono::microseconds(100));
              o.into = o.from;
