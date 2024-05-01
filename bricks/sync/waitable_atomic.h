@@ -214,15 +214,28 @@ class WaitableAtomic {
   // TODO(dkorolev): The `.Wait()` above always returning `true` could use some TLC.
 
   template <typename F>
-  std::invoke_result_t<F, data_t&> Wait(std::function<bool(const data_t&)> wait_predicate, F&& retval_predicate) {
+  std::invoke_result_t<F, data_t&> DoWait(std::function<bool(const data_t&)> wait_predicate, F&& retval_predicate) {
     std::unique_lock<std::mutex> lock(data_mutex_);
     if (!wait_predicate(data_)) {
       const data_t& data = data_;
-      data_condition_variable_.wait(lock, [&wait_predicate, &data] { return wait_predicate(data); });
+      data_condition_variable_.wait(lock, [&wait_predicate, &data]() { return wait_predicate(data); });
       return retval_predicate(data_);
     } else {
       return retval_predicate(data_);
     }
+  }
+
+  template <typename F, class = std::enable_if_t<std::is_same_v<std::invoke_result_t<F, data_t&>, void>>>
+  void Wait(std::function<bool(const data_t&)> wait_predicate, F&& retval_predicate) {
+    DoWait(wait_predicate, std::forward<F>(retval_predicate));
+    Notify();
+  }
+
+  template <typename F, class = std::enable_if_t<!std::is_same_v<std::invoke_result_t<F, data_t&>, void>>>
+  std::invoke_result_t<F, data_t&> Wait(std::function<bool(const data_t&)> wait_predicate, F&& retval_predicate) {
+    std::invoke_result_t<F, data_t&> retval = DoWait(wait_predicate, std::forward<F>(retval_predicate));
+    Notify();
+    return retval;
   }
 
 #endif  // CURRENT_FOR_CPP14
