@@ -104,6 +104,7 @@ foreach(SHARED_LIBRARY_SOURCE_FILE ${BINARY_SOURCE_FILES})
   add_dependencies(${SHARED_LIBRARY_TARGET_NAME} C5T_CURRENT_BUILD_INFO_H_TARGET)
   # TODO(dkorolev): Might be worth it to `grep` this `dlib_*.cc` source file for required library dependencies.
   target_compile_definitions(${SHARED_LIBRARY_TARGET_NAME} PRIVATE C5T_CMAKE_PROJECT)
+  target_compile_definitions(${SHARED_LIBRARY_TARGET_NAME} PRIVATE C5T_DLIB)
   target_include_directories(${SHARED_LIBRARY_TARGET_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/inc")
   target_link_libraries(${SHARED_LIBRARY_TARGET_NAME} PRIVATE "${C5T_LIBRARIES}")
 endforeach()
