@@ -46,7 +46,7 @@ function(UseGitOrCloneImpl remote use_custom_branch custom_branch)
       file(TOUCH .gitignore)
       file(APPEND .gitignore "${dep}/\n")  # NOTE(dkorolev): This may add extra `.gitignore` lines, ignore for now.
     endif()
-    set("C5T_DEP_DIR_${dep}" "${CMAKE_SOURCE_DIR}/${dep}" CACHE INTERNAL "")
+    set("C5T_DEP_DIR_${dep}" "${CMAKE_CURRENT_SOURCE_DIR}/${dep}" CACHE INTERNAL "")
   endif()
   # If the added repository contains the `.c5t_cmake_dependency` file,
   # then add this repo's C5T library name to all targets built by this `CMakeLists.txt`.
