@@ -153,7 +153,7 @@ endforeach()
 
 # Declare tests as test targets. And link them against all the libraries.
 enable_testing()
-file(GLOB_RECURSE TEST_SOURCE_FILES "src/test_*.cc")
+file(GLOB_RECURSE TEST_SOURCE_FILES "${C5T_PROJECT_ROOT_SRC}/test_*.cc")
 foreach(TEST_SOURCE_FILE ${TEST_SOURCE_FILES})
   get_filename_component(TEST_TARGET_NAME "${TEST_SOURCE_FILE}" NAME_WE)
   add_executable(${TEST_TARGET_NAME} "${TEST_SOURCE_FILE}") 
