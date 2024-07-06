@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.14.1)
 
-project(cmake_trivial_2023 C CXX)
+project(c5t_user_project C CXX)
 
 set (CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,8 +42,10 @@ function(UseGitOrCloneImpl remote use_custom_branch custom_branch)
     endif()
     add_subdirectory("${CMAKE_SOURCE_DIR}/${dep}" ${dep})
     message(STATUS "Cloning `${dep}` from `${remote}`: Configured.")
-    file(TOUCH .gitignore)
-    file(APPEND .gitignore "${dep}/\n")  # NOTE(dkorolev): This may add extra `.gitignore` lines, ignore for now.
+    if("${C5T_PROJECT_ROOT}" STREQUAL "")
+      file(TOUCH .gitignore)
+      file(APPEND .gitignore "${dep}/\n")  # NOTE(dkorolev): This may add extra `.gitignore` lines, ignore for now.
+    endif()
     set("C5T_DEP_DIR_${dep}" "${CMAKE_SOURCE_DIR}/${dep}" CACHE INTERNAL "")
   endif()
   # If the added repository contains the `.c5t_cmake_dependency` file,
@@ -96,8 +98,14 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/inc/current_build_info.h"
 
 add_custom_command(OUTPUT inc/current_build_info.h.force_rebuild COMMAND cmake -E echo >/dev/null)
 
+if("${C5T_PROJECT_ROOT}" STREQUAL "")
+  set(C5T_PROJECT_ROOT_SRC "src")
+else()
+  set(C5T_PROJECT_ROOT_SRC "${C5T_PROJECT_ROOT}/src")
+endif()
+
 # Declare shared libraries as shared library targets. Do not link them against anything external.
-file(GLOB_RECURSE BINARY_SOURCE_FILES "src/dlib_*.cc")
+file(GLOB_RECURSE BINARY_SOURCE_FILES "${C5T_PROJECT_ROOT_SRC}/dlib_*.cc")
 foreach(SHARED_LIBRARY_SOURCE_FILE ${BINARY_SOURCE_FILES})
   get_filename_component(SHARED_LIBRARY_TARGET_NAME "${SHARED_LIBRARY_SOURCE_FILE}" NAME_WE)
   add_library(${SHARED_LIBRARY_TARGET_NAME} SHARED "${SHARED_LIBRARY_SOURCE_FILE}") 
@@ -111,14 +119,14 @@ endforeach()
 
 # Declare libraries as library targets. First, and add them into the `ALL_LIBRARIES` list.
 set(ALL_LIBRARIES "${C5T_LIBRARIES}")
-file(GLOB_RECURSE LIBRARY_SOURCE_FILES "src/lib_*.cc")
+file(GLOB_RECURSE LIBRARY_SOURCE_FILES "${C5T_PROJECT_ROOT_SRC}/lib_*.cc")
 foreach(LIBRARY_SOURCE_FILE ${LIBRARY_SOURCE_FILES})
   get_filename_component(LIBRARY_TARGET_NAME "${LIBRARY_SOURCE_FILE}" NAME_WE)
   list(APPEND ALL_LIBRARIES "${LIBRARY_TARGET_NAME}")
 endforeach()
 
 # Then build all the libraries, such that every library is linked against every other library.
-file(GLOB_RECURSE LIBRARY_SOURCE_FILES "src/lib_*.cc")
+file(GLOB_RECURSE LIBRARY_SOURCE_FILES "${C5T_PROJECT_ROOT_SRC}/lib_*.cc")
 foreach(LIBRARY_SOURCE_FILE ${LIBRARY_SOURCE_FILES})
   get_filename_component(LIBRARY_TARGET_NAME "${LIBRARY_SOURCE_FILE}" NAME_WE)
   add_library(${LIBRARY_TARGET_NAME} "${LIBRARY_SOURCE_FILE}")
@@ -131,7 +139,7 @@ foreach(LIBRARY_SOURCE_FILE ${LIBRARY_SOURCE_FILES})
 endforeach()
 
 # Declare binaries as binary targets. And link them against all the libraries.
-file(GLOB_RECURSE BINARY_SOURCE_FILES "src/*.cc")
+file(GLOB_RECURSE BINARY_SOURCE_FILES "${C5T_PROJECT_ROOT_SRC}/*.cc")
 foreach(BINARY_SOURCE_FILE ${BINARY_SOURCE_FILES})
   get_filename_component(BINARY_TARGET_NAME "${BINARY_SOURCE_FILE}" NAME_WE)
   if(NOT (BINARY_TARGET_NAME MATCHES "^lib_.*$" OR BINARY_TARGET_NAME MATCHES "^test_.*$" OR BINARY_TARGET_NAME MATCHES "^dlib_.*$"))
@@ -145,7 +153,7 @@ endforeach()
 
 # Declare tests as test targets. And link them against all the libraries.
 enable_testing()
-file(GLOB_RECURSE TEST_SOURCE_FILES "src/test_*.cc")
+file(GLOB_RECURSE TEST_SOURCE_FILES "${C5T_PROJECT_ROOT_SRC}/test_*.cc")
 foreach(TEST_SOURCE_FILE ${TEST_SOURCE_FILES})
   get_filename_component(TEST_TARGET_NAME "${TEST_SOURCE_FILE}" NAME_WE)
   add_executable(${TEST_TARGET_NAME} "${TEST_SOURCE_FILE}") 
