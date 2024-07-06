@@ -42,8 +42,10 @@ function(UseGitOrCloneImpl remote use_custom_branch custom_branch)
     endif()
     add_subdirectory("${CMAKE_SOURCE_DIR}/${dep}" ${dep})
     message(STATUS "Cloning `${dep}` from `${remote}`: Configured.")
-    file(TOUCH .gitignore)
-    file(APPEND .gitignore "${dep}/\n")  # NOTE(dkorolev): This may add extra `.gitignore` lines, ignore for now.
+    if("${C5T_PROJECT_ROOT}" STREQUAL "")
+      file(TOUCH .gitignore)
+      file(APPEND .gitignore "${dep}/\n")  # NOTE(dkorolev): This may add extra `.gitignore` lines, ignore for now.
+    endif()
     set("C5T_DEP_DIR_${dep}" "${CMAKE_SOURCE_DIR}/${dep}" CACHE INTERNAL "")
   endif()
   # If the added repository contains the `.c5t_cmake_dependency` file,
