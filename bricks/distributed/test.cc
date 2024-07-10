@@ -84,25 +84,10 @@ TEST(VectorClock, Merge) {
   EXPECT_EQ(v.state()[1], cur_state[1]);
 }
 
-TEST(VectorClock, CustomValidator) {
-  auto base_time = current::time::Now();
-  Clocks c1 = {1, 2};
-  auto v = VectorClock(c1, 0);
-
-  Clocks c2 = {0, 1};
-  // Check custom validation lambda - merge all events
-  EXPECT_EQ(true, v.merge(c2, [](Clocks&, Clocks&) { return false; }));
-  auto cur_state = v.state();
-  // local time should be updated after merge
-  EXPECT_GT(cur_state[0], c1[0]);
-  // merged time should be equal to max(t[1], t'[1]) = base + 2
-  EXPECT_EQ(c2[1] + 1, cur_state[1]);
-}
-
 TEST(VectorClock, StrictMerge) {
   auto base_time = current::time::Now();
   Clocks c1 = {1, 2};
-  auto v = StrictVectorClock(c1, 0);
+  auto v = VectorClock<StrictMergeStrategy>(c1, 0);
 
   // Merge correct update
   Clocks c2 = {2, 3};
@@ -116,7 +101,7 @@ TEST(VectorClock, StrictMerge) {
 
   // Merge equals using strict validation
   c1 = {10, 20};
-  v = StrictVectorClock(c1, 0);
+  v = VectorClock<StrictMergeStrategy>(c1, 0);
   cur_state = v.state();
   c2 = {10, 20};
   EXPECT_EQ(false, v.merge(c2));
@@ -124,7 +109,7 @@ TEST(VectorClock, StrictMerge) {
   EXPECT_EQ(v.state()[1], cur_state[1]);
 
   // Merge partially equals
-  v = StrictVectorClock(c1, 0);
+  v = VectorClock<StrictMergeStrategy>(c1, 0);
   cur_state = v.state();
   c2 = {1, 20};
   // 0 is equeal, 1 is greater - not ok to merge
@@ -133,7 +118,7 @@ TEST(VectorClock, StrictMerge) {
   EXPECT_EQ(v.state()[1], cur_state[1]);
 
   // Merge incorrect
-  v = StrictVectorClock(c1, 0);
+  v = VectorClock<StrictMergeStrategy>(c1, 0);
   cur_state = v.state();
   c2 = {0, 1};
   EXPECT_EQ(false, v.merge(c2));
