@@ -30,8 +30,8 @@ TEST(VectorClock, SmokeTest) {
   v.step();
 
   // test merge from future - should return false
-  auto data = Clocks();
-  data.push_back(0);
+  auto data = DiscreteClocks();
+  data.reset(1);
   EXPECT_EQ(false, v.merge(data));
   EXPECT_EQ(v.state().size(), (size_t)(1));
 
@@ -42,11 +42,11 @@ TEST(VectorClock, SmokeTest) {
 
 TEST(VectorClock, Merge) {
   auto base_time = current::time::Now();
-  Clocks c1 = {1, 2};
+  DiscreteClocks c1 = {1, 2};
   auto v = VectorClock(c1, 0);
 
   // Merge correct update
-  Clocks c2 = {2, 3};
+  DiscreteClocks c2 = {2, 3};
   // each element is greater - ok to merge
   EXPECT_EQ(true, v.merge(c2));
   auto cur_state = v.state();
@@ -77,20 +77,37 @@ TEST(VectorClock, Merge) {
   // Merge partially incorrect
   v = VectorClock(c1, 0);
   cur_state = v.state();
-  c2 = {1, 0};
+  c2 = DiscreteClocks({1, 0});
   EXPECT_EQ(false, v.merge(c2));
   // invalid data, merged vector
   EXPECT_EQ(v.state()[0], cur_state[0] + 1);
   EXPECT_EQ(v.state()[1], cur_state[1]);
 }
 
-TEST(VectorClock, StrictMerge) {
+TEST(VectorClock, ContinuousTime) {
   auto base_time = current::time::Now();
-  Clocks c1 = {1, 2};
-  auto v = VectorClock<StrictMergeStrategy>(c1, 0);
+  ContinuousClocks c1 = {base_time, base_time + std::chrono::microseconds(100)};
+  auto v = VectorClock<ContinuousClocks, MergeStrategy>(c1, 0);
 
   // Merge correct update
-  Clocks c2 = {2, 3};
+  ContinuousClocks c2 = {base_time + std::chrono::microseconds(200), base_time + std::chrono::microseconds(300)};
+  // each element is greater - ok to merge
+  EXPECT_EQ(true, v.merge(c2));
+  auto cur_state = v.state();
+
+  // Merge incorrect update after previous update
+  c2 = {base_time + std::chrono::microseconds(100), base_time + std::chrono::microseconds(200)};
+  // can't merge T > T'
+  EXPECT_EQ(false, v.merge(c2));
+}
+
+TEST(VectorClock, StrictMerge) {
+  auto base_time = current::time::Now();
+  DiscreteClocks c1 = {1, 2};
+  auto v = VectorClock<DiscreteClocks, StrictMergeStrategy>(c1, 0);
+
+  // Merge correct update
+  DiscreteClocks c2 = {2, 3};
   // each element is greater - ok to merge
   EXPECT_EQ(true, v.merge(c2));
   auto cur_state = v.state();
@@ -101,7 +118,7 @@ TEST(VectorClock, StrictMerge) {
 
   // Merge equals using strict validation
   c1 = {10, 20};
-  v = VectorClock<StrictMergeStrategy>(c1, 0);
+  v = VectorClock<DiscreteClocks, StrictMergeStrategy>(c1, 0);
   cur_state = v.state();
   c2 = {10, 20};
   EXPECT_EQ(false, v.merge(c2));
@@ -109,7 +126,7 @@ TEST(VectorClock, StrictMerge) {
   EXPECT_EQ(v.state()[1], cur_state[1]);
 
   // Merge partially equals
-  v = VectorClock<StrictMergeStrategy>(c1, 0);
+  v = VectorClock<DiscreteClocks, StrictMergeStrategy>(c1, 0);
   cur_state = v.state();
   c2 = {1, 20};
   // 0 is equeal, 1 is greater - not ok to merge
@@ -118,7 +135,7 @@ TEST(VectorClock, StrictMerge) {
   EXPECT_EQ(v.state()[1], cur_state[1]);
 
   // Merge incorrect
-  v = VectorClock<StrictMergeStrategy>(c1, 0);
+  v = VectorClock<DiscreteClocks, StrictMergeStrategy>(c1, 0);
   cur_state = v.state();
   c2 = {0, 1};
   EXPECT_EQ(false, v.merge(c2));

@@ -46,7 +46,7 @@ class AsyncReplicatedContainer {
     std::string key;
     VALUE_T value;
     std::string replica_id;
-    Clocks clock;
+    DiscreteClocks clock;
   };
   struct SharedState final {
     bool die = false;
@@ -229,7 +229,7 @@ class AsyncReplicatedContainer {
     std::string replica_id(repl_id_buf.begin(), repl_id_buf.end());
 
     // Get the clock vector
-    Clocks clock(nodes.size());
+    DiscreteClocks clock(nodes.size());
     for (size_t i = 0; i < nodes.size(); i++) {
       uint64_t clock_int;
       size = c->BlockingRead(reinterpret_cast<uint8_t*>(&clock_int), sizeof(clock_int));

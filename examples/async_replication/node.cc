@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
                                              false,
                                              10};
 
-  AsyncReplicatedContainer<VectorClock<StrictMergeStrategy>, Uint32Value> storage(conf);
+  AsyncReplicatedContainer<VectorClock<DiscreteClocks, StrictMergeStrategy>, Uint32Value> storage(conf);
   storage.start();
   storage.start_monitor(keys, FLAGS_monitor_delay);
   while (true) {
