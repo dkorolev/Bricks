@@ -1,7 +1,7 @@
 /*******************************************************************************
 The MIT License (MIT)
 
-Copyright (c) 2014 Dmitry "Dima" Korolev <dmitry.korolev@gmail.com>
+Copyright (c) 2014 Andrei Drozdov <sulverus@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,30 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************/
+#define CURRENT_MOCK_TIME
+
 #include "../../3rdparty/gtest/gtest-main.h"
 #include "../../bricks/time/chrono.h"
 #include "vector_clock.h"
+
+using namespace std::chrono_literals;
 
 TEST(VectorClock, SmokeTest) {
   auto v = VectorClock();
   v.step();
 
-  // test merge from future - should return false
-  auto data = DiscreteClocks();
-  data.reset(1);
-  EXPECT_EQ(false, v.merge(data));
-  EXPECT_EQ(v.state().size(), (size_t)(1));
+  auto data = DiscreteClocks(1);
+  EXPECT_FALSE(v.advanceTo(data)) << "Merge from future should return false.";
+  EXPECT_EQ(v.state().size(), static_cast<size_t>(1));
 
-  // test lte (t==t')
-  auto v2 = VectorClock(data, data.size());
-  EXPECT_EQ(true, v2.merge(data));
+  auto v2 = VectorClock(data, 0);
+  EXPECT_TRUE(v2.advanceTo(data)) << "Test lte t==t'.";
+}
+
+TEST(VectorClock, ToString) {
+  DiscreteClocks c1 = {1, 2};
+  auto v = VectorClock(c1, 0);
+  EXPECT_EQ(v.ToString(), "VCLOCK ID=0: [1, 2]");
 }
 
 TEST(VectorClock, Merge) {
@@ -47,58 +54,44 @@ TEST(VectorClock, Merge) {
 
   // Merge correct update
   DiscreteClocks c2 = {2, 3};
-  // each element is greater - ok to merge
-  EXPECT_EQ(true, v.merge(c2));
+  EXPECT_TRUE(v.advanceTo(c2)) << "Each element is greater - ok to merge.";
   auto cur_state = v.state();
-  // local time should be updated after merge
-  EXPECT_GT(cur_state[0], c2[0]);
-  // merged time should be equal c2[1]
-  EXPECT_EQ(cur_state[1], c2[1]);
+  EXPECT_GT(cur_state[0], c2[0]) << "Local time should be updated after merge.";
+  EXPECT_EQ(cur_state[1], c2[1]) << "Merged time should be equal c2[1].";
 
-  // Merge incorrect update after previous update
   c2 = {1, 2};
-  // can't merge T > T'
-  EXPECT_EQ(false, v.merge(c2));
-  // invalid data, merged vector
-  EXPECT_EQ(v.state()[0], cur_state[0] + 1);
+  EXPECT_FALSE(v.advanceTo(c2)) << "Cant merge T > T' - incorrect update.";
+  EXPECT_EQ(v.state()[0], cur_state[0] + 1) << "Invalid data, merged vector.";
   EXPECT_EQ(v.state()[1], cur_state[1]);
 
   // Merge partially equals using lte validation
   v = VectorClock(c1, 0);
   c2 = {1, 3};
-  // 0 is equeal, 1 is greater - ok to merge
-  EXPECT_EQ(true, v.merge(c2));
+  EXPECT_TRUE(v.advanceTo(c2)) << "0 is equals, 1 is greater - ok to merge.";
   cur_state = v.state();
-  // local time should be updated after merge
-  EXPECT_GT(cur_state[0], c2[0]);
-  // merged time should be equal c2[1]
-  EXPECT_EQ(c2[1], cur_state[1]);
+  EXPECT_GT(cur_state[0], c2[0]) << "Local time should be updated after merge.";
+  EXPECT_EQ(c2[1], cur_state[1]) << "Merged time should be equal c2[1].";
 
-  // Merge partially incorrect
   v = VectorClock(c1, 0);
   cur_state = v.state();
   c2 = DiscreteClocks({1, 0});
-  EXPECT_EQ(false, v.merge(c2));
-  // invalid data, merged vector
-  EXPECT_EQ(v.state()[0], cur_state[0] + 1);
+  EXPECT_FALSE(v.advanceTo(c2)) << "Merge partially incorrect.";
+  EXPECT_EQ(v.state()[0], cur_state[0] + 1) << "Invalid data, merged vector.";
   EXPECT_EQ(v.state()[1], cur_state[1]);
 }
 
 TEST(VectorClock, ContinuousTime) {
+  current::time::SetNow(0us, 1000us);
   auto base_time = current::time::Now();
-  ContinuousClocks c1 = {base_time, base_time + std::chrono::microseconds(100)};
+  ContinuousClocks c1 = {base_time, base_time + 100us};
   auto v = VectorClock<ContinuousClocks, MergeStrategy>(c1, 0);
 
-  // Merge correct update
-  ContinuousClocks c2 = {base_time + std::chrono::microseconds(200), base_time + std::chrono::microseconds(300)};
-  // each element is greater - ok to merge
-  EXPECT_EQ(true, v.merge(c2));
+  ContinuousClocks c2 = {base_time + 200us, base_time + 300us};
+  EXPECT_TRUE(v.advanceTo(c2)) << "Merge correct update. Each elemnt is greater - ok.";
   auto cur_state = v.state();
 
-  // Merge incorrect update after previous update
-  c2 = {base_time + std::chrono::microseconds(100), base_time + std::chrono::microseconds(200)};
-  // can't merge T > T'
-  EXPECT_EQ(false, v.merge(c2));
+  c2 = {base_time + 100us, base_time + 200us};
+  EXPECT_FALSE(v.advanceTo(c2)) << "Can't apply T > T'. Merge incorrect update after previous update.";
 }
 
 TEST(VectorClock, StrictMerge) {
@@ -106,40 +99,31 @@ TEST(VectorClock, StrictMerge) {
   DiscreteClocks c1 = {1, 2};
   auto v = VectorClock<DiscreteClocks, StrictMergeStrategy>(c1, 0);
 
-  // Merge correct update
   DiscreteClocks c2 = {2, 3};
-  // each element is greater - ok to merge
-  EXPECT_EQ(true, v.merge(c2));
+  EXPECT_TRUE(v.advanceTo(c2)) << "Each element is greater - ok to merge.";
   auto cur_state = v.state();
-  // local time should be updated after merge
-  EXPECT_GT(cur_state[0], c2[0]);
-  // merged time should be equal c2[1]
-  EXPECT_EQ(c2[1], cur_state[1]);
+  EXPECT_GT(cur_state[0], c2[0]) << "Local time should be updated after merge.";
+  EXPECT_EQ(c2[1], cur_state[1]) << "Merged time should be equal c2[1]";
 
-  // Merge equals using strict validation
   c1 = {10, 20};
   v = VectorClock<DiscreteClocks, StrictMergeStrategy>(c1, 0);
   cur_state = v.state();
   c2 = {10, 20};
-  EXPECT_EQ(false, v.merge(c2));
+  EXPECT_FALSE(v.advanceTo(c2)) << "Merge equals using strict validation. Not ok to apply.";
   EXPECT_EQ(v.state()[0], cur_state[0] + 1);
   EXPECT_EQ(v.state()[1], cur_state[1]);
 
-  // Merge partially equals
   v = VectorClock<DiscreteClocks, StrictMergeStrategy>(c1, 0);
   cur_state = v.state();
   c2 = {1, 20};
-  // 0 is equeal, 1 is greater - not ok to merge
-  EXPECT_EQ(false, v.merge(c2));
+  EXPECT_FALSE(v.advanceTo(c2)) << "Merge partially equals. 0 is equal, 1 is greater - not or to apply.";
   EXPECT_EQ(v.state()[0], cur_state[0] + 1);
   EXPECT_EQ(v.state()[1], cur_state[1]);
 
-  // Merge incorrect
   v = VectorClock<DiscreteClocks, StrictMergeStrategy>(c1, 0);
   cur_state = v.state();
   c2 = {0, 1};
-  EXPECT_EQ(false, v.merge(c2));
-  // internal state was not changed
+  EXPECT_FALSE(v.advanceTo(c2)) << "Incorrect update, initial state was no changed.";
   EXPECT_EQ(v.state()[0], cur_state[0] + 1);
   EXPECT_EQ(v.state()[1], cur_state[1]);
 }
