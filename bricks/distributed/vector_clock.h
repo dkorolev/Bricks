@@ -7,7 +7,7 @@ Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-`copies of the Software, and to permit persons to whom the Software is
+copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
@@ -34,8 +34,8 @@ class ActsAsVector {
  public:
   explicit ActsAsVector() { storage = std::vector<T>(); };
   explicit ActsAsVector(size_t count) { storage = std::vector<T>(count); };
-  explicit ActsAsVector(ActsAsVector& other) { storage = std::vector<T>(other); };
   explicit ActsAsVector(const ActsAsVector& other) { storage = std::vector<T>(other.storage); };
+  explicit ActsAsVector(ActsAsVector& other) = default;
   ActsAsVector& operator=(ActsAsVector const& other) = default;
   ActsAsVector& operator=(ActsAsVector&& other) = default;
   ~ActsAsVector() = default;
@@ -59,7 +59,7 @@ class ActsAsVector {
   void resize(size_t count, const T& value) { storage.resize(count, value); };
   void reserve(size_t new_cap) { storage.reserve(new_cap); };
   void push_back(const T& value) { storage.push_back(value); };
-  void push_back(T&& value) { storage.push_back(value); };
+  void push_back(T&& value) { storage.push_back(std::move(value)); };
 };
 
 class DiscreteClocks : public ActsAsVector<uint64_t> {
