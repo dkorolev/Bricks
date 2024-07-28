@@ -71,7 +71,7 @@ UseGitOrClone(https://github.com/c5t/current)
 
 # Set `C5T_NO_GTEST` in the `Makefile` to any non-empty value to speed up the builds that do not need `googletest`.
 if("$ENV{C5T_NO_GTEST}" STREQUAL "")
-  UseGitOrClone(https://github.com/c5t/googletest)
+  UseGitOrClone(https://github.com/current-deps/googletest)
 else()
   message(STATUS "Skipping `googletest` as `C5T_NO_GTEST` is set.")
 endif()
@@ -83,7 +83,7 @@ if(NOT "${C5T_DEPS_1}" STREQUAL "")
   string(REPLACE ":" ";" C5T_DEPS_2 "${C5T_DEPS_1}")
   string(REPLACE " " ";" C5T_DEPS_3 "${C5T_DEPS_2}")
   foreach(C5T_DEP IN LISTS C5T_DEPS_3)
-    UseGitOrClone("https://github.com/c5t/${C5T_DEP}")
+    UseGitOrClone("https://github.com/current-deps/${C5T_DEP}")
   endforeach()
 endif()
 
