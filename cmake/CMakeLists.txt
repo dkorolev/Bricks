@@ -90,13 +90,27 @@ endif()
 get_property(C5T_LIBRARIES GLOBAL PROPERTY C5T_LIBRARIES_PROPERTY)
 
 add_custom_target(C5T_CURRENT_BUILD_INFO_H_TARGET ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/inc/current_build_info.h")
+add_custom_target(C5T_CUSTOM_PER_BUILD_SCRIPT_TARGET ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h")
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/inc/current_build_info.h"
                    COMMAND "${C5T_DEP_DIR_current}/scripts/gen-current-build.sh"
                    ARGS "${CMAKE_CURRENT_BINARY_DIR}/inc/current_build_info.h"
                    DEPENDS inc/current_build_info.h.force_rebuild)
 
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/inc")
+if(EXISTS "${CMAKE_SOURCE_DIR}/src/pre_build.sh")
+  add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h"
+                     COMMAND "${CMAKE_SOURCE_DIR}/src/pre_build.sh"
+                     ARGS "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h"
+                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                     DEPENDS inc/pre_build_sh_output.h.force_rebuild)
+else()
+  file(TOUCH "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h")
+  file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h" "#pragma once\n// No `src/pre_build.sh` found.\n")
+endif()
+
 add_custom_command(OUTPUT inc/current_build_info.h.force_rebuild COMMAND cmake -E echo >/dev/null)
+add_custom_command(OUTPUT inc/pre_build_sh_output.h.force_rebuild COMMAND cmake -E echo >/dev/null)
 
 if("${C5T_PROJECT_ROOT}" STREQUAL "")
   set(C5T_PROJECT_ROOT_SRC "src")
@@ -109,7 +123,7 @@ file(GLOB_RECURSE BINARY_SOURCE_FILES "${C5T_PROJECT_ROOT_SRC}/dlib_*.cc")
 foreach(SHARED_LIBRARY_SOURCE_FILE ${BINARY_SOURCE_FILES})
   get_filename_component(SHARED_LIBRARY_TARGET_NAME "${SHARED_LIBRARY_SOURCE_FILE}" NAME_WE)
   add_library(${SHARED_LIBRARY_TARGET_NAME} SHARED "${SHARED_LIBRARY_SOURCE_FILE}") 
-  add_dependencies(${SHARED_LIBRARY_TARGET_NAME} C5T_CURRENT_BUILD_INFO_H_TARGET)
+  add_dependencies(${SHARED_LIBRARY_TARGET_NAME} C5T_CURRENT_BUILD_INFO_H_TARGET C5T_CUSTOM_PER_BUILD_SCRIPT_TARGET)
   # TODO(dkorolev): Might be worth it to `grep` this `dlib_*.cc` source file for required library dependencies.
   target_compile_definitions(${SHARED_LIBRARY_TARGET_NAME} PRIVATE C5T_CMAKE_PROJECT)
   target_compile_definitions(${SHARED_LIBRARY_TARGET_NAME} PRIVATE C5T_DLIB)
@@ -130,7 +144,7 @@ file(GLOB_RECURSE LIBRARY_SOURCE_FILES "${C5T_PROJECT_ROOT_SRC}/lib_*.cc")
 foreach(LIBRARY_SOURCE_FILE ${LIBRARY_SOURCE_FILES})
   get_filename_component(LIBRARY_TARGET_NAME "${LIBRARY_SOURCE_FILE}" NAME_WE)
   add_library(${LIBRARY_TARGET_NAME} STATIC "${LIBRARY_SOURCE_FILE}")
-  add_dependencies(${LIBRARY_TARGET_NAME} C5T_CURRENT_BUILD_INFO_H_TARGET)
+  add_dependencies(${LIBRARY_TARGET_NAME} C5T_CURRENT_BUILD_INFO_H_TARGET C5T_CUSTOM_PER_BUILD_SCRIPT_TARGET)
   target_compile_definitions(${LIBRARY_TARGET_NAME} PRIVATE C5T_CMAKE_PROJECT)
   target_include_directories(${LIBRARY_TARGET_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/inc" ${C5T_DEP_DIR_current})
   set(USR_LIBRARIES_WO_SELF "${USR_LIBRARIES}")
@@ -148,7 +162,7 @@ foreach(BINARY_SOURCE_FILE ${BINARY_SOURCE_FILES})
   get_filename_component(BINARY_TARGET_NAME "${BINARY_SOURCE_FILE}" NAME_WE)
   if(NOT (BINARY_TARGET_NAME MATCHES "^lib_.*$" OR BINARY_TARGET_NAME MATCHES "^test_.*$" OR BINARY_TARGET_NAME MATCHES "^dlib_.*$"))
     add_executable(${BINARY_TARGET_NAME} "${BINARY_SOURCE_FILE}") 
-    add_dependencies(${BINARY_TARGET_NAME} C5T_CURRENT_BUILD_INFO_H_TARGET)
+    add_dependencies(${BINARY_TARGET_NAME} C5T_CURRENT_BUILD_INFO_H_TARGET C5T_CUSTOM_PER_BUILD_SCRIPT_TARGET)
     target_compile_definitions(${BINARY_TARGET_NAME} PRIVATE C5T_CMAKE_PROJECT)
     target_include_directories(${BINARY_TARGET_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/inc")
     target_link_libraries(${BINARY_TARGET_NAME} PRIVATE "${C5T_LIBRARIES}")
@@ -166,7 +180,7 @@ file(GLOB_RECURSE TEST_SOURCE_FILES "${C5T_PROJECT_ROOT_SRC}/test_*.cc")
 foreach(TEST_SOURCE_FILE ${TEST_SOURCE_FILES})
   get_filename_component(TEST_TARGET_NAME "${TEST_SOURCE_FILE}" NAME_WE)
   add_executable(${TEST_TARGET_NAME} "${TEST_SOURCE_FILE}") 
-  add_dependencies(${TEST_TARGET_NAME} C5T_CURRENT_BUILD_INFO_H_TARGET)
+  add_dependencies(${TEST_TARGET_NAME} C5T_CURRENT_BUILD_INFO_H_TARGET C5T_CUSTOM_PER_BUILD_SCRIPT_TARGET)
   target_include_directories(${TEST_TARGET_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/inc")
   target_link_libraries(${TEST_TARGET_NAME} PRIVATE gtest_main "${C5T_LIBRARIES}")
   if (APPLE)
