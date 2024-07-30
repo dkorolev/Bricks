@@ -90,7 +90,7 @@ endif()
 get_property(C5T_LIBRARIES GLOBAL PROPERTY C5T_LIBRARIES_PROPERTY)
 
 add_custom_target(C5T_CURRENT_BUILD_INFO_H_TARGET ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/inc/current_build_info.h")
-add_custom_target(C5T_CUSTOM_PER_BUILD_SCRIPT_TARGET ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h")
+add_custom_target(C5T_CUSTOM_PER_BUILD_SCRIPT_TARGET ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.inl")
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/inc/current_build_info.h"
                    COMMAND "${C5T_DEP_DIR_current}/scripts/gen-current-build.sh"
@@ -99,18 +99,18 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/inc/current_build_info.h"
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/inc")
 if(EXISTS "${CMAKE_SOURCE_DIR}/src/pre_build.sh")
-  add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h"
+  add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.inl"
                      COMMAND "${CMAKE_SOURCE_DIR}/src/pre_build.sh"
-                     ARGS "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h"
+                     ARGS "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.inl"
                      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-                     DEPENDS inc/pre_build_sh_output.h.force_rebuild)
+                     DEPENDS inc/pre_build_sh_output.inl.force_rebuild)
 else()
-  file(TOUCH "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h")
-  file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.h" "#pragma once\n// No `src/pre_build.sh` found.\n")
+  file(TOUCH "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.inl")
+  file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/inc/pre_build_sh_output.inl" "#pragma once\n// No `src/pre_build.sh` found.\n")
 endif()
 
 add_custom_command(OUTPUT inc/current_build_info.h.force_rebuild COMMAND cmake -E echo >/dev/null)
-add_custom_command(OUTPUT inc/pre_build_sh_output.h.force_rebuild COMMAND cmake -E echo >/dev/null)
+add_custom_command(OUTPUT inc/pre_build_sh_output.inl.force_rebuild COMMAND cmake -E echo >/dev/null)
 
 if("${C5T_PROJECT_ROOT}" STREQUAL "")
   set(C5T_PROJECT_ROOT_SRC "src")
