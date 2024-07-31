@@ -67,13 +67,15 @@ function(UseGitOrCloneBranch remote branch)
   UseGitOrCloneImpl("${remote}" TRUE "${branch}")
 endfunction()
 
-UseGitOrClone(https://github.com/c5t/current)
+UseGitOrCloneBranch(https://github.com/dkorolev/current use_current_deps_github_org)
 
 # Set `C5T_NO_GTEST` in the `Makefile` to any non-empty value to speed up the builds that do not need `googletest`.
-if("$ENV{C5T_NO_GTEST}" STREQUAL "")
-  UseGitOrClone(https://github.com/current-deps/googletest)
-else()
-  message(STATUS "Skipping `googletest` as `C5T_NO_GTEST` is set.")
+if(NOT TARGET gtest)
+  if("$ENV{C5T_NO_GTEST}" STREQUAL "")
+    UseGitOrClone(https://github.com/current-deps/googletest)
+  else()
+    message(STATUS "Skipping `googletest` as `C5T_NO_GTEST` is set.")
+  endif()
 endif()
 
 set_property(GLOBAL PROPERTY C5T_PATH ${C5T_DEP_DIR_current})
