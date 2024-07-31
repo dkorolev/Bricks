@@ -38,7 +38,7 @@ release_dir: ${RELEASE_BUILD_DIR} .gitignore
 ${RELEASE_BUILD_DIR}: CMakeLists.txt src
 	@C5T_DEPS="${C5T_DEPS}" C5T_NO_GTEST="${C5T_NO_GTEST}" cmake -DCMAKE_BUILD_TYPE=Release -B "${RELEASE_BUILD_DIR}" .
 
-test: release
+release_test: release
 	@(cd "${RELEASE_BUILD_DIR}"; make test)
 
 debug: debug_dir CMakeLists.txt
@@ -53,7 +53,7 @@ ${DEBUG_BUILD_DIR}: CMakeLists.txt src
 debug_test: debug
 	@(cd "${DEBUG_BUILD_DIR}"; make test)
 
-test: release_test
+test: debug_test
 
 fmt:
 	${CLANG_FORMAT} -i src/*.cc src/*.h
