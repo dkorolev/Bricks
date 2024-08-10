@@ -15,9 +15,9 @@ if [[ $? -ne 0 ]]; then
 fi
 COMPILER_INFO=${COMPILER_INFO//$'\n'/\\n}  # JSON-friendly newlines.
 
-GIT_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo '<not under git>')"
-GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '<not under git>')"
-GIT_STATUS="$(git status 2>/dev/null || echo '<not under git>')"
+GIT_COMMIT="$( (git rev-parse HEAD 2>/dev/null || echo '<not under git>') | tail -n 1)"
+GIT_BRANCH="$( (git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '<not under git>') | tail -n 1)"
+GIT_STATUS="$( (git status 2>/dev/null || echo '<not under git>') | tail -n 1)"
 
 # NOTE(dkorolev): Removing the commands that may potentially run for a long time.
 #GIT_DIFF_NAMES_MULTILINE="$(git diff --name-only 2>/dev/null || echo '<not under git>')"
